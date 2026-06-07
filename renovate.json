@@ -12,6 +12,7 @@
   "minimumReleaseAge": "48 hours",
   "internalChecksFilter": "strict",
   "rangeStrategy": "bump",
+  "ignoreDeps": ["@finplan/shared"],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["* 6-8 * * 1"]
