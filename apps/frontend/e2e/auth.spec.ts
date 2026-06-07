@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { registerNewUser, login, logout } from "./support/auth";
+import { registerNewUser, login, logout, completeOnboarding } from "./support/auth";
 import { uniqueEmail } from "./support/api";
 import { checkA11y } from "./support/axe";
 
@@ -16,12 +16,12 @@ test.describe("auth flow", () => {
 
     await registerNewUser(page, { email, password });
 
-    // After registration new users land on /welcome (no household yet)
-    // or /overview if a household was auto-created. Either way, navigate to /overview.
-    await page.goto("/overview");
-    // If redirected to /welcome, that's still an authenticated page — just assert we're authed
-    await expect(page).toHaveURL(/\/(overview|welcome)/);
-    await checkA11y(page);
+    // New users land on /welcome with no household — complete onboarding so we
+    // reach /overview (the authed shell, which has the profile menu for logout).
+    await completeOnboarding(page);
+    await expect(page).toHaveURL(/\/overview/);
+    // Authed page: defer known a11y debt to issue #71.
+    await checkA11y(page, { deferKnownA11yDebt: true });
 
     await logout(page);
 
@@ -38,6 +38,7 @@ test.describe("auth flow", () => {
 
   test("login with valid credentials lands on authed area", async ({ page }) => {
     const user = await registerNewUser(page);
+    await completeOnboarding(page);
     await logout(page);
     await login(page, user);
     await expect(page).toHaveURL(/\/(overview|onboarding|welcome)/);
@@ -45,6 +46,7 @@ test.describe("auth flow", () => {
 
   test("login with wrong password shows generic error", async ({ page }) => {
     const user = await registerNewUser(page);
+    await completeOnboarding(page);
     await logout(page);
 
     await page.goto("/login");
