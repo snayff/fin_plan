@@ -19,8 +19,30 @@ every package (`apps/backend`, `apps/frontend`, `packages/shared`).
 | Package         | functions       | lines               |
 | --------------- | --------------- | ------------------- |
 | packages/shared | 100 (pinned 90) | 99.4 (pinned 90) ✅ |
-| apps/backend    | 82.1            | 72.8                |
-| apps/frontend   | 54.7            | 74.2                |
+| apps/backend    | 82.1            | 76.9                |
+| apps/frontend   | 64.8            | 76.5                |
+
+### Progress log (issue #65)
+
+- **Backend lines 72.8 → 76.9.** Added service tests: `waterfall.service.crud`
+  (yearly/discretionary/savings CRUD, history, batch-confirm, deleteAll branches),
+  `cashflow.service.shortfall-anchor` (past/future anchor-replay),
+  `gifts.service.reads` (config reads, virtual-member getPersonDetail, rollover),
+  `assets.service.mutations` (update/delete/record/confirm for assets+accounts),
+  `import.service.extra` (duplicate-member validation, restoreFromBackup guards).
+- **Frontend functions 54.7 → 64.8, lines 74.2 → 76.5.** Added `service-endpoints`
+  (thin apiClient wrappers across every service) and full hook coverage for
+  `useWaterfall`, `useAssets`, `useGifts`, `useSettings`, plus `formatAmount`.
+
+### Still to climb
+
+- **Backend functions 82.1 → 90** (lines also need +13). Remaining line gaps:
+  `household.service`, `subcategory.service`, `member.service`, routes, middleware,
+  and the `import.service.importHousehold` transaction body (hard — needs a deep
+  prismaMock graph or a DB-backed integration test).
+- **Frontend → 90.** Biggest remaining: component long tail (gifts `QuickAddPanel`,
+  assets `AssetAccountRow`/`*ItemArea`/`*Form`, tier `ItemForm`, settings panels)
+  via `@testing-library/react` render tests, plus `lib/api.ts` (fetch wrapper).
 
 ## The per-batch loop
 
