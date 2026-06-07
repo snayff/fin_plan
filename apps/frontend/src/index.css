@@ -40,7 +40,7 @@
     --primary-subtle: 263 40% 15%; /* subtle violet background */
 
     /* Page Accent — soft violet for non-tier pages */
-    --page-accent: 258 90% 66%; /* #8b5cf6 — breadcrumbs, section headers, nav indicators */
+    --page-accent: 258 90% 70%; /* #a17ef9 — breadcrumbs, section headers, nav indicators. L raised 66→70 for WCAG AA (5.04:1 on --card); see wcag-contrast-audit-2026-04-21.md F5 */
 
     /* Secondary Actions (Muted) */
     --secondary: 225 32% 16%;
@@ -51,7 +51,7 @@
     --muted-foreground: 230 100% 97% / 0.55;
 
     /* Accent (kept for shadcn compat — maps to page-accent) */
-    --accent: 258 90% 66%;
+    --accent: 258 90% 70%;
     --accent-foreground: 230 100% 97% / 0.92;
 
     /* Status — non-judgemental */

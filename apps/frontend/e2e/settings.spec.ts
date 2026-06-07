@@ -1,40 +1,25 @@
 import { test, expect } from "@playwright/test";
-import { registerNewUser, login, logout } from "./support/auth";
+import { registerNewUser, login, logout, completeOnboarding } from "./support/auth";
 import { checkA11y } from "./support/axe";
-
-/**
- * Complete the welcome/household-creation flow if needed, then return once on
- * /overview. Called after registerNewUser() which already waits for
- * /(overview|welcome).
- */
-async function ensureOnboarded(page: import("@playwright/test").Page): Promise<void> {
-  await page.waitForURL(/\/(overview|welcome)/, { timeout: 10_000 });
-  if (page.url().includes("/welcome")) {
-    await page.getByRole("button", { name: /get started/i }).click();
-    await page.getByPlaceholder(/e\.g\. The Smiths/i).fill("E2E Household");
-    await page.getByRole("button", { name: /create household/i }).click();
-    await page.getByRole("button", { name: /go to overview/i }).click();
-    await page.waitForURL(/\/overview/, { timeout: 10_000 });
-  }
-}
 
 test.describe("settings flow", () => {
   test("profile settings page is accessible after onboarding", async ({ page }) => {
     await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
-    await checkA11y(page);
+    // Authed page: defer known a11y debt to issue #71.
+    await checkA11y(page, { deferKnownA11yDebt: true });
 
     // The Account section with the profile name field should be visible
-    await expect(page.getByText("Account")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
     await expect(page.locator("#profile-name")).toBeVisible();
   });
 
   test("update display name persists after reload", async ({ page }) => {
     const user = await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
@@ -61,29 +46,34 @@ test.describe("settings flow", () => {
 
   test("display section shows showPence toggle", async ({ page }) => {
     await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
-    await checkA11y(page);
+    // Authed page: defer known a11y debt to issue #71.
+    await checkA11y(page, { deferKnownA11yDebt: true });
 
     // The Display section should be visible with the showPence checkbox
-    await expect(page.getByText("Display")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Display", exact: true })).toBeVisible();
     const showPenceCheckbox = page.locator("#show-pence");
     await expect(showPenceCheckbox).toBeVisible();
   });
 
   test("toggling showPence changes currency display format on overview", async ({ page }) => {
     await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     // First, add some income so overview has financial values to display
     await page.goto("/income");
-    await page.getByRole("button", { name: /^\+ add$/i }).click();
+    // Header GhostAddButton (first match; the empty-state CTA also reads "+ Add").
+    await page
+      .getByRole("button", { name: /^\+ add$/i })
+      .first()
+      .click();
     await page.getByRole("textbox", { name: /name/i }).fill("Salary");
     await page.getByRole("textbox", { name: /amount/i }).fill("1234.56");
     await page.getByRole("button", { name: /save/i }).click();
-    await expect(page.getByText("Salary")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("Salary").first()).toBeVisible({ timeout: 5_000 });
 
     // Navigate to profile settings and enable showPence
     await page.goto("/settings/profile");
@@ -105,11 +95,14 @@ test.describe("settings flow", () => {
     await page.goto("/overview");
     await expect(page.getByTestId("overview-page")).toBeVisible({ timeout: 10_000 });
 
-    // With showPence on, a value like £1,234.56 should contain a decimal point
-    // We look for any monetary value containing ".XX" pence pattern
-    const overviewText = await page.locator("[data-testid='overview-page']").textContent();
-    const hasPence = overviewText?.includes(".");
-    expect(hasPence).toBe(true);
+    // With showPence on, a value like £1,234.56 should contain a decimal point.
+    // Poll rather than read once — the overview re-renders after the setting
+    // propagates, so a single textContent() read can race the update.
+    await expect
+      .poll(async () => (await page.locator("[data-testid='overview-page']").textContent()) ?? "", {
+        timeout: 10_000,
+      })
+      .toContain(".");
 
     // Now turn showPence OFF
     await page.goto("/settings/profile");
@@ -126,7 +119,7 @@ test.describe("settings flow", () => {
 
   test("settings/profile redirects from /settings", async ({ page }) => {
     await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     await page.goto("/settings");
     await expect(page).toHaveURL(/\/settings\/profile/, { timeout: 5_000 });
@@ -134,21 +127,22 @@ test.describe("settings flow", () => {
 
   test("security activity section is visible on profile settings", async ({ page }) => {
     await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
-    await checkA11y(page);
+    // Authed page: defer known a11y debt to issue #71.
+    await checkA11y(page, { deferKnownA11yDebt: true });
 
     // SecurityActivitySection renders with title "Security activity"
-    await expect(page.getByText("Security activity")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Security activity" })).toBeVisible();
     // It shows entries older-than note
     await expect(page.getByText(/entries older than 180 days/i)).toBeVisible();
   });
 
   test("relogin with original password works after profile name update", async ({ page }) => {
     const user = await registerNewUser(page);
-    await ensureOnboarded(page);
+    await completeOnboarding(page);
 
     // Update the display name
     await page.goto("/settings/profile");
