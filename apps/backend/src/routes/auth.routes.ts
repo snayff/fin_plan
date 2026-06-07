@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptio
 import { z } from "zod";
 import { authService } from "../services/auth.service";
 import { auditEvent } from "../services/audit.service";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
 import { config } from "../config/env";
 import { blacklistToken } from "../utils/tokenBlacklist";
 import { decodeToken } from "../utils/jwt";
@@ -173,9 +173,15 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   /**
    * GET /api/auth/me
-   * Get current user (protected route)
+   * Get current user (protected route).
+   *
+   * Uses userOnlyAuth (not authMiddleware) because a freshly-registered user has
+   * no household yet — they sit on /welcome to create one. The frontend's session
+   * restore calls /me on every hard navigation/reload and routes on the returned
+   * `activeHouseholdId` (null → /welcome). Requiring an active household here would
+   * 401 those users and break session restore.
    */
-  fastify.get("/me", { preHandler: authMiddleware }, async (request, reply) => {
+  fastify.get("/me", { preHandler: userOnlyAuth }, async (request, reply) => {
     const userId = request.user!.userId;
     const user = await authService.findUserById(userId);
 
@@ -188,9 +194,10 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   /**
    * PATCH /api/auth/me
-   * Update current user profile (name)
+   * Update current user profile (name). User-scoped — no active household required
+   * (see GET /me rationale above).
    */
-  fastify.patch("/me", { preHandler: authMiddleware }, async (request, reply) => {
+  fastify.patch("/me", { preHandler: userOnlyAuth }, async (request, reply) => {
     const userId = request.user!.userId;
     const body = updateProfileSchema.parse(request.body);
     const existingUser = await authService.findUserById(userId);
