@@ -27,15 +27,36 @@ bun scripts/run-tests.ts auth --watch         # files matching "auth"
 
 ## Coverage floor & ratchet
 
-- **Baseline:** `coverage-baseline.json` at the repo root — per-package functions/lines percentages (currently functions: 68.9%, lines: 79.4%).
-- **Floor:** fixed minimum enforced in `scripts/check-coverage.ts` (functions ≥ 63%, lines ≥ 74%).
+CI gates **true whole-codebase coverage** for all three packages (`apps/backend`,
+`apps/frontend`, `packages/shared`), climbing toward a **90/90** target.
+
+- **How it's measured:** each package's isolated runner emits one lcov report per
+  test file under `<package>/coverage/`. `scripts/check-coverage.ts` merges them
+  all (`scripts/coverage-lcov.ts`) into real line/function coverage over the whole
+  codebase. This replaced an earlier per-file **mean** of coverage percentages,
+  which both misreported coverage and could never trend to 90% — every new test
+  file dragged the average down. **Do not reintroduce a per-file mean.**
+- **Baseline:** `coverage-baseline.json` at the repo root — per-package
+  functions/lines percentages, capped at the 90 target once reached.
+- **Floor:** fixed safety net in `scripts/check-coverage.ts` (functions ≥ 50%,
+  lines ≥ 70%). The real upward pressure is the per-package ratchet.
 - **Ratchet:** any drop > 1 pp on any metric for any package fails CI.
 
-**Updating the baseline.** When a refactor legitimately moves code or test coverage rises, update `coverage-baseline.json` in the same PR. Reviewers see the diff explicitly.
-
-**Running locally:**
+**Workflow — raising coverage:**
 
 ```bash
-cd apps/backend && bun scripts/run-tests.ts --coverage
-bun scripts/check-coverage.ts coverage-current.json
+# 1. See the biggest gaps (most uncovered lines first)
+bun run coverage:gaps                 # all packages, or: bun run coverage:gaps apps/backend
+
+# 2. Add meaningful happy/unhappy tests for a chosen file, then re-measure
+bun run coverage:backend              # or coverage:frontend / coverage:shared
+#   backend needs a live Postgres — see the test runner notes / docker-compose.dev.yml
+bun run coverage:check                # merges lcov, prints distance-to-90, gates
+
+# 3. Lock in the gain so it can't regress
+bun run coverage:bump                 # raises coverage-baseline.json to current (≤ 90)
 ```
+
+`coverage:check` writes `coverage-current.json` (git-ignored) for inspection and
+the CI artefact. When a metric reaches 90, the baseline pins at 90 rather than
+letting the required margin creep above the target.

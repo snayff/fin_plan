@@ -9,22 +9,13 @@
  */
 
 import { Glob } from "bun";
-import { writeFileSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { filterTestFiles } from "./test-runner-helpers";
 
-function parseBunCoverageRow(output: string): { functions: number; lines: number } | null {
-  const allFilesLine = output
-    .split("\n")
-    .reverse()
-    .find((l) => /^\s*All files\s*\|/.test(l));
-  if (!allFilesLine) return null;
-  const parts = allFilesLine.split("|").map((p) => p.trim());
-  // Bun coverage table: File | % Funcs | % Lines | Uncovered Line #s
-  const functions = Number(parts[1]);
-  const lines = Number(parts[2]);
-  if (Number.isNaN(functions) || Number.isNaN(lines)) return null;
-  return { functions, lines };
-}
+// Where each isolated test subprocess writes its lcov report under --coverage.
+// The repo-root coverage gate (scripts/check-coverage.ts) merges every
+// coverage/**/lcov.info into true whole-codebase coverage.
+const COVERAGE_DIR = "coverage";
 
 const preload = "./src/test/setup.ts";
 const testDir = "src";
@@ -46,47 +37,37 @@ export async function runFiles(files: string[]): Promise<number> {
 
   console.log(`Running ${files.length} test file(s) with per-file isolation...\n`);
 
+  // Start each coverage run from a clean slate so stale reports from deleted
+  // test files can't inflate the merged total.
+  if (coverage) rmSync(COVERAGE_DIR, { recursive: true, force: true });
+
   let passed = 0;
   let failed = 0;
   const failures: string[] = [];
-  const coverageRows: Array<{ functions: number; lines: number }> = [];
 
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
     const filePath = `${testDir}/${file}`;
-    const usePipe = coverage;
-    const proc = Bun.spawn(
-      ["bun", "test", ...(coverage ? ["--coverage"] : []), "--preload", preload, filePath],
-      {
-        stdout: usePipe ? "pipe" : "inherit",
-        // Pipe stderr too when coverage is on — Bun writes its coverage table to stderr,
-        // so we need to capture it for parsing while still forwarding it to the terminal.
-        stderr: usePipe ? "pipe" : "inherit",
-        env: process.env,
-      }
-    );
-
-    let combined = "";
-    if (usePipe) {
-      // Read both streams concurrently to prevent deadlock if either buffer fills.
-      const [stdoutText, stderrText] = await Promise.all([
-        proc.stdout ? new Response(proc.stdout).text() : Promise.resolve(""),
-        proc.stderr ? new Response(proc.stderr).text() : Promise.resolve(""),
-      ]);
-      process.stdout.write(stdoutText);
-      process.stderr.write(stderrText);
-      combined = stdoutText + "\n" + stderrText;
-    }
+    // Each subprocess writes lcov to its own dir so per-file reports never
+    // overwrite each other; the gate merges them into true coverage.
+    const coverageArgs = coverage
+      ? [
+          "--coverage",
+          "--coverage-reporter=text",
+          "--coverage-reporter=lcov",
+          `--coverage-dir=${COVERAGE_DIR}/${index}`,
+        ]
+      : [];
+    const proc = Bun.spawn(["bun", "test", ...coverageArgs, "--preload", preload, filePath], {
+      stdout: "inherit",
+      stderr: "inherit",
+      env: process.env,
+    });
 
     const exitCode = await proc.exited;
     if (exitCode === 0) passed++;
     else {
       failed++;
       failures.push(filePath);
-    }
-
-    if (usePipe && combined) {
-      const row = parseBunCoverageRow(combined);
-      if (row) coverageRows.push(row);
     }
   }
 
@@ -97,20 +78,10 @@ export async function runFiles(files: string[]): Promise<number> {
     for (const f of failures) console.log(`  - ${f}`);
   }
 
-  if (coverage && coverageRows.length > 0) {
-    const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
-    const meanFunctions = Math.round(avg(coverageRows.map((r) => r.functions)) * 10) / 10;
-    const meanLines = Math.round(avg(coverageRows.map((r) => r.lines)) * 10) / 10;
-    const currentJson = JSON.stringify(
-      { "apps/backend": { functions: meanFunctions, lines: meanLines } },
-      null,
-      2
+  if (coverage) {
+    console.log(
+      `\nwrote per-file lcov under apps/backend/${COVERAGE_DIR}/ — run \`bun scripts/check-coverage.ts\` from the repo root for true coverage.`
     );
-    // Write to repo root (two levels up from apps/backend)
-    writeFileSync("../../coverage-current.json", currentJson);
-    console.log(`\nwrote coverage-current.json (functions ${meanFunctions}%, lines ${meanLines}%)`);
-  } else if (coverage) {
-    console.warn("⚠ could not parse any coverage rows; coverage-current.json not written");
   }
 
   return failed > 0 ? 1 : 0;

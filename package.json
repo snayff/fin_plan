@@ -10,6 +10,12 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "coverage:backend": "cd apps/backend && bun run test:coverage",
+    "coverage:frontend": "cd apps/frontend && bun run test:coverage",
+    "coverage:shared": "cd packages/shared && bun run test:coverage",
+    "coverage:check": "bun scripts/check-coverage.ts",
+    "coverage:gaps": "bun scripts/coverage-gaps.ts",
+    "coverage:bump": "bun scripts/bump-baseline.ts",
     "build": "turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",

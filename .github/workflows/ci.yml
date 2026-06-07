@@ -6,7 +6,6 @@ on:
     branches: [stage]
   push:
     branches: [stage, production]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -104,11 +103,19 @@ jobs:
       - name: Push schema to test database
         run: cd apps/backend && bunx prisma db push
 
-      - name: Run tests with coverage
-        run: cd apps/backend && bun scripts/run-tests.ts --coverage
+      - name: Backend tests with coverage
+        run: cd apps/backend && bun run test:coverage
 
+      - name: Frontend tests with coverage
+        run: cd apps/frontend && bun run test:coverage
+
+      - name: Shared tests with coverage
+        run: cd packages/shared && bun run test:coverage
+
+      # Merges every package's lcov into true whole-codebase coverage and
+      # enforces the per-package floor + ratchet (see coverage-baseline.json).
       - name: Check coverage floor & ratchet
-        run: bun scripts/check-coverage.ts coverage-current.json
+        run: bun scripts/check-coverage.ts
 
       - name: Upload coverage artefact
         if: always()

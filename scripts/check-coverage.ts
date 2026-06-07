@@ -1,6 +1,22 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { coverageFromGlob } from "./coverage-lcov";
 
 export type Metric = "functions" | "lines";
+
+/**
+ * Each package's isolated test runner emits one lcov report per test file under
+ * `<package>/coverage/`. The gate merges them all into true whole-codebase
+ * coverage (see scripts/coverage-lcov.ts) rather than averaging per-file
+ * percentages — the only metric that can actually trend toward the 90/90 target.
+ */
+export const PACKAGE_LCOV_GLOBS: Record<string, string> = {
+  "apps/backend": "apps/backend/coverage/**/lcov.info",
+  "apps/frontend": "apps/frontend/coverage/**/lcov.info",
+  "packages/shared": "packages/shared/coverage/**/lcov.info",
+};
+
+/** The end goal every package ratchets toward. */
+export const TARGET: Floor = { functions: 90, lines: 90 };
 
 export interface PackageCoverage {
   functions: number;
@@ -80,9 +96,50 @@ export function evaluateCoverage(input: EvaluateInput): EvaluateResult {
 
 interface RunOptions {
   baselinePath: string;
-  currentPath: string;
   floor: Floor;
   ratchetTolerancePp: number;
+  /** package -> lcov glob; defaults to PACKAGE_LCOV_GLOBS. */
+  globs?: Record<string, string>;
+  /** optional path to dump the computed current coverage (CI artefact). */
+  writePath?: string;
+}
+
+/**
+ * Build the current coverage map by merging each package's lcov reports.
+ * A package with no lcov output (e.g. a partial local run of one suite) is
+ * omitted rather than reported as 0% so it simply isn't gated this run.
+ */
+export function collectCurrentCoverage(
+  globs: Record<string, string> = PACKAGE_LCOV_GLOBS
+): Record<string, PackageCoverage> {
+  const current: Record<string, PackageCoverage> = {};
+  for (const [pkg, glob] of Object.entries(globs)) {
+    const summary = coverageFromGlob(glob);
+    if (summary.linesFound === 0) continue;
+    current[pkg] = { functions: summary.functions, lines: summary.lines };
+  }
+  return current;
+}
+
+function bar(current: number, target: number): string {
+  const reached = current >= target;
+  const arrow = reached ? "✓" : `→ ${(target - current).toFixed(1)}pp to ${target}`;
+  return `${current.toFixed(1).padStart(5)}%  ${arrow}`;
+}
+
+function report(
+  current: Record<string, PackageCoverage>,
+  baseline: Record<string, PackageCoverage>
+): void {
+  console.log("\nTrue coverage (merged lcov) vs 90/90 target:");
+  for (const [pkg, cur] of Object.entries(current)) {
+    const base = baseline[pkg];
+    const fnDelta = base ? ` (baseline ${base.functions.toFixed(1)}%)` : "";
+    const lnDelta = base ? ` (baseline ${base.lines.toFixed(1)}%)` : "";
+    console.log(`  ${pkg}`);
+    console.log(`    functions ${bar(cur.functions, TARGET.functions)}${fnDelta}`);
+    console.log(`    lines     ${bar(cur.lines, TARGET.lines)}${lnDelta}`);
+  }
 }
 
 export function runCli(opts: RunOptions): number {
@@ -90,19 +147,25 @@ export function runCli(opts: RunOptions): number {
     console.error(`coverage-baseline file not found: ${opts.baselinePath}`);
     return 1;
   }
-  if (!existsSync(opts.currentPath)) {
-    console.error(`current coverage file not found: ${opts.currentPath}`);
-    return 1;
-  }
 
   const baseline = JSON.parse(readFileSync(opts.baselinePath, "utf8")) as Record<
     string,
     PackageCoverage
   >;
-  const current = JSON.parse(readFileSync(opts.currentPath, "utf8")) as Record<
-    string,
-    PackageCoverage
-  >;
+  const current = collectCurrentCoverage(opts.globs);
+
+  if (Object.keys(current).length === 0) {
+    console.error(
+      "no lcov coverage found for any package — run the test suites with --coverage first"
+    );
+    return 1;
+  }
+
+  if (opts.writePath) {
+    writeFileSync(opts.writePath, JSON.stringify(current, null, 2) + "\n");
+  }
+
+  report(current, baseline);
 
   const { ok, violations } = evaluateCoverage({
     current,
@@ -112,11 +175,11 @@ export function runCli(opts: RunOptions): number {
   });
 
   if (ok) {
-    console.log("✅ coverage check passed");
+    console.log("\n✅ coverage check passed");
     return 0;
   }
 
-  console.error("❌ coverage check failed:");
+  console.error("\n❌ coverage check failed:");
   for (const v of violations) {
     if (v.kind === "floor") {
       console.error(`  [${v.pkg}] ${v.metric} ${v.current.toFixed(1)}% below floor ${v.floor}%`);
@@ -131,7 +194,8 @@ export function runCli(opts: RunOptions): number {
     }
   }
   console.error(
-    `\nIf this drop is intentional, update coverage-baseline.json in the same PR and reviewers will see it.`
+    `\nIf this drop is intentional, update coverage-baseline.json in the same PR and reviewers will see it.\n` +
+      `To lock in a gain after adding tests, run: bun scripts/bump-baseline.ts`
   );
   return 1;
 }
@@ -140,9 +204,12 @@ export function runCli(opts: RunOptions): number {
 if (import.meta.main) {
   const exitCode = runCli({
     baselinePath: "coverage-baseline.json",
-    currentPath: process.argv[2] ?? "coverage-current.json",
-    floor: { functions: 63, lines: 74 },
+    // Hard safety net every package must clear. The real upward pressure comes
+    // from the per-package ratchet (coverage-baseline.json): coverage may not
+    // drop more than ratchetTolerancePp below each package's locked-in baseline.
+    floor: { functions: 50, lines: 70 },
     ratchetTolerancePp: 1,
+    writePath: "coverage-current.json",
   });
   process.exit(exitCode);
 }
