@@ -1,11 +1,11 @@
 {
   "apps/backend": {
-    "functions": 82.1,
-    "lines": 78
+    "functions": 82.4,
+    "lines": 79
   },
   "apps/frontend": {
-    "functions": 64.8,
-    "lines": 76.7
+    "functions": 66,
+    "lines": 78.6
   },
   "packages/shared": {
     "functions": 90,
