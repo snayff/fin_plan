@@ -46,6 +46,8 @@ services:
       - ./apps/backend/src:/workspace/apps/backend/src
       - ./apps/backend/prisma:/workspace/apps/backend/prisma
       - ./apps/backend/prisma.config.ts:/workspace/apps/backend/prisma.config.ts:ro
+      # Mount scripts so maintenance commands (e.g. db:reset-e2e) resolve inside the container
+      - ./apps/backend/scripts:/workspace/apps/backend/scripts
       - ./packages/shared/src:/workspace/packages/shared/src
       # Mount package manifests so `bun install` picks up new deps without a full image rebuild
       - ./package.json:/workspace/package.json:ro
