@@ -6,7 +6,6 @@ on:
     branches: [stage]
   push:
     branches: [stage, production]
-  workflow_dispatch:
 
 permissions:
   contents: read
