@@ -1,7 +1,7 @@
 {
   "apps/backend": {
     "functions": 82.1,
-    "lines": 74.2
+    "lines": 76.9
   },
   "apps/frontend": {
     "functions": 54.7,
