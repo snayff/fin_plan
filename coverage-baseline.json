@@ -4,8 +4,8 @@
     "lines": 79
   },
   "apps/frontend": {
-    "functions": 66,
-    "lines": 78.6
+    "functions": 67.8,
+    "lines": 81.2
   },
   "packages/shared": {
     "functions": 90,
