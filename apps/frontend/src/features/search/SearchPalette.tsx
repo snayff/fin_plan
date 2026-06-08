@@ -87,26 +87,29 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-background/60 backdrop-blur-[1px] z-40" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-background/60 backdrop-blur-[1px]" />
+        {/* Mobile: full-viewport overlay (Decision 10). Desktop: top-anchored
+            command-palette card. Both flow input → results so the iOS/Android
+            keyboard expansion doesn't reorder content. */}
         <Dialog.Content
-          className="fixed left-0 right-0 top-0 z-50 mx-auto max-w-3xl"
+          className="fixed left-0 right-0 top-0 z-50 mx-auto h-[100dvh] w-screen max-w-none md:h-auto md:max-w-3xl"
           aria-describedby={undefined}
         >
           <Dialog.Title className="sr-only">Search</Dialog.Title>
           <Command
             label="Universal search"
-            className="bg-background border border-foreground/10 rounded-b-md shadow-lg overflow-hidden"
+            className="flex h-full flex-col overflow-hidden border border-foreground/10 bg-background shadow-lg md:h-auto md:rounded-b-md"
           >
-            <div className="px-3 py-2 border-b border-foreground/5">
+            <div className="border-b border-foreground/5 px-3 py-2">
               <Command.Input
                 value={query}
                 onValueChange={setQuery}
                 placeholder="Search..."
-                className="w-full bg-transparent outline-none text-sm text-foreground"
+                className="w-full bg-transparent text-base text-foreground outline-none md:text-sm"
                 autoFocus
               />
             </div>
-            <Command.List className="max-h-[60vh] overflow-y-auto min-h-0">
+            <Command.List className="min-h-0 flex-1 overflow-y-auto md:max-h-[60vh]">
               {isEmptyQuery ? (
                 recents.length === 0 ? (
                   <div
@@ -154,6 +157,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                         title={h.title}
                         subtitle={h.subtitle}
                         onSelect={() => selectHelp(h)}
+                        desktopOnly
                       />
                     ))}
                   </SearchResultGroup>
@@ -165,6 +169,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                         title={a.label}
                         subtitle={a.kind === "create" ? "Action · Create" : "Action · Navigate"}
                         onSelect={() => selectAction(a)}
+                        desktopOnly={a.desktopOnly}
                       />
                     ))}
                   </SearchResultGroup>

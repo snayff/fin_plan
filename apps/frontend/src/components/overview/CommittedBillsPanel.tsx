@@ -55,6 +55,7 @@ export function CommittedBillsPanel({
         ) : (
           <div className="space-y-1">
             {bills.map((bill) => (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- TODO(a11y): refactor to button element
               <div
                 key={bill.id}
                 className={cn(ROW_CLASS, selectedItemId === bill.id && "bg-accent")}

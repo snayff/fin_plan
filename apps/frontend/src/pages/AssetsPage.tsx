@@ -1,24 +1,33 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { TwoPanelLayout } from "../components/layout/TwoPanelLayout.js";
 import { AssetsLeftPanel } from "../components/assets/AssetsLeftPanel.js";
 import { AssetItemArea } from "../components/assets/AssetItemArea.js";
 import { AccountItemArea } from "../components/assets/AccountItemArea.js";
 import { useAssetsSummary } from "../hooks/useAssets.js";
+import { useUrlSelection } from "@/hooks/useUrlSelection";
 import type { AssetType, AccountType } from "@finplan/shared";
 import { useFocusParam } from "@/features/search/useFocusParam";
 import { useAddParam } from "@/features/search/useAddParam";
 
 type SelectedType = AssetType | AccountType;
 const ASSET_TYPES: AssetType[] = ["Property", "Vehicle", "Other"];
+const ACCOUNT_TYPES: AccountType[] = ["Current", "Savings", "Pension", "StocksAndShares", "Other"];
+// "Other" appears in both unions — dedupe for the validator.
+const ALL_TYPES = Array.from(new Set<string>([...ASSET_TYPES, ...ACCOUNT_TYPES]));
 
 export default function AssetsPage() {
-  const [selected, setSelected] = useState<SelectedType>("Property");
   const { data: summary } = useAssetsSummary();
   const [searchParams] = useSearchParams();
   const addKind = searchParams.get("add");
 
-  // If ?add=account, switch to the account view
+  // URL is the single source of truth for selected type.
+  // Validator accepts only known asset/account enum members; invalid values clear.
+  const validateType = useCallback((v: string) => ALL_TYPES.includes(v), []);
+  const [urlSelected, setSelected] = useUrlSelection({ param: "type", validate: validateType });
+  const selected: SelectedType = (urlSelected as SelectedType) ?? "Property";
+
+  // If ?add=account, switch to the account view on first mount.
   useEffect(() => {
     if (addKind === "account" && ASSET_TYPES.includes(selected as AssetType)) {
       setSelected("Current");
@@ -41,7 +50,10 @@ export default function AssetsPage() {
 
   return (
     <TwoPanelLayout
-      left={<AssetsLeftPanel summary={summary} selected={selected} onSelect={setSelected} />}
+      selectedKey={urlSelected}
+      left={
+        <AssetsLeftPanel summary={summary} selected={selected} onSelect={(t) => setSelected(t)} />
+      }
       right={
         isAssetType ? (
           <AssetItemArea

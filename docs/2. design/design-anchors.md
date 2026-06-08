@@ -27,7 +27,7 @@
 
 5. **UK locale only.** Currency is GBP. The tax year runs April to April. All context, terminology, and defaults are UK-specific. No multi-currency support; no i18n.
 
-6. **Desktop-first.** Desktop is the primary environment for setup, review, and analysis. The mobile experience is deferred — see the backlog specs.
+6. **Desktop-first; mobile is a scoped viewer.** Desktop is the primary environment for setup, review, and analysis. Mobile provides view + targeted edit on a deliberately limited scope (waterfall pages, Assets, Forecast, Profile Settings, Auth); other pages soft-block on mobile, including Household Settings. Setup, bulk entry, snapshot review, reorder, and multi-select remain desktop-only. See `docs/4. planning/mobile-accessibility/plan.md` for scope details.
 
 7. **Dark theme only.** No light mode. No theme switching. If this changes in future, only the token layer needs updating — not component code.
 

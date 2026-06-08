@@ -7,7 +7,13 @@
  */
 
 import { Glob } from "bun";
+import { rmSync } from "node:fs";
 import { resolve } from "node:path";
+
+// Where each isolated test subprocess writes its lcov report under --coverage.
+// The repo-root coverage gate (scripts/check-coverage.ts) merges every
+// coverage/**/lcov.info into true whole-codebase coverage.
+const COVERAGE_DIR = "coverage";
 
 const preload = "./src/test/setup.ts";
 const testDir = "src";
@@ -28,23 +34,34 @@ if (filesToRun.length === 0) {
 
 console.log(`Running ${filesToRun.length} test file(s) with per-file isolation...\n`);
 
+// Start each coverage run from a clean slate so stale reports from deleted
+// test files can't inflate the merged total.
+if (coverage) rmSync(COVERAGE_DIR, { recursive: true, force: true });
+
 let passed = 0;
 let failed = 0;
 const failures: string[] = [];
 
-for (const file of filesToRun) {
+for (const [index, file] of filesToRun.entries()) {
   // Use an absolute path so bun treats it as an exact file, not a glob pattern.
   // Without this, `bun test src/hooks/foo.test.ts` also picks up `foo.test.tsx`
   // in the same process, causing mock.module() leaks between files.
   const filePath = resolve(testDir, file);
-  const proc = Bun.spawn(
-    ["bun", "test", ...(coverage ? ["--coverage"] : []), "--preload", preload, filePath],
-    {
-      stdout: "inherit",
-      stderr: "inherit",
-      env: process.env,
-    }
-  );
+  // Each subprocess writes lcov to its own dir so per-file reports never
+  // overwrite each other; the gate merges them into true coverage.
+  const coverageArgs = coverage
+    ? [
+        "--coverage",
+        "--coverage-reporter=text",
+        "--coverage-reporter=lcov",
+        `--coverage-dir=${COVERAGE_DIR}/${index}`,
+      ]
+    : [];
+  const proc = Bun.spawn(["bun", "test", ...coverageArgs, "--preload", preload, filePath], {
+    stdout: "inherit",
+    stderr: "inherit",
+    env: process.env,
+  });
 
   const exitCode = await proc.exited;
 

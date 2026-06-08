@@ -13,9 +13,9 @@ function makeWrapper() {
 }
 
 describe("useIsaAllowance", () => {
-  it("fetches ISA allowance summary from /api/accounts/isa-allowance", async () => {
+  it("fetches ISA allowance summary from /api/assets/accounts/isa-allowance", async () => {
     server.use(
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           taxYearStart: "2026-04-06",
           taxYearEnd: "2027-04-05",

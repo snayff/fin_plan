@@ -4,6 +4,8 @@ GlobalRegistrator.register();
 import { afterAll, afterEach, beforeAll, expect } from "bun:test";
 import * as matchers from "@testing-library/jest-dom/matchers";
 expect.extend(matchers);
+import { toHaveNoViolations } from "jest-axe";
+expect.extend(toHaveNoViolations);
 import pkg from "../../../../package.json";
 import { server } from "./msw/server";
 

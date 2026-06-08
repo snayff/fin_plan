@@ -2,6 +2,22 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import jsxA11y from "eslint-plugin-jsx-a11y";
+
+// jsx-a11y rules land as `warn` (see mobile-accessibility plan Phase 1).
+// Escalate individual rules to `error` as their violations are resolved.
+//
+// `label-has-for` is deprecated (HTML4-era rule, superseded by
+// `label-has-associated-control` which is more accurate for modern React).
+// Turning it off entirely so it doesn't double-count violations.
+const jsxA11yWarnRules = Object.fromEntries(
+  Object.keys(jsxA11y.configs.recommended.rules).map((rule) => [rule, "warn"])
+);
+jsxA11yWarnRules["jsx-a11y/label-has-for"] = "off";
+// All autoFocus usages in this codebase are inside modals/dialogs/popovers
+// where focus-on-open is the correct a11y behaviour per WCAG focus management.
+// The rule is otherwise overly conservative for our context.
+jsxA11yWarnRules["jsx-a11y/no-autofocus"] = "off";
 
 /**
  * Design-system drift prevention.
@@ -82,9 +98,11 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
+      "jsx-a11y": jsxA11y,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      ...jsxA11yWarnRules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [

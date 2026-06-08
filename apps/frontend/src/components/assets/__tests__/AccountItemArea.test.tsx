@@ -9,7 +9,7 @@ describe("AccountItemArea — Savings ISA indicator", () => {
   it("mounts the IsaAllowanceIndicator below the account list for Savings", async () => {
     server.use(
       http.get("/api/assets/accounts/Savings", () => HttpResponse.json([])),
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           taxYearStart: "2026-04-06",
           taxYearEnd: "2027-04-05",
@@ -36,7 +36,7 @@ describe("AccountItemArea — Savings ISA indicator", () => {
   it("does not mount the indicator for non-Savings types", async () => {
     server.use(
       http.get("/api/assets/accounts/Current", () => HttpResponse.json([])),
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           taxYearStart: "2026-04-06",
           taxYearEnd: "2027-04-05",
@@ -93,7 +93,7 @@ describe("AccountItemArea — Savings ISA indicator", () => {
     ];
     server.use(
       http.get("/api/assets/accounts/Savings", () => HttpResponse.json(accounts)),
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           taxYearStart: "2026-04-06",
           taxYearEnd: "2027-04-05",
@@ -150,7 +150,7 @@ describe("AccountItemArea — Savings ISA indicator", () => {
     ];
     server.use(
       http.get("/api/assets/accounts/Savings", () => HttpResponse.json(accounts)),
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           taxYearStart: "2026-04-06",
           taxYearEnd: "2027-04-05",

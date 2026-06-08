@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import SubcategoryList from "./SubcategoryList";
 import ItemArea, { type LockedManager } from "./ItemArea";
@@ -10,6 +10,7 @@ import { useSubcategories, useTierItems, type TierItemRow } from "@/hooks/useWat
 import { useHouseholdMembers, useSettings } from "@/hooks/useSettings";
 import { useGiftPlannerSettings } from "@/hooks/useGifts";
 import { useTierShortfall } from "@/hooks/useShortfall";
+import { useUrlSelection } from "@/hooks/useUrlSelection";
 import { TIER_CONFIGS, type TierKey } from "./tierConfig";
 import { useFocusParam } from "@/features/search/useFocusParam";
 import { useAddParam } from "@/features/search/useAddParam";
@@ -71,16 +72,20 @@ export default function TierPage({ tier }: TierPageProps) {
 
   const tierTotal = Object.values(subcategoryTotals).reduce((sum, s) => sum + s.total, 0);
 
-  // Select subcategory: URL param → first in list
-  const paramId = searchParams.get("subcategory");
-  const defaultId = subcategories?.[0]?.id ?? null;
-  const [selectedId, setSelectedId] = useState<string | null>(paramId ?? defaultId);
-
-  // Sync selected to default once subcategories load
-  const resolvedSelectedId =
-    selectedId && subcategories?.some((s) => s.id === selectedId)
-      ? selectedId
-      : (subcategories?.[0]?.id ?? null);
+  // URL is the single source of truth for selection.
+  // Validator runs against loaded subcategories; invalid ids silently clear.
+  // Defaults to the first subcategory when nothing is selected (desktop) but
+  // stays `null` on mobile to render the left panel (list view) on load.
+  const validateSubcategory = useCallback(
+    (v: string) => !!subcategories?.some((s) => s.id === v),
+    [subcategories]
+  );
+  const [urlSelectedId, setSelectedId, clearSelection] = useUrlSelection({
+    param: "subcategory",
+    validate: validateSubcategory,
+  });
+  const fallbackId = subcategories?.[0]?.id ?? null;
+  const resolvedSelectedId = urlSelectedId ?? fallbackId;
 
   const selectedSubcategory = subcategories?.find((s) => s.id === resolvedSelectedId) ?? null;
   const selectedSummary = resolvedSelectedId
@@ -104,8 +109,9 @@ export default function TierPage({ tier }: TierPageProps) {
   return (
     <div data-page={tier} data-testid={`tier-page-${tier}`} className="h-full">
       <TwoPanelLayout
+        selectedKey={urlSelectedId}
         left={
-          <div className="flex flex-col h-full">
+          <div className="flex h-full flex-col">
             <PageHeader
               title={config.label}
               colorClass={config.textClass}
@@ -160,6 +166,7 @@ export default function TierPage({ tier }: TierPageProps) {
             initialIsAdding={hasAddParam}
             onSubcategorySelect={setSelectedId}
             lockedManager={lockedManager}
+            onBack={clearSelection}
           />
         }
       />

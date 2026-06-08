@@ -4,6 +4,12 @@ export type PaletteAction = {
   kind: "nav" | "create";
   route: string;
   addParam?: string;
+  /**
+   * `true` when the route is soft-blocked on mobile. The palette renders a
+   * "(desktop only)" badge alongside such entries; tapping still navigates,
+   * which lands on the MobileUnsupportedNotice. Decision 1 + Item 2 amendment.
+   */
+  desktopOnly?: boolean;
 };
 
 export const NAV_ACTIONS: PaletteAction[] = [
@@ -14,9 +20,9 @@ export const NAV_ACTIONS: PaletteAction[] = [
   { id: "nav.surplus", label: "Go to Surplus", kind: "nav", route: "/surplus" },
   { id: "nav.forecast", label: "Go to Forecast", kind: "nav", route: "/forecast" },
   { id: "nav.assets", label: "Go to Assets", kind: "nav", route: "/assets" },
-  { id: "nav.goals", label: "Go to Goals", kind: "nav", route: "/goals" },
-  { id: "nav.gifts", label: "Go to Gifts", kind: "nav", route: "/gifts" },
-  { id: "nav.help", label: "Go to Help", kind: "nav", route: "/help" },
+  { id: "nav.goals", label: "Go to Goals", kind: "nav", route: "/goals", desktopOnly: true },
+  { id: "nav.gifts", label: "Go to Gifts", kind: "nav", route: "/gifts", desktopOnly: true },
+  { id: "nav.help", label: "Go to Help", kind: "nav", route: "/help", desktopOnly: true },
   {
     id: "nav.settings.profile",
     label: "Go to Profile Settings",
@@ -28,6 +34,7 @@ export const NAV_ACTIONS: PaletteAction[] = [
     label: "Go to Household Settings",
     kind: "nav",
     route: "/settings/household",
+    desktopOnly: true,
   },
 ];
 

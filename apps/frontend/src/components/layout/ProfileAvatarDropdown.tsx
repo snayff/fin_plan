@@ -18,7 +18,7 @@ export const ProfileAvatarDropdown = forwardRef<HTMLDivElement, ProfileAvatarDro
         role="menu"
         aria-label="Profile options"
         className="absolute right-0 top-[calc(100%+6px)] min-w-[220px] max-w-[300px] bg-popover border rounded-md p-1.5 z-30 shadow-lg"
-        style={{ maxHeight: "min(420px, calc(100vh - 70px))", overflowY: "auto" }}
+        style={{ maxHeight: "min(420px, calc(100dvh - 70px))", overflowY: "auto" }}
       >
         <div className="px-2.5 pt-1 pb-1">
           <div className="text-sm font-semibold text-foreground truncate">{userName}</div>

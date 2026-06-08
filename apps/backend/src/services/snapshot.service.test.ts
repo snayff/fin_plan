@@ -11,6 +11,12 @@ mock.module("./waterfall.service.js", () => ({
   },
 }));
 
+mock.module("./assets.service.js", () => ({
+  assetsService: {
+    getSummary: async () => ({ assetTotals: {}, accountTotals: {}, grandTotal: 0 }),
+  },
+}));
+
 const { snapshotService } = await import("./snapshot.service.js");
 
 const testCtx = {

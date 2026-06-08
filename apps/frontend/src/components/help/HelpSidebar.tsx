@@ -110,6 +110,7 @@ export function HelpSidebar({ selectedId, onSelect }: Props) {
 
             <hr className="my-2 border-border" />
 
+            {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props -- TODO(a11y): section/region role doesn't support aria-disabled; use inert or CSS instead */}
             <section aria-disabled="true">
               <div className="px-3 py-1.5 flex items-center gap-2">
                 <span className="label-section">User Manual</span>

@@ -157,6 +157,57 @@ describe("Auth Journey", () => {
     expect(meAfterLogoutRes.statusCode).toBe(401);
   });
 
+  // A freshly-registered user has no household yet (they create one via the
+  // WelcomePage). The frontend's session restore calls /me on every hard reload
+  // and routes on `activeHouseholdId` (null → /welcome). /me must therefore
+  // succeed without an active household — requiring one here would 401 the user
+  // and log them out on reload. Regression guard for the GET/PATCH /me →
+  // userOnlyAuth fix.
+  it("GET /api/auth/me succeeds for a household-less user (activeHouseholdId null)", async () => {
+    const csrf = await getCsrfToken();
+
+    const registerRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
+      payload: TEST_USER,
+    });
+    expect(registerRes.statusCode).toBe(201);
+    const accessToken = JSON.parse(registerRes.body).accessToken as string;
+
+    // No household created — call /me directly.
+    const meRes = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(meRes.statusCode).toBe(200);
+    const meBody = JSON.parse(meRes.body);
+    expect(meBody.user.email).toBe(TEST_USER.email);
+    expect(meBody.user.activeHouseholdId).toBeNull();
+
+    // PATCH /me (profile update) must likewise work without a household.
+    const csrfPatch = await getCsrfToken();
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: "/api/auth/me",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken}`,
+        "x-csrf-token": csrfPatch.token,
+        cookie: csrfPatch.cookie,
+      },
+      payload: { name: "Renamed No-Household" },
+    });
+    expect(patchRes.statusCode).toBe(200);
+    expect(JSON.parse(patchRes.body).user.name).toBe("Renamed No-Household");
+  });
+
   // ─── 2. Token Refresh ────────────────────────────────────────────────────
 
   it("refresh token returns a new access token that works", async () => {
@@ -357,17 +408,10 @@ describe("Auth Journey", () => {
     const registerBody = JSON.parse(registerRes.body);
     const userId = registerBody.user.id as string;
 
-    // auditService.log is intentionally fire-and-forget (see audit.service.ts),
-    // so the REGISTER row may land a few ms after the response. Poll briefly.
-    let registerLog: Awaited<ReturnType<typeof prisma.auditLog.findFirst>> = null;
-    const deadline = Date.now() + 2000;
-    while (Date.now() < deadline) {
-      registerLog = await prisma.auditLog.findFirst({
-        where: { userId, action: "REGISTER" },
-      });
-      if (registerLog) break;
-      await new Promise((r) => setTimeout(r, 25));
-    }
+    // auditEvent is awaited inside the route handler — row is durable on response return.
+    const registerLog = await prisma.auditLog.findFirst({
+      where: { userId, action: "REGISTER" },
+    });
 
     expect(registerLog).not.toBeNull();
     expect(registerLog!.resource).toBe("user");

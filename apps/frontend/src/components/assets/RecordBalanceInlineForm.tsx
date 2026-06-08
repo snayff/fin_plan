@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; inputs already have aria-label */
 import { useState } from "react";
 
 interface Props {
@@ -53,6 +54,7 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
           </label>
           <input
             type="number"
+            inputMode="decimal"
             step="0.01"
             min="0.01"
             placeholder="0.00"

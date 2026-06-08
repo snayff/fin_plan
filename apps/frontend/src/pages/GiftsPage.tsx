@@ -8,8 +8,16 @@ import { ConfigModePanel } from "@/components/gifts/ConfigModePanel";
 import { YearRolloverBanner } from "@/components/gifts/YearRolloverBanner";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useGiftsState } from "@/hooks/useGifts";
+import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 export default function GiftsPage() {
+  const isMobile = useIsMobile();
+  if (isMobile) return <MobileUnsupportedNotice pageName="Gifts" />;
+  return <GiftsPageBody />;
+}
+
+function GiftsPageBody() {
   const year = new Date().getFullYear();
   const [mode, setMode] = useState<GiftsMode>("gifts");
   const [configDirty, setConfigDirty] = useState(false);

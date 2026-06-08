@@ -61,11 +61,15 @@ export function IncomeTypePanel({
             {sources.map((src) => {
               const displayAmount = toMonthlyAmount(src.amount, src.frequency);
               const amortisationMarker =
-                src.frequency === "annual" ? "÷12" :
-                src.frequency === "quarterly" ? "÷3" :
-                src.frequency === "weekly" ? "/wk" :
-                null;
+                src.frequency === "annual"
+                  ? "÷12"
+                  : src.frequency === "quarterly"
+                    ? "÷3"
+                    : src.frequency === "weekly"
+                      ? "/wk"
+                      : null;
               return (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- TODO(a11y): refactor to button element
                 <div
                   key={src.id}
                   className={cn(ROW_CLASS, selectedItemId === src.id && "bg-accent")}
@@ -86,15 +90,18 @@ export function IncomeTypePanel({
                       thresholdMonths={threshold}
                     />
                     <div className="flex items-center gap-1 font-numeric text-foreground/60">
-                      {amortisationMarker && (
-                        src.frequency === "weekly" ? (
-                          <span className="text-xs text-muted-foreground">{amortisationMarker}</span>
+                      {amortisationMarker &&
+                        (src.frequency === "weekly" ? (
+                          <span className="text-xs text-muted-foreground">
+                            {amortisationMarker}
+                          </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            <GlossaryTermMarker entryId="amortised">{amortisationMarker}</GlossaryTermMarker>
+                            <GlossaryTermMarker entryId="amortised">
+                              {amortisationMarker}
+                            </GlossaryTermMarker>
                           </span>
-                        )
-                      )}
+                        ))}
                       <span>{formatCurrency(displayAmount, showPence)}</span>
                     </div>
                   </div>

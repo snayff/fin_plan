@@ -108,9 +108,10 @@ export function HouseholdSwitcher() {
         <div
           ref={menuRef}
           role="menu"
+          tabIndex={-1}
           aria-label="Household options"
           className="absolute right-0 top-[calc(100%+6px)] min-w-[240px] max-w-[300px] bg-popover border rounded-md p-1.5 z-30 shadow-lg"
-          style={{ maxHeight: "min(420px, calc(100vh - 70px))", overflowY: "auto" }}
+          style={{ maxHeight: "min(420px, calc(100dvh - 70px))", overflowY: "auto" }}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
@@ -142,7 +143,9 @@ export function HouseholdSwitcher() {
               }}
             >
               <span className="truncate">{household.name}</span>
-              {household.id === activeId && <Check className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />}
+              {household.id === activeId && (
+                <Check className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+              )}
             </button>
           ))}
           <div className="h-px bg-foreground/10 my-1.5" />

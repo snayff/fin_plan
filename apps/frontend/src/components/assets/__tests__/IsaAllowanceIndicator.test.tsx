@@ -15,7 +15,7 @@ const empty = {
 
 describe("IsaAllowanceIndicator", () => {
   it("renders nothing when byMember is empty", async () => {
-    server.use(http.get("/api/accounts/isa-allowance", () => HttpResponse.json(empty)));
+    server.use(http.get("/api/assets/accounts/isa-allowance", () => HttpResponse.json(empty)));
     const { container } = renderWithProviders(<IsaAllowanceIndicator />);
     // Wait for query to settle, then check
     await new Promise((r) => setTimeout(r, 100));
@@ -24,7 +24,7 @@ describe("IsaAllowanceIndicator", () => {
 
   it("renders one bar per member and shows the deadline line", async () => {
     server.use(
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           ...empty,
           byMember: [
@@ -58,7 +58,7 @@ describe("IsaAllowanceIndicator", () => {
 
   it("renders a single nudge when most-over member exists", async () => {
     server.use(
-      http.get("/api/accounts/isa-allowance", () =>
+      http.get("/api/assets/accounts/isa-allowance", () =>
         HttpResponse.json({
           ...empty,
           byMember: [

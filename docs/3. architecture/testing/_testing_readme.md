@@ -12,6 +12,7 @@ FinPlan uses a layered testing strategy across backend, frontend, and full-stack
 | Backend HTTP endpoint        | D     | [backend-testing.md](backend-testing.md)           |
 | Frontend component / page    | E     | [frontend-testing.md](frontend-testing.md)         |
 | Full user journey in browser | F     | [user-journey-testing.md](user-journey-testing.md) |
+| E2E run/debug/triage         | —     | [e2e-testing.md](e2e-testing.md)                   |
 
 ## Run Commands
 

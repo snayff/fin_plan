@@ -8,6 +8,8 @@ import { ConceptDetailView } from "@/components/help/ConceptDetailView";
 import { GlossaryPopoverProvider } from "@/components/help/GlossaryPopoverContext";
 import { GLOSSARY_ENTRIES, getGlossaryEntry } from "@/data/glossary";
 import { getConceptEntry } from "@/data/concepts";
+import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const DEFAULT_ENTRY_ID = GLOSSARY_ENTRIES[0]!.id; // "amortised" (first alphabetically)
 
@@ -16,6 +18,13 @@ function isValidEntryId(id: string): boolean {
 }
 
 export default function HelpPage() {
+  const isMobile = useIsMobile();
+  if (isMobile) return <MobileUnsupportedNotice pageName="Help" />;
+
+  return <HelpPageBody />;
+}
+
+function HelpPageBody() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawEntry = searchParams.get("entry") ?? "";
   const selectedId = isValidEntryId(rawEntry) ? rawEntry : DEFAULT_ENTRY_ID;

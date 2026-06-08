@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Lock } from "lucide-react";
+import { ChevronLeft, Lock } from "lucide-react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import GhostAddButton from "./GhostAddButton";
 import ItemAreaRow from "./ItemAreaRow";
 import ItemForm from "./ItemForm";
@@ -51,6 +52,12 @@ interface Props {
   initialIsAdding?: boolean;
   onSubcategorySelect?: (id: string) => void;
   lockedManager?: LockedManager;
+  /**
+   * Mobile-only back affordance. When supplied, a leading 44px chevron renders
+   * in the header on mobile viewports. Use this to clear the URL selection so
+   * the user returns to the subcategory list (left panel push-nav).
+   */
+  onBack?: () => void;
 }
 
 export default function ItemArea({
@@ -66,7 +73,10 @@ export default function ItemArea({
   initialIsAdding,
   onSubcategorySelect,
   lockedManager,
+  onBack,
 }: Props) {
+  const isMobile = useIsMobile();
+  const showBack = isMobile && onBack != null;
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(initialIsAdding ?? false);
@@ -147,6 +157,16 @@ export default function ItemArea({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-foreground/5">
         <div className="flex items-center gap-3">
+          {showBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Back to subcategories"
+              className="-ml-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-foreground/70 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
           <h2 className="font-heading text-base font-bold text-foreground">{subcategory.name}</h2>
           {lockedManager && (
             <Lock className="h-3.5 w-3.5 text-foreground/40" aria-label="Synced subcategory" />
@@ -159,12 +179,16 @@ export default function ItemArea({
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          <Link
-            to={`/waterfall#${tier}`}
-            className="rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-          >
-            View all
-          </Link>
+          {/* "View all" links to FullWaterfall which is soft-blocked on mobile;
+              hide the link to avoid landing the user on a dead end. */}
+          {!isMobile && (
+            <Link
+              to={`/waterfall#${tier}`}
+              className="rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
+            >
+              View all
+            </Link>
+          )}
           {!lockedManager && (
             <GhostAddButton
               onClick={() => {

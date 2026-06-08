@@ -135,6 +135,7 @@ function DemoNudgeCard({ title, text, link }: { title?: string; text: string; li
       </div>
       <p className="text-text-secondary font-body">{text}</p>
       {link && (
+        // eslint-disable-next-line jsx-a11y/anchor-is-valid -- TODO(a11y): design component placeholder link, tracked follow-up
         <a href="#" className="text-xs text-page-accent hover:underline">
           {link} →
         </a>

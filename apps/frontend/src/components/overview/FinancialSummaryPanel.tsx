@@ -11,6 +11,12 @@ import type { WaterfallSummary } from "@finplan/shared";
 interface FinancialSummaryPanelProps {
   waterfallSummary: WaterfallSummary | undefined;
   isSnapshot: boolean;
+  /**
+   * When `true`, the panel renders without its own height/scroll container so
+   * it can be stacked inline inside another scrollable region (used on mobile
+   * Overview where left and right panel content stack into a single scroll).
+   */
+  inline?: boolean;
 }
 
 const containerVariants = {
@@ -48,6 +54,7 @@ function SkeletonCard({ large = false }: { large?: boolean }) {
 export function FinancialSummaryPanel({
   waterfallSummary,
   isSnapshot,
+  inline = false,
 }: FinancialSummaryPanelProps) {
   const shouldReduce = useReducedMotion();
   const { data, isLoading, isError, refetch } = useFinancialSummary();
@@ -107,7 +114,9 @@ export function FinancialSummaryPanel({
   return (
     <motion.div
       data-testid="financial-summary-panel"
-      className="flex flex-col h-full overflow-y-auto py-8 px-6"
+      className={
+        inline ? "flex flex-col gap-6 px-4 py-6" : "flex flex-col h-full overflow-y-auto py-8 px-6"
+      }
       variants={containerVariants}
       initial="hidden"
       animate="visible"

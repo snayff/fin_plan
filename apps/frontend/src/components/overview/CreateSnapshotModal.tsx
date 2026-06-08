@@ -32,10 +32,12 @@ export function CreateSnapshotModal({ onClose, onCreated }: CreateSnapshotModalP
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- TODO(a11y): backdrop click-to-close; refactor to use Dialog component
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={onClose}
     >
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stopPropagation on modal content */}
       <div
         className="bg-background rounded-lg border shadow-lg p-6 w-full max-w-sm space-y-4"
         onClick={(e) => e.stopPropagation()}

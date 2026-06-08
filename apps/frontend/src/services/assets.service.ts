@@ -122,5 +122,5 @@ export const assetsApiService = {
 };
 
 export async function getIsaAllowance(): Promise<IsaAllowanceSummary> {
-  return apiClient.get<IsaAllowanceSummary>("/api/accounts/isa-allowance");
+  return apiClient.get<IsaAllowanceSummary>("/api/assets/accounts/isa-allowance");
 }

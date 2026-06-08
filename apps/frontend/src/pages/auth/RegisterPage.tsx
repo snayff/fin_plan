@@ -57,8 +57,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
+      <div className="w-full max-w-md space-y-6 rounded-lg bg-card p-6 shadow-lg sm:p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-foreground">Create Account</h1>
           <p className="mt-2 text-muted-foreground">Start your financial journey</p>
@@ -146,7 +146,7 @@ export default function RegisterPage() {
             />
           </div>
 
-          <Button type="submit" disabled={isLoading} className="w-full">
+          <Button type="submit" size="lg" disabled={isLoading} className="w-full">
             {isLoading ? "Creating account..." : "Create Account"}
           </Button>
         </form>

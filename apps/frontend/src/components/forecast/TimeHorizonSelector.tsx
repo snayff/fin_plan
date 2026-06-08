@@ -25,7 +25,6 @@ export function TimeHorizonSelector({ value, onChange }: TimeHorizonSelectorProp
         <button
           key={h}
           type="button"
-          role="button"
           aria-pressed={value === h}
           onClick={() => onChange(h)}
           className={cn(

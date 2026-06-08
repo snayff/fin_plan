@@ -147,7 +147,7 @@ export default function AcceptInvitePage() {
 
   if (pageState.status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 text-muted-foreground sm:px-6">
         Validating invite link...
       </div>
     );
@@ -155,8 +155,8 @@ export default function AcceptInvitePage() {
 
   if (pageState.status === "invalid") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-md p-8 text-center bg-card rounded-lg shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
+        <div className="w-full max-w-md rounded-lg bg-card p-6 text-center shadow-lg sm:p-8">
           <h1 className="text-2xl font-bold text-foreground mb-3">Invite Link Invalid</h1>
           <p className="text-muted-foreground">{pageState.message}</p>
         </div>
@@ -166,8 +166,8 @@ export default function AcceptInvitePage() {
 
   if (pageState.status === "joining") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-md p-8 text-center bg-card rounded-lg shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
+        <div className="w-full max-w-md rounded-lg bg-card p-6 text-center shadow-lg sm:p-8">
           <h1 className="text-2xl font-bold text-foreground mb-3">
             Joining {pageState.householdName}…
           </h1>
@@ -179,8 +179,8 @@ export default function AcceptInvitePage() {
 
   if (pageState.status === "success") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-md p-8 text-center bg-card rounded-lg shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
+        <div className="w-full max-w-md rounded-lg bg-card p-6 text-center shadow-lg sm:p-8">
           <h1 className="text-2xl font-bold text-foreground mb-3">You're in!</h1>
           <p className="text-muted-foreground">
             You've joined <strong>{pageState.householdName}</strong>. Redirecting...
@@ -195,8 +195,8 @@ export default function AcceptInvitePage() {
   // Logged-in user: show join confirmation
   if (isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
+        <div className="w-full max-w-md space-y-6 rounded-lg bg-card p-6 shadow-lg sm:p-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-foreground">You're Invited</h1>
             <p className="mt-2 text-muted-foreground">
@@ -234,8 +234,8 @@ export default function AcceptInvitePage() {
 
   // Not logged in — show mode toggle + form
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-lg shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
+      <div className="w-full max-w-md space-y-6 rounded-lg bg-card p-6 shadow-lg sm:p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-foreground">You're Invited</h1>
           <p className="mt-2 text-muted-foreground">
@@ -357,7 +357,7 @@ export default function AcceptInvitePage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="h-12 w-full rounded-md bg-primary px-4 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
             >
               {isSubmitting ? "Creating account..." : "Create Account & Join"}
             </button>
@@ -398,7 +398,7 @@ export default function AcceptInvitePage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="h-12 w-full rounded-md bg-primary px-4 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10"
             >
               {isSubmitting ? "Signing in..." : "Sign In"}
             </button>

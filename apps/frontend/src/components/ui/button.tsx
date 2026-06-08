@@ -17,11 +17,15 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Mobile sizes hit 44px (iOS HIG / Material Design / WCAG AAA target);
+      // shrink at sm: (640px+) to preserve desktop density. See
+      // docs/4. planning/mobile-accessibility/plan.md § Decision 8.
+      // `sm` deliberately stays smaller — don't use it for primary mobile actions.
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        default: "h-11 sm:h-9 px-4 py-2",
+        sm: "h-9 sm:h-8 rounded-md px-3 text-xs",
+        lg: "h-12 sm:h-10 rounded-md px-8",
+        icon: "h-11 w-11 sm:h-9 sm:w-9",
       },
     },
     defaultVariants: {

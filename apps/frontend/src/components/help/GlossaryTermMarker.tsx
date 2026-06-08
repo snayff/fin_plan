@@ -5,6 +5,7 @@ import { useGlossaryPopover } from "./GlossaryPopoverContext";
 import { getGlossaryEntry } from "@/data/glossary";
 import { getConceptEntry } from "@/data/concepts";
 import { usePrefersReducedMotion } from "@/utils/motion";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -20,6 +21,7 @@ export function GlossaryTermMarker({ entryId, children }: Props) {
   const triggerRef = useRef<HTMLSpanElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const reduced = usePrefersReducedMotion();
+  const isMobile = useIsMobile();
   const entry = getGlossaryEntry(entryId);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
 
@@ -78,6 +80,12 @@ export function GlossaryTermMarker({ entryId, children }: Props) {
   }, [isOpen, closePopover]);
 
   if (!entry) return <>{children}</>;
+  // Glossary tooltips are desktop-only. On mobile the dotted-underline
+  // affordance can't be distinguished from regular body text, and any
+  // tap-to-open behaviour collides with parents that handle taps (list rows,
+  // tier links). Render children as plain text on mobile — definitions remain
+  // accessible on desktop via hover/focus.
+  if (isMobile) return <>{children}</>;
 
   return (
     <span className="relative inline-block">
@@ -108,6 +116,7 @@ export function GlossaryTermMarker({ entryId, children }: Props) {
 
       {isOpen &&
         createPortal(
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- onClick is stopPropagation only; actual interactivity is on the trigger span above
           <div
             ref={popoverRef}
             role="dialog"

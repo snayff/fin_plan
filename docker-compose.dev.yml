@@ -40,12 +40,17 @@ services:
       CORS_ORIGIN: http://localhost:3000
       # Environment
       NODE_ENV: development
+      # Disable rate limiting in dev/E2E: the browser suite reaches the backend through the
+      # Vite proxy from a single source IP and would otherwise exhaust the per-IP auth caps.
+      RATE_LIMIT_ENABLED: "false"
     command: sh -c "cd /workspace && bun install && cd /workspace/apps/backend && bunx prisma migrate deploy && bunx prisma generate && bun src/db/seed.ts && bunx nodemon --legacy-watch --watch src --watch ../../packages/shared/src --ext ts --exec 'bun src/server.ts'"
     volumes:
       # Mount source code for hot reload
       - ./apps/backend/src:/workspace/apps/backend/src
       - ./apps/backend/prisma:/workspace/apps/backend/prisma
       - ./apps/backend/prisma.config.ts:/workspace/apps/backend/prisma.config.ts:ro
+      # Mount scripts so maintenance commands (e.g. db:reset-e2e) resolve inside the container
+      - ./apps/backend/scripts:/workspace/apps/backend/scripts
       - ./packages/shared/src:/workspace/packages/shared/src
       # Mount package manifests so `bun install` picks up new deps without a full image rebuild
       - ./package.json:/workspace/package.json:ro

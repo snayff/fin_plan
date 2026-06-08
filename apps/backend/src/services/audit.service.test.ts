@@ -5,53 +5,74 @@ mock.module("../config/database", () => ({
   prisma: prismaMock,
 }));
 
-import { auditService, computeDiff, audited } from "./audit.service";
+import { auditEvent, computeDiff, audited } from "./audit.service";
 
 beforeEach(() => {
   resetPrismaMocks();
 });
 
-describe("auditService.log", () => {
-  it("calls prisma.auditLog.create with the provided entry", async () => {
+describe("auditEvent", () => {
+  it("writes a single audit row and resolves on success", async () => {
     prismaMock.auditLog.create.mockResolvedValue({} as any);
 
-    auditService.log({ userId: "user-1", action: "LOGIN" });
+    await auditEvent({
+      userId: "user-1",
+      action: "LOGIN_SUCCESS",
+      resource: "session",
+    });
 
-    // fire-and-forget: we flush the microtask queue before asserting
-    await Promise.resolve();
-
+    expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
-      data: { userId: "user-1", action: "LOGIN" },
+      data: { userId: "user-1", action: "LOGIN_SUCCESS", resource: "session" },
     });
   });
 
-  it("does not throw when prisma.auditLog.create rejects", () => {
-    prismaMock.auditLog.create.mockRejectedValue(new Error("DB write failed"));
+  it("retries once on a transient Prisma error then succeeds", async () => {
+    const transient = Object.assign(new Error("connection refused"), {
+      code: "P1001",
+    });
+    prismaMock.auditLog.create.mockRejectedValueOnce(transient).mockResolvedValueOnce({} as any);
 
-    // Should not throw — fire-and-forget
-    expect(() => auditService.log({ action: "SIGNUP" })).not.toThrow();
+    await auditEvent({ action: "LOGIN_FAILED", resource: "session" });
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(2);
   });
 
-  it("passes optional fields (resource, resourceId, metadata) to prisma", async () => {
-    prismaMock.auditLog.create.mockResolvedValue({} as any);
+  it("does not retry on non-transient errors", async () => {
+    const fatal = Object.assign(new Error("schema drift"), { code: "P2002" });
+    prismaMock.auditLog.create.mockRejectedValue(fatal);
 
-    auditService.log({
-      userId: "user-2",
-      action: "DELETE",
-      resource: "transaction",
-      resourceId: "tx-1",
-      metadata: { reason: "user request" },
+    await expect(auditEvent({ action: "LOGIN_FAILED" })).rejects.toBe(fatal);
+    expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("rethrows and structured-logs the redacted payload after retries exhaust", async () => {
+    const transient = Object.assign(new Error("pool timeout"), {
+      code: "P2024",
     });
+    prismaMock.auditLog.create.mockRejectedValue(transient);
+    const errSpy = mock(() => {});
+    const original = console.error;
+    console.error = errSpy as unknown as typeof console.error;
 
-    await Promise.resolve();
+    try {
+      await expect(
+        auditEvent({
+          userId: "u1",
+          action: "LOGIN_FAILED",
+          resource: "session",
+          metadata: { email: "alice@example.com" },
+        })
+      ).rejects.toBe(transient);
 
-    expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        resource: "transaction",
-        resourceId: "tx-1",
-        metadata: { reason: "user request" },
-      }),
-    });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledTimes(2);
+      expect(errSpy).toHaveBeenCalled();
+      const logged = JSON.stringify(errSpy.mock.calls[0]);
+      expect(logged).not.toContain("alice@example.com");
+      expect(logged).toContain("LOGIN_FAILED");
+    } finally {
+      console.error = original;
+    }
   });
 });
 

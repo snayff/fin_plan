@@ -16,8 +16,6 @@ export function AttentionStrip({ body, tooltip, ariaLabel }: AttentionStripProps
             role="status"
             aria-live="polite"
             aria-label={ariaLabel}
-            aria-haspopup="true"
-            tabIndex={0}
             className="flex items-center gap-2 px-4 py-2 text-xs text-attention bg-attention-bg border-t border-b border-attention-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <span

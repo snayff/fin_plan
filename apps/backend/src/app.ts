@@ -64,24 +64,30 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
     contentSecurityPolicy: config.NODE_ENV === "production",
   });
 
-  await server.register(rateLimit, {
-    max: config.RATE_LIMIT_MAX,
-    timeWindow: config.RATE_LIMIT_TIME_WINDOW,
-    allowList: (req: { url: string }) => req.url === "/health",
-    // Rate-limit per authenticated user so household members on the same IP don't share a bucket
-    keyGenerator: (req: FastifyRequest) => {
-      try {
-        const auth = req.headers.authorization;
-        if (auth?.startsWith("Bearer ")) {
-          const payload = verifyAccessToken(auth.slice(7));
-          if (payload.userId) return `user:${payload.userId}`;
+  // Rate limiting is opt-out via RATE_LIMIT_ENABLED. It stays on in production (and any
+  // env that doesn't set the flag). It is disabled in dev/E2E because the whole browser
+  // suite reaches the backend through the Vite proxy from a single source IP, which would
+  // otherwise exhaust the per-IP auth caps (register 10/h, login 5/15m) and fail the suite.
+  if (config.RATE_LIMIT_ENABLED) {
+    await server.register(rateLimit, {
+      max: config.RATE_LIMIT_MAX,
+      timeWindow: config.RATE_LIMIT_TIME_WINDOW,
+      allowList: (req: { url: string }) => req.url === "/health",
+      // Rate-limit per authenticated user so household members on the same IP don't share a bucket
+      keyGenerator: (req: FastifyRequest) => {
+        try {
+          const auth = req.headers.authorization;
+          if (auth?.startsWith("Bearer ")) {
+            const payload = verifyAccessToken(auth.slice(7));
+            if (payload.userId) return `user:${payload.userId}`;
+          }
+        } catch {
+          // Fall through to IP-based limiting for unauthenticated requests
         }
-      } catch {
-        // Fall through to IP-based limiting for unauthenticated requests
-      }
-      return req.ip;
-    },
-  });
+        return req.ip;
+      },
+    });
+  }
 
   // Health check endpoint
   server.get("/health", async () => {
