@@ -16,6 +16,31 @@ const FAILING_IMPACTS = ["serious", "critical"] as const;
  */
 export const OVERVIEW_DATAVIZ_EXCLUDE = '[data-testid="financial-summary-panel"]';
 
+/**
+ * Wait for the overview waterfall left-panel entrance animation to settle.
+ * `WaterfallLeftPanel` fades its tier sections in with a framer-motion stagger;
+ * a frame sampled mid-stagger renders tier text at partial opacity, which axe
+ * reads as a near-invisible color-contrast failure. We poll until every direct
+ * section wrapper has reached full opacity (resolves instantly under reduced
+ * motion). Best-effort: if the panel never mounts, fall through to the check.
+ */
+export async function waitForWaterfallSettled(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () => {
+        const nav = document.querySelector('nav[aria-label="Waterfall items"]');
+        if (!nav) return false;
+        return Array.from(nav.children).every(
+          (c) => parseFloat(getComputedStyle(c).opacity || "1") >= 0.99
+        );
+      },
+      { timeout: 5_000 }
+    )
+    .catch(() => {
+      /* panel absent or still animating at timeout — proceed with the check */
+    });
+}
+
 export interface AxeOptions {
   exclude?: string[];
   disableRules?: string[];

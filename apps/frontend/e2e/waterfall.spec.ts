@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { registerNewUser, completeOnboarding } from "./support/auth";
-import { checkA11y, OVERVIEW_DATAVIZ_EXCLUDE } from "./support/axe";
+import { checkA11y, waitForWaterfallSettled, OVERVIEW_DATAVIZ_EXCLUDE } from "./support/axe";
 
 test.describe("waterfall flow", () => {
   test("add income item, add committed item, overview loads with data", async ({ page }) => {
@@ -52,6 +52,7 @@ test.describe("waterfall flow", () => {
     // ── Overview ─────────────────────────────────────────────────────────────
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/overview/);
+    await waitForWaterfallSettled(page);
     // Populated overview: data-viz panel contrast deferred to #80; the nav and
     // waterfall left panel are still fully checked.
     await checkA11y(page, { exclude: [OVERVIEW_DATAVIZ_EXCLUDE] });
