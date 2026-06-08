@@ -101,7 +101,6 @@ export const plannerService = {
         update: data,
       });
 
-      // durable: committed atomically with the surrounding $transaction
       await (tx as any).auditLog.create({
         data: {
           householdId: ctx.householdId,

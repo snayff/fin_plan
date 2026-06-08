@@ -6,7 +6,6 @@ node_modules/
 # Testing
 coverage/
 .nyc_output/
-coverage-current.json
 
 # Production
 dist/
@@ -89,6 +88,3 @@ tmp/
 
 # Git worktrees
 .worktrees/
-
-# Lighthouse CI output
-apps/frontend/.lighthouseci/

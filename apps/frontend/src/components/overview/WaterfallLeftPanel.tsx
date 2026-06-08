@@ -23,7 +23,7 @@ interface WaterfallLeftPanelProps {
 const ROW_CLASS =
   "flex items-center justify-between py-1.5 px-2 rounded cursor-pointer hover:bg-accent/50 transition-colors text-[13px] font-body text-text-secondary";
 
-const AMOUNT_CLASS = "font-numeric text-muted-foreground";
+const AMOUNT_CLASS = "font-numeric text-foreground/60";
 
 function StaleCountBadge({ count }: { count: number }) {
   if (count === 0) return null;
@@ -49,7 +49,6 @@ function SectionHeader({
   extraBadge,
   onHeaderClick,
   headerTestId,
-  navLabel,
 }: {
   label: ReactNode;
   total: ReactNode;
@@ -58,20 +57,18 @@ function SectionHeader({
   extraBadge?: ReactNode;
   onHeaderClick?: () => void;
   headerTestId?: string;
-  /** Accessible name for the navigation control when the header is clickable. */
-  navLabel?: string;
 }) {
   const content = (
     <div className="flex items-center justify-between py-1.5 px-2">
       <div className="flex items-center gap-2">
-        <h2
+        <h3
           className={cn(
             "text-[13px] font-heading font-semibold tracking-tier uppercase",
             colorClass
           )}
         >
           {label}
-        </h2>
+        </h3>
         <StaleCountBadge count={staleCount} />
         {extraBadge}
       </div>
@@ -80,37 +77,15 @@ function SectionHeader({
   );
 
   if (onHeaderClick) {
-    // The label and the cashflow badge are themselves interactive (glossary
-    // marker, shortfall tooltip). Nesting them inside a <button> trips axe's
-    // `nested-interactive` rule (issue #71). Instead the navigation control is a
-    // stretched overlay button that is a DOM *sibling* of those controls. The
-    // content layer is pointer-events-none so clicks fall through to the nav
-    // button, except on the interactive children which re-enable pointer events.
     return (
-      <div className="relative rounded hover:bg-accent/50 transition-colors">
-        <button
-          type="button"
-          data-testid={headerTestId}
-          onClick={onHeaderClick}
-          aria-label={navLabel}
-          className="absolute inset-0 rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
-        <div className="pointer-events-none relative flex items-center justify-between py-1.5 px-2">
-          <div className="flex items-center gap-2">
-            <h2
-              className={cn(
-                "pointer-events-auto text-[13px] font-heading font-semibold tracking-tier uppercase",
-                colorClass
-              )}
-            >
-              {label}
-            </h2>
-            <StaleCountBadge count={staleCount} />
-            {extraBadge && <span className="pointer-events-auto">{extraBadge}</span>}
-          </div>
-          <span className={cn("text-[15px] font-numeric font-semibold", colorClass)}>{total}</span>
-        </div>
-      </div>
+      <button
+        type="button"
+        data-testid={headerTestId}
+        onClick={onHeaderClick}
+        className="w-full text-left rounded hover:bg-accent/50 transition-colors"
+      >
+        {content}
+      </button>
     );
   }
   return content;
@@ -182,7 +157,6 @@ export function WaterfallLeftPanel({
           staleCount={incomeStaleCount}
           onHeaderClick={() => navigate("/income")}
           headerTestId="tier-heading-income"
-          navLabel="Go to Income"
         />
         <div className="space-y-0.5">
           {income.bySubcategory.map((sub) => {
@@ -239,7 +213,6 @@ export function WaterfallLeftPanel({
           }
           onHeaderClick={() => navigate("/committed")}
           headerTestId="tier-heading-committed"
-          navLabel="Go to Committed"
         />
         <div className="space-y-0.5">
           {committed.bySubcategory.map((sub) => {
@@ -310,7 +283,6 @@ export function WaterfallLeftPanel({
           }
           onHeaderClick={() => navigate("/discretionary")}
           headerTestId="tier-heading-discretionary"
-          navLabel="Go to Discretionary"
         />
         <div className="space-y-0.5">
           {discretionary.bySubcategory.map((sub) => {
@@ -365,7 +337,6 @@ export function WaterfallLeftPanel({
           staleCount={0}
           onHeaderClick={() => navigate("/surplus")}
           headerTestId="tier-heading-surplus"
-          navLabel="Go to Surplus"
         />
         <div aria-live="polite" aria-atomic="true">
           {income.total > 0 && surplus.percentOfIncome < surplusBenchmark && (

@@ -20,16 +20,15 @@ mock.module("../services/auth.service", () => {
 
 mock.module("../middleware/auth.middleware", () => ({
   authMiddleware: mock(() => {}),
-  userOnlyAuth: mock(() => {}),
 }));
 
-const mockAuditLog = mock(() => Promise.resolve());
+const mockAuditLog = mock(() => {});
 mock.module("../services/audit.service", () => ({
-  auditEvent: mockAuditLog,
+  auditService: { log: mockAuditLog },
 }));
 
 import { authService } from "../services/auth.service";
-import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
+import { authMiddleware } from "../middleware/auth.middleware";
 import { authRoutes } from "./auth.routes";
 
 let app: FastifyInstance;
@@ -47,15 +46,13 @@ afterAll(async () => {
 
 beforeEach(() => {
   mockAuditLog.mockClear();
-  const authImpl = async (request: any) => {
+  (authMiddleware as any).mockImplementation(async (request: any) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       throw new AuthenticationError("No authorization token provided");
     }
     request.user = { userId: "user-1", email: "test@test.com" };
-  };
-  (authMiddleware as any).mockImplementation(authImpl);
-  (userOnlyAuth as any).mockImplementation(authImpl);
+  });
 });
 
 const mockAuthResponse = {

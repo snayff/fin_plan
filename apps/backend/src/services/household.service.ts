@@ -511,7 +511,6 @@ export const householdService = {
       });
 
       // Audit the acceptance — actor is the newly created user
-      // durable: committed atomically with the surrounding $transaction
       await (tx as any).auditLog.create({
         data: {
           householdId: invite.householdId,
@@ -647,7 +646,6 @@ export const householdService = {
           tx.purchaseItem.count({ where: { householdId } }),
         ]);
 
-      // durable: committed atomically with the surrounding $transaction
       await tx.auditLog.create({
         data: {
           householdId: ctx.householdId,

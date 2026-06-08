@@ -460,7 +460,6 @@ export const giftsService = {
         ...(created > 0 ? [{ field: "created", after: created }] : []),
         ...(updated > 0 ? [{ field: "updated", after: updated }] : []),
       ];
-      // durable: committed atomically with the surrounding $transaction
       await tx.auditLog.create({
         data: {
           householdId: ctx.householdId,

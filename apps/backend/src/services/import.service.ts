@@ -633,7 +633,6 @@ export const importService = {
 
         // Write single IMPORT_DATA audit row with counts
         if (ctx) {
-          // durable: committed atomically with the surrounding $transaction
           await (tx as any).auditLog.create({
             data: {
               householdId,

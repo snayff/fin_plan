@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc",
     "test": "bun test",
-    "test:coverage": "rm -rf coverage && bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage",
+    "test:coverage": "bun test --coverage",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
   },

@@ -1,8 +1,6 @@
 import { useMemo, useRef, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { SettingsLeftPanel, type SettingsNavItem } from "@/components/settings/SettingsLeftPanel";
-import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
-import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   SettingsRightPanel,
   type SettingsRightPanelHandle,
@@ -30,12 +28,6 @@ function useRole(): Role | null {
 }
 
 export default function HouseholdSettingsPage() {
-  const isMobile = useIsMobile();
-  if (isMobile) return <MobileUnsupportedNotice pageName="Household Settings" />;
-  return <HouseholdSettingsPageBody />;
-}
-
-function HouseholdSettingsPageBody() {
   const user = useAuthStore((s) => s.user);
   const householdId = user?.activeHouseholdId;
   const role = useRole();

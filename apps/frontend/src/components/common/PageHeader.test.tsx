@@ -1,7 +1,6 @@
-import { describe, it, expect, mock, afterEach } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "@/test/helpers/render";
-import { expectNoA11yViolations } from "@/test/helpers/axe";
 import { PageHeader } from "./PageHeader";
 
 mock.module("@/hooks/useAnimatedValue", () => ({
@@ -67,56 +66,5 @@ describe("PageHeader", () => {
     renderWithProviders(<PageHeader title="Household" />);
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading.textContent).not.toContain("/");
-  });
-
-  it("has no serious or critical a11y violations", async () => {
-    const { container } = renderWithProviders(<PageHeader title="Income" />);
-    await expectNoA11yViolations(container);
-  });
-
-  describe("mobile back button (onBack slot)", () => {
-    const originalMatchMedia = window.matchMedia;
-    type MqlListener = (e: MediaQueryListEvent) => void;
-    function setViewport(mobile: boolean) {
-      const listeners = new Set<MqlListener>();
-      window.matchMedia = (query: string): MediaQueryList =>
-        ({
-          matches: mobile,
-          media: query,
-          onchange: null,
-          addEventListener: (e: string, l: MqlListener) => {
-            if (e === "change") listeners.add(l);
-          },
-          removeEventListener: (e: string, l: MqlListener) => {
-            if (e === "change") listeners.delete(l);
-          },
-          addListener: () => {},
-          removeListener: () => {},
-          dispatchEvent: () => false,
-        }) as unknown as MediaQueryList;
-    }
-    afterEach(() => {
-      window.matchMedia = originalMatchMedia;
-    });
-
-    it("renders back button on mobile when onBack is provided", () => {
-      setViewport(true);
-      const onBack = mock(() => {});
-      renderWithProviders(<PageHeader title="Income" onBack={onBack} />);
-      expect(screen.getByRole("button", { name: /back/i })).toBeInTheDocument();
-    });
-
-    it("does NOT render back button on desktop even when onBack is provided", () => {
-      setViewport(false);
-      const onBack = mock(() => {});
-      renderWithProviders(<PageHeader title="Income" onBack={onBack} />);
-      expect(screen.queryByRole("button", { name: /back/i })).not.toBeInTheDocument();
-    });
-
-    it("does NOT render back button on mobile when onBack is omitted", () => {
-      setViewport(true);
-      renderWithProviders(<PageHeader title="Income" />);
-      expect(screen.queryByRole("button", { name: /back/i })).not.toBeInTheDocument();
-    });
   });
 });

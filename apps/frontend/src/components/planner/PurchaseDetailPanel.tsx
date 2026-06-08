@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; inputs already have aria-label */
 import { useState } from "react";
 import type React from "react";
 import { toast } from "sonner";

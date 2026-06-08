@@ -86,13 +86,6 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
 
   // Rate Limiting
-  // Enabled by default so production (and any env that doesn't opt out) is protected.
-  // Set RATE_LIMIT_ENABLED=false in dev/E2E, where the whole browser suite shares one
-  // source IP through the Vite proxy and would otherwise exhaust the per-IP auth caps.
-  RATE_LIMIT_ENABLED: z
-    .string()
-    .default("true")
-    .transform((v) => v !== "false"),
   RATE_LIMIT_MAX: z.string().default("500").transform(Number),
   RATE_LIMIT_TIME_WINDOW: z.string().default("15m"),
 

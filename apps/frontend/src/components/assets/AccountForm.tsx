@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels use visual wrapping with aria-label on inputs; needs htmlFor/id refactor */
 import { useState } from "react";
 import type { AccountType } from "@finplan/shared";
 import { useHouseholdMembers, useSettings } from "../../hooks/useSettings.js";
@@ -274,7 +273,6 @@ export function AccountForm({
             <label className={labelClass}>Growth rate override (%)</label>
             <input
               type="number"
-              inputMode="decimal"
               step="0.1"
               min="0"
               max="100"
@@ -303,7 +301,6 @@ export function AccountForm({
               <label className={labelClass}>Monthly contribution limit (optional)</label>
               <input
                 type="number"
-                inputMode="decimal"
                 step="1"
                 min="0"
                 value={limitRaw}
@@ -351,7 +348,6 @@ export function AccountForm({
                 <input
                   id="isaYearContribution"
                   type="number"
-                  inputMode="decimal"
                   step="1"
                   min="0"
                   value={isaContribRaw}

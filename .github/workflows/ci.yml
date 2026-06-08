@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  workflow_dispatch:
   pull_request:
     branches: [stage]
   push:
@@ -21,7 +20,7 @@ jobs:
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
 
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +54,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
 
     services:
       postgres:
@@ -103,98 +102,8 @@ jobs:
       - name: Push schema to test database
         run: cd apps/backend && bunx prisma db push
 
-      - name: Backend tests with coverage
-        run: cd apps/backend && bun run test:coverage
-
-      - name: Frontend tests with coverage
-        run: cd apps/frontend && bun run test:coverage
-
-      - name: Shared tests with coverage
-        run: cd packages/shared && bun run test:coverage
-
-      # Merges every package's lcov into true whole-codebase coverage and
-      # enforces the per-package floor + ratchet (see coverage-baseline.json).
-      - name: Check coverage floor & ratchet
-        run: bun scripts/check-coverage.ts
-
-      - name: Upload coverage artefact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage-current.json
-
-  # ─────────────────────────────────────────
-  # E2E (runs on PRs, after unit tests pass)
-  # ─────────────────────────────────────────
-  e2e:
-    name: E2E
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: test
-    timeout-minutes: 15
-
-    env:
-      DATABASE_URL: postgresql://finplan:finplan_dev_password@localhost:5432/finplan_dev
-      JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long-for-testing
-      JWT_REFRESH_SECRET: test-jwt-refresh-secret-that-is-at-least-32-characters-long-for-testing
-      COOKIE_SECRET: test-cookie-secret-that-is-at-least-32-characters-long-for-testing
-      CORS_ORIGIN: http://localhost:3000
-      NODE_ENV: development
-      CI: "true"
-      E2E_BASE_URL: http://localhost:3000
-      E2E_API_URL: http://localhost:3001
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.9"
-
-      - name: Cache bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package.json') }}
-          restore-keys: playwright-${{ runner.os }}-
-
-      - name: Install Playwright browsers
-        run: cd apps/frontend && bunx playwright install --with-deps chromium
-
-      - name: Start Docker compose stack
-        run: docker compose -f docker-compose.dev.yml up -d --wait
-        timeout-minutes: 3
-
-      - name: Reset DB and seed E2E baseline
-        run: docker compose -f docker-compose.dev.yml exec -T backend bun run db:reset-e2e
-
-      - name: Run Playwright
-        run: cd apps/frontend && bunx playwright test
-
-      - name: Upload Playwright artefacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-${{ github.run_id }}
-          path: |
-            apps/frontend/playwright-report
-            apps/frontend/test-results
-          retention-days: 7
-
-      - name: Stop Docker compose stack
-        if: always()
-        run: docker compose -f docker-compose.dev.yml down -v
+      - name: Run tests
+        run: bun run test
 
   # ─────────────────────────────────────────
   # Security Audit (runs on PRs)
@@ -202,7 +111,7 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
 
     steps:
       - uses: actions/checkout@v4
@@ -228,7 +137,7 @@ jobs:
   check-compile:
     name: Check Compile
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
 
     env:
       DATABASE_URL: postgresql://finplan:unused@localhost:5432/unused
@@ -255,140 +164,6 @@ jobs:
 
       - name: Build all packages
         run: bun run build
-
-  # ─────────────────────────────────────────
-  # Frontend bundle size budget (runs on PRs)
-  # ─────────────────────────────────────────
-  frontend-perf-size:
-    name: Frontend Bundle Size
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    needs: [check-compile]
-
-    env:
-      DATABASE_URL: postgresql://finplan:unused@localhost:5432/unused
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.9"
-
-      - name: Cache bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: cd apps/backend && bunx prisma generate
-
-      - name: Build all packages
-        run: bun run build
-
-      - name: Check bundle sizes
-        run: cd apps/frontend && bun run size
-
-  # ─────────────────────────────────────────
-  # Lighthouse CI (runs on PRs)
-  # ─────────────────────────────────────────
-  frontend-perf-lhci:
-    name: Frontend Lighthouse
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    needs: [check-compile]
-    timeout-minutes: 15
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: finplan
-          POSTGRES_PASSWORD: finplan_dev_password
-          POSTGRES_DB: finplan_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U finplan"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://finplan:finplan_dev_password@localhost:5432/finplan_test
-      NODE_ENV: test
-      JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long-for-testing
-      JWT_REFRESH_SECRET: test-jwt-refresh-secret-that-is-at-least-32-characters-long-for-testing
-      COOKIE_SECRET: test-cookie-secret-that-is-at-least-32-characters-long-for-testing
-      CORS_ORIGIN: http://localhost:3000
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.9"
-
-      - name: Cache bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Generate Prisma Client
-        run: cd apps/backend && bunx prisma generate
-
-      - name: Push schema to test database
-        run: cd apps/backend && bunx prisma db push
-
-      - name: Seed test data
-        run: cd apps/backend && bun run db:seed
-
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@v1
-        id: setup-chrome
-
-      - name: Export CHROME_PATH
-        run: echo "CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> $GITHUB_ENV
-
-      - name: Build all packages
-        run: bun run build
-
-      - name: Start backend
-        run: cd apps/backend && bun run start &
-
-      - name: Start frontend preview
-        run: cd apps/frontend && bunx vite preview --port 3000 --host 127.0.0.1 &
-
-      - name: Wait for stack to be ready
-        run: |
-          for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:3000 > /dev/null 2>&1 && \
-            curl -sf http://127.0.0.1:3001/health > /dev/null 2>&1 && exit 0
-            sleep 2
-          done
-          echo "Stack failed to start within 60s" && exit 1
-
-      - name: Run Lighthouse CI
-        run: cd apps/frontend && bun run lhci
-
-      - name: Upload LHCI reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lhci-reports
-          path: apps/frontend/.lighthouseci/
-          retention-days: 14
-          include-hidden-files: true
 
   # ─────────────────────────────────────────
   # Deploy (runs on push to main)

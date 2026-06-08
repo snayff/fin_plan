@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFullWaterfall, useCreateSubcategory } from "@/hooks/useWaterfall";
-import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
-import { useIsMobile } from "@/hooks/useIsMobile";
 import { useSettings, useDismissWaterfallTip, useHouseholdMembers } from "@/hooks/useSettings";
 import { waterfallService } from "@/services/waterfall.service";
 import { formatCurrency } from "@/utils/format";
@@ -24,12 +22,6 @@ function tierToItemType(tier: "income" | "committed" | "discretionary"): PeriodI
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FullWaterfallPage() {
-  const isMobile = useIsMobile();
-  if (isMobile) return <MobileUnsupportedNotice pageName="Full Waterfall" />;
-  return <FullWaterfallPageBody />;
-}
-
-function FullWaterfallPageBody() {
   const navigate = useNavigate();
   const waterfall = useFullWaterfall();
   const settings = useSettings();

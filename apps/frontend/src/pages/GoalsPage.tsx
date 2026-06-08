@@ -1,11 +1,7 @@
 import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
 import { PageHeader } from "@/components/common/PageHeader";
-import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
-import { useIsMobile } from "@/hooks/useIsMobile";
 
 export default function GoalsPage() {
-  const isMobile = useIsMobile();
-  if (isMobile) return <MobileUnsupportedNotice pageName="Goals" />;
   return (
     <div data-testid="goals-page" className="relative h-full">
       <div

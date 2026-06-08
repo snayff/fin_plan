@@ -3,12 +3,9 @@ import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
 import { SummarySparkline } from "./SummarySparkline";
 
-// Keep in sync with the --tier-* design tokens (index.css). `committed` was
-// a stale #6366f1 (67% L) that failed WCAG AA as a label (4.2:1); aligned to
-// the corrected --tier-committed (70% L) — see issue #71 / contrast audit F3.
 const TIER_COLORS = {
   income: "#0ea5e9",
-  committed: "#7274f3",
+  committed: "#6366f1",
   discretionary: "#a855f7",
   surplus: "#4adcd0",
 } as const;

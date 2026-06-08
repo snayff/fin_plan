@@ -14,78 +14,25 @@ import { GlossaryPopoverProvider } from "@/components/help/GlossaryPopoverContex
 import { SearchTriggerIcon } from "@/features/search/SearchTriggerIcon";
 import { SearchPalette } from "@/features/search/SearchPalette";
 import { useSearchHotkey } from "@/features/search/useSearchHotkey";
-import { useIsMobile } from "@/hooks/useIsMobile";
 
-/**
- * Nav item config. `desktopOnly: true` marks routes that soft-block on mobile
- * (FullWaterfall, Goals, Gifts, Help, Household Settings — see Decision 1).
- * On mobile, the hamburger nav renders these with a "(desktop only)" badge;
- * tapping still navigates and shows the soft-block notice (Item 2 amendment).
- */
-type NavItem = {
-  to: string;
-  label: string;
-  colorClass: string;
-  desktopOnly?: boolean;
-};
-
-const NAV_ITEMS_GROUP1: readonly NavItem[] = [
+const NAV_ITEMS_GROUP1 = [
   { to: "/overview", label: "Overview", colorClass: "text-page-accent" },
-];
+] as const;
 
-const NAV_ITEMS_GROUP2: readonly NavItem[] = [
+const NAV_ITEMS_GROUP2 = [
   { to: "/income", label: "Income", colorClass: "text-tier-income" },
   { to: "/committed", label: "Committed", colorClass: "text-tier-committed" },
   { to: "/discretionary", label: "Discretionary", colorClass: "text-tier-discretionary" },
   { to: "/surplus", label: "Surplus", colorClass: "text-tier-surplus" },
-];
+] as const;
 
-const NAV_ITEMS_GROUP3: readonly NavItem[] = [
+const NAV_ITEMS_GROUP3 = [
   { to: "/forecast", label: "Forecast", colorClass: "text-foreground" },
   { to: "/assets", label: "Assets", colorClass: "text-foreground" },
-  { to: "/goals", label: "Goals", colorClass: "text-foreground", desktopOnly: true },
-  { to: "/gifts", label: "Gifts", colorClass: "text-foreground", desktopOnly: true },
-  { to: "/help", label: "Help", colorClass: "text-foreground", desktopOnly: true },
-];
-
-/**
- * Nav link styling. Inactive links use a neutral muted foreground
- * (`text-text-secondary`) which clears WCAG AA on the nav background; the
- * saturated tier/accent colour is reserved for the active link (paired with an
- * underline). Previously inactive links dimmed the tier colour with
- * `opacity-70`, dropping the composite below AA — see issue #71.
- */
-function desktopNavLinkClass(isActive: boolean, colorClass: string): string {
-  return cn(
-    "relative pb-0.5 text-sm font-medium transition-colors duration-150",
-    isActive
-      ? cn(
-          colorClass,
-          "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
-        )
-      : "text-text-secondary hover:text-foreground"
-  );
-}
-
-function mobileNavLinkClass(isActive: boolean, colorClass: string): string {
-  return cn(
-    "px-3 py-2 rounded text-sm font-medium transition-colors flex items-center",
-    isActive
-      ? cn(colorClass, "bg-accent/10")
-      : "text-text-secondary hover:text-foreground hover:bg-accent/5"
-  );
-}
-
-function DesktopOnlyBadge() {
-  return (
-    <span
-      aria-label="Desktop only"
-      className="ml-1.5 rounded-sm bg-foreground/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground/55"
-    >
-      desktop only
-    </span>
-  );
-}
+  { to: "/goals", label: "Goals", colorClass: "text-foreground" },
+  { to: "/gifts", label: "Gifts", colorClass: "text-foreground" },
+  { to: "/help", label: "Help", colorClass: "text-foreground" },
+] as const;
 
 export default function Layout({ children }: { children: ReactNode }) {
   const logout = useAuthStore((s) => s.logout);
@@ -94,7 +41,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   useSearchHotkey(() => setSearchOpen(true));
-  const isMobile = useIsMobile();
 
   const handleSignOut = useCallback(async () => {
     await logout();
@@ -115,7 +61,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   }, [qc]);
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
+    <div className="flex flex-col h-screen bg-background text-foreground">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-card focus:text-foreground focus:rounded-md focus:ring-2 focus:ring-ring"
@@ -131,11 +77,10 @@ export default function Layout({ children }: { children: ReactNode }) {
             <SheetTrigger asChild>
               <button
                 type="button"
-                className="-ml-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:hidden"
+                className="md:hidden p-1 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Open navigation"
-                aria-expanded={navOpen}
               >
-                <Menu className="h-5 w-5" aria-hidden="true" />
+                <Menu className="h-5 w-5" />
               </button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
@@ -145,10 +90,17 @@ export default function Layout({ children }: { children: ReactNode }) {
                     key={item.to}
                     to={item.to}
                     onClick={() => setNavOpen(false)}
-                    className={({ isActive }) => mobileNavLinkClass(isActive, item.colorClass)}
+                    className={({ isActive }) =>
+                      cn(
+                        "px-3 py-2 rounded text-sm font-medium transition-colors",
+                        item.colorClass,
+                        isActive
+                          ? "opacity-100 bg-accent/10"
+                          : "opacity-70 hover:opacity-90 hover:bg-accent/5"
+                      )
+                    }
                   >
                     {item.label}
-                    {isMobile && item.desktopOnly && <DesktopOnlyBadge />}
                   </NavLink>
                 ))}
                 <div className="border-t mt-4 pt-4 space-y-2">
@@ -166,23 +118,26 @@ export default function Layout({ children }: { children: ReactNode }) {
               </nav>
             </SheetContent>
           </Sheet>
-          <NavLink
-            to="/overview"
-            aria-label="finplan home"
-            className="font-heading text-lg font-bold tracking-tight text-foreground hover:opacity-80 transition-opacity"
-          >
+          <span className="font-heading font-bold text-lg tracking-tight text-foreground">
             finplan
-          </NavLink>
+          </span>
         </div>
 
-        {/* Centre: nav (desktop) — visible at lg:1024px+ to match the layout
-            breakpoint. Tablets in portrait use the hamburger nav. */}
-        <nav className="hidden flex-1 items-center gap-3 lg:flex">
+        {/* Centre: nav (desktop) */}
+        <nav className="hidden md:flex items-center gap-3 flex-1">
           {NAV_ITEMS_GROUP1.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => desktopNavLinkClass(isActive, item.colorClass)}
+              className={({ isActive }) =>
+                cn(
+                  "relative pb-0.5 text-sm font-medium transition-colors duration-150",
+                  item.colorClass,
+                  isActive
+                    ? "opacity-100 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
+                    : "opacity-70 hover:opacity-90"
+                )
+              }
             >
               {item.label}
             </NavLink>
@@ -196,7 +151,15 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => desktopNavLinkClass(isActive, item.colorClass)}
+              className={({ isActive }) =>
+                cn(
+                  "relative pb-0.5 text-sm font-medium transition-colors duration-150",
+                  item.colorClass,
+                  isActive
+                    ? "opacity-100 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
+                    : "opacity-70 hover:opacity-90"
+                )
+              }
             >
               {item.label}
             </NavLink>
@@ -210,7 +173,15 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => desktopNavLinkClass(isActive, item.colorClass)}
+              className={({ isActive }) =>
+                cn(
+                  "relative pb-0.5 text-sm font-medium transition-colors duration-150",
+                  item.colorClass,
+                  isActive
+                    ? "opacity-100 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
+                    : "opacity-70 hover:opacity-90"
+                )
+              }
             >
               {item.label}
             </NavLink>

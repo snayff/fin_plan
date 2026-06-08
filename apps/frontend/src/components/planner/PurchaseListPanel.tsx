@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for inline add form */
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/utils/format";

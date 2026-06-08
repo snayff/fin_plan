@@ -202,7 +202,6 @@ export const memberService = {
       await tx.member.delete({ where: { id: memberId } });
 
       // Write audit row inside transaction
-      // durable: committed atomically with the surrounding $transaction
       await (tx as any).auditLog.create({
         data: {
           householdId: ctx.householdId,

@@ -1,7 +1,6 @@
 import { prisma } from "../config/database.js";
 import { NotFoundError, ConflictError, AuthorizationError } from "../utils/errors.js";
 import { waterfallService } from "./waterfall.service.js";
-import { assetsService } from "./assets.service.js";
 import { audited } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { toGBP, AuditAction } from "@finplan/shared";
@@ -10,21 +9,12 @@ import type { CreateSnapshotInput, RenameSnapshotInput, FinancialSummary } from 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function buildSnapshotData(householdId: string): Promise<object> {
-  const [waterfall, assets] = await Promise.all([
-    waterfallService.getWaterfallSummary(householdId),
-    assetsService.getSummary(householdId),
-  ]);
-  return { ...waterfall, assetsTotal: assets.grandTotal };
-}
-
 function buildTierSeries(snapshots: Array<{ data: unknown; createdAt: Date }>) {
   type Point = { date: string; value: number };
   const income: Point[] = [];
   const committed: Point[] = [];
   const discretionary: Point[] = [];
   const surplus: Point[] = [];
-  const netWorth: Point[] = [];
 
   for (const snap of snapshots) {
     const d = snap.data as Record<string, any>;
@@ -38,10 +28,9 @@ function buildTierSeries(snapshots: Array<{ data: unknown; createdAt: Date }>) {
     if (d?.discretionary?.total !== undefined)
       discretionary.push({ date, value: d.discretionary.total as number });
     if (d?.surplus?.amount !== undefined) surplus.push({ date, value: d.surplus.amount as number });
-    if (typeof d?.assetsTotal === "number") netWorth.push({ date, value: d.assetsTotal as number });
   }
 
-  return { income, committed, discretionary, surplus, netWorth };
+  return { income, committed, discretionary, surplus };
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -64,7 +53,7 @@ export const snapshotService = {
   },
 
   async createSnapshot(householdId: string, input: CreateSnapshotInput, ctx: ActorCtx) {
-    const data = await buildSnapshotData(householdId);
+    const data = await waterfallService.getWaterfallSummary(householdId);
     try {
       return await audited({
         db: prisma,
@@ -143,7 +132,7 @@ export const snapshotService = {
       where: { householdId_name: { householdId, name: autoName } },
     });
     if (!exists) {
-      const data = await buildSnapshotData(householdId);
+      const data = await waterfallService.getWaterfallSummary(householdId);
       await prisma.snapshot.create({
         data: { householdId, name: autoName, isAuto: true, data: data as object },
       });
@@ -153,7 +142,7 @@ export const snapshotService = {
   async ensureBaselineSnapshot(householdId: string) {
     const count = await prisma.snapshot.count({ where: { householdId, isAuto: true } });
     if (count > 0) return;
-    const data = await buildSnapshotData(householdId);
+    const data = await waterfallService.getWaterfallSummary(householdId);
     await prisma.snapshot.upsert({
       where: { householdId_name: { householdId, name: "auto:init" } },
       create: { householdId, name: "auto:init", isAuto: true, data: data as object },
@@ -164,7 +153,7 @@ export const snapshotService = {
   async ensureTodayAutoSnapshot(householdId: string, now: Date = new Date()) {
     const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const name = `auto:${dateKey}`;
-    const data = await buildSnapshotData(householdId);
+    const data = await waterfallService.getWaterfallSummary(householdId);
     await prisma.snapshot.upsert({
       where: { householdId_name: { householdId, name } },
       create: { householdId, name, isAuto: true, data: data as object },
@@ -173,9 +162,8 @@ export const snapshotService = {
   },
 
   async getFinancialSummary(householdId: string): Promise<FinancialSummary> {
-    const [summary, assets, autoSnapshots] = await Promise.all([
+    const [summary, autoSnapshots] = await Promise.all([
       waterfallService.getWaterfallSummary(householdId),
-      assetsService.getSummary(householdId),
       prisma.snapshot.findMany({
         where: { householdId, isAuto: true },
         orderBy: { createdAt: "asc" },
@@ -183,7 +171,9 @@ export const snapshotService = {
       }),
     ]);
 
-    const netWorth: number | null = assets.grandTotal > 0 ? assets.grandTotal : null;
+    const netWorth: number | null = null;
+    const netWorthSeries: Array<{ date: string; value: number }> = [];
+
     const tierSeries = buildTierSeries(autoSnapshots);
 
     return FinancialSummarySchema.parse({
@@ -195,7 +185,7 @@ export const snapshotService = {
         surplus: summary.surplus.amount,
       },
       sparklines: {
-        netWorth: tierSeries.netWorth,
+        netWorth: netWorthSeries,
         income: tierSeries.income,
         committed: tierSeries.committed,
         discretionary: tierSeries.discretionary,

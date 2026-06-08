@@ -491,7 +491,6 @@ export const cashflowService = {
           isCashflowLinked: updated.isCashflowLinked,
         });
 
-        // durable: committed atomically with the surrounding $transaction
         await (tx as any).auditLog.create({
           data: {
             householdId,
