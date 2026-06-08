@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/no-noninteractive-element-to-interactive-role -- TODO(a11y): li[role=button] pattern; refactor to button elements */
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfigBudgetPanel } from "./ConfigBudgetPanel";
@@ -104,21 +103,15 @@ export function ConfigModePanel({
                 description: "Set planned amounts for everyone at once",
               },
             ].map((row) => (
-              <li
-                key={row.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => drillInto(row.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    drillInto(row.id);
-                  }
-                }}
-                className="cursor-pointer px-6 py-3 text-sm text-foreground hover:bg-foreground/5"
-              >
-                <div>{row.label}</div>
-                <div className="text-[11px] text-foreground/40">{row.description}</div>
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => drillInto(row.id)}
+                  className="w-full cursor-pointer px-6 py-3 text-left text-sm text-foreground hover:bg-foreground/5"
+                >
+                  <div>{row.label}</div>
+                  <div className="text-[11px] text-foreground/40">{row.description}</div>
+                </button>
               </li>
             ))}
           </ul>

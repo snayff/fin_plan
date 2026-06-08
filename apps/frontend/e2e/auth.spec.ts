@@ -20,8 +20,7 @@ test.describe("auth flow", () => {
     // reach /overview (the authed shell, which has the profile menu for logout).
     await completeOnboarding(page);
     await expect(page).toHaveURL(/\/overview/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
 
     await logout(page);
 

@@ -30,7 +30,7 @@
 
     /* Text Hierarchy — blue-white tint at varying opacities */
     --text-secondary: 230 100% 97% / 0.65; /* Item names, descriptions, body text */
-    --text-tertiary: 230 100% 97% / 0.4; /* Metadata, helper text, timestamps */
+    --text-tertiary: 230 100% 97% / 0.55; /* Metadata, helper text, timestamps. Alpha raised 0.4→0.55 for WCAG AA on small text (≥4.5:1 across card/elevated/overlay surfaces); see issue #71 */
     --text-muted: 230 100% 97% / 0.25; /* Placeholders, disabled text, divider labels */
 
     /* Action — electric violet */

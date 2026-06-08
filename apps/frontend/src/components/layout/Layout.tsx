@@ -48,6 +48,34 @@ const NAV_ITEMS_GROUP3: readonly NavItem[] = [
   { to: "/help", label: "Help", colorClass: "text-foreground", desktopOnly: true },
 ];
 
+/**
+ * Nav link styling. Inactive links use a neutral muted foreground
+ * (`text-text-secondary`) which clears WCAG AA on the nav background; the
+ * saturated tier/accent colour is reserved for the active link (paired with an
+ * underline). Previously inactive links dimmed the tier colour with
+ * `opacity-70`, dropping the composite below AA — see issue #71.
+ */
+function desktopNavLinkClass(isActive: boolean, colorClass: string): string {
+  return cn(
+    "relative pb-0.5 text-sm font-medium transition-colors duration-150",
+    isActive
+      ? cn(
+          colorClass,
+          "after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
+        )
+      : "text-text-secondary hover:text-foreground"
+  );
+}
+
+function mobileNavLinkClass(isActive: boolean, colorClass: string): string {
+  return cn(
+    "px-3 py-2 rounded text-sm font-medium transition-colors flex items-center",
+    isActive
+      ? cn(colorClass, "bg-accent/10")
+      : "text-text-secondary hover:text-foreground hover:bg-accent/5"
+  );
+}
+
 function DesktopOnlyBadge() {
   return (
     <span
@@ -117,15 +145,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                     key={item.to}
                     to={item.to}
                     onClick={() => setNavOpen(false)}
-                    className={({ isActive }) =>
-                      cn(
-                        "px-3 py-2 rounded text-sm font-medium transition-colors flex items-center",
-                        item.colorClass,
-                        isActive
-                          ? "opacity-100 bg-accent/10"
-                          : "opacity-70 hover:opacity-90 hover:bg-accent/5"
-                      )
-                    }
+                    className={({ isActive }) => mobileNavLinkClass(isActive, item.colorClass)}
                   >
                     {item.label}
                     {isMobile && item.desktopOnly && <DesktopOnlyBadge />}
@@ -162,15 +182,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "relative pb-0.5 text-sm font-medium transition-colors duration-150",
-                  item.colorClass,
-                  isActive
-                    ? "opacity-100 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
-                    : "opacity-70 hover:opacity-90"
-                )
-              }
+              className={({ isActive }) => desktopNavLinkClass(isActive, item.colorClass)}
             >
               {item.label}
             </NavLink>
@@ -184,15 +196,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "relative pb-0.5 text-sm font-medium transition-colors duration-150",
-                  item.colorClass,
-                  isActive
-                    ? "opacity-100 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
-                    : "opacity-70 hover:opacity-90"
-                )
-              }
+              className={({ isActive }) => desktopNavLinkClass(isActive, item.colorClass)}
             >
               {item.label}
             </NavLink>
@@ -206,15 +210,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "relative pb-0.5 text-sm font-medium transition-colors duration-150",
-                  item.colorClass,
-                  isActive
-                    ? "opacity-100 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-current"
-                    : "opacity-70 hover:opacity-90"
-                )
-              }
+              className={({ isActive }) => desktopNavLinkClass(isActive, item.colorClass)}
             >
               {item.label}
             </NavLink>

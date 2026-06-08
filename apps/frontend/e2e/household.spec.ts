@@ -34,8 +34,7 @@ test.describe("household flow", () => {
     await completeOnboarding(page, "E2E Test Household");
 
     await expect(page).toHaveURL(/\/overview/, { timeout: 10_000 });
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
     await expect(page.getByTestId("overview-page")).toBeVisible();
   });
 
@@ -102,8 +101,7 @@ test.describe("household flow", () => {
 
     // Should redirect to /overview after joining
     await inviteePage.waitForURL(/\/(overview|welcome)/, { timeout: 15_000 });
-    // Authed landing page: defer known a11y debt to issue #71.
-    await checkA11y(inviteePage, { deferKnownA11yDebt: true });
+    await checkA11y(inviteePage);
 
     await inviteeContext.close();
   });
@@ -114,8 +112,7 @@ test.describe("household flow", () => {
 
     await page.goto("/settings/household");
     await expect(page).toHaveURL(/\/settings\/household/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
     // The left panel renders the "Members & invites" section heading.
     await expect(page.getByRole("heading", { name: "Members & invites" })).toBeVisible();
   });
