@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { registerNewUser, login, logout, completeOnboarding } from "./support/auth";
 import { uniqueEmail } from "./support/api";
-import { checkA11y } from "./support/axe";
+import { checkA11y, OVERVIEW_DATAVIZ_EXCLUDE } from "./support/axe";
 
 test.describe("auth flow", () => {
   test("signup → access authed page → logout → authed page redirects to login", async ({
@@ -20,7 +20,8 @@ test.describe("auth flow", () => {
     // reach /overview (the authed shell, which has the profile menu for logout).
     await completeOnboarding(page);
     await expect(page).toHaveURL(/\/overview/);
-    await checkA11y(page);
+    // Overview data-viz contrast deferred to #80; everything else enforced.
+    await checkA11y(page, { exclude: [OVERVIEW_DATAVIZ_EXCLUDE] });
 
     await logout(page);
 

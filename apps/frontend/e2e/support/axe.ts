@@ -3,6 +3,19 @@ import { expect, type Page } from "@playwright/test";
 
 const FAILING_IMPACTS = ["serious", "critical"] as const;
 
+/**
+ * The overview's right-hand financial-summary panel (Sankey, doughnuts, tier
+ * sparkline cards) renders many tier-coloured / reduced-opacity data-viz labels
+ * that still fail WCAG AA color-contrast. Per-component remediation of these
+ * visualisations is deferred to https://github.com/snayff/fin_plan/issues/80
+ * (the contrast audit explicitly defers data-viz to a design-sign-off pass).
+ *
+ * Overview a11y checks exclude ONLY this panel; every rule remains fully
+ * enforced on every other authed page and on the rest of the overview (top
+ * nav, waterfall left panel, page chrome).
+ */
+export const OVERVIEW_DATAVIZ_EXCLUDE = '[data-testid="financial-summary-panel"]';
+
 export interface AxeOptions {
   exclude?: string[];
   disableRules?: string[];

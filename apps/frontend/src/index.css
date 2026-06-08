@@ -31,7 +31,7 @@
     /* Text Hierarchy — blue-white tint at varying opacities */
     --text-secondary: 230 100% 97% / 0.65; /* Item names, descriptions, body text */
     --text-tertiary: 230 100% 97% / 0.55; /* Metadata, helper text, timestamps. Alpha raised 0.4→0.55 for WCAG AA on small text (≥4.5:1 across card/elevated/overlay surfaces); see issue #71 */
-    --text-muted: 230 100% 97% / 0.25; /* Placeholders, disabled text, divider labels */
+    --text-muted: 230 100% 97% / 0.55; /* Placeholders, divider labels. Alpha raised 0.25→0.55 for WCAG AA on perceivable text (audit F2); disabled-control text is AA-exempt but shares this token. */
 
     /* Action — electric violet */
     --primary: 263 84% 52%; /* #7c3aed — buttons, focus rings, CTAs */
@@ -69,7 +69,7 @@
     /* Waterfall tier colours — semantically protected */
     --tier-income: 199 86% 49%; /* #0ea5e9 — energetic electric blue */
     --tier-income-subtle: 199 40% 18%;
-    --tier-committed: 239 84% 68%; /* #6b6ff3 — settled indigo */
+    --tier-committed: 239 84% 70%; /* #7274f3 — settled indigo. Lightness raised 68→70% for WCAG AA as text (audit F3: ~4.9:1 on surface, was 4.23 WARN) */
     --tier-committed-subtle: 239 40% 18%;
     --tier-discretionary: 271 91% 65%; /* #a855f7 — expressive purple */
     --tier-discretionary-subtle: 271 40% 18%;
@@ -212,17 +212,17 @@
   /* Subheading label system — three semantic roles for uppercase section labels.
      See design-tokens.md § Typography > Subheading Labels.
 
-     Contrast against --card (#0d1120) — computed for WCAG 2.1 AA:
-       .label-section (muted-fg/60 ≈ #9598a6)   → 6.60:1  ✓ AA normal text
-       .label-detail  (muted-fg/70 ≈ #abadbc)   → 8.66:1  ✓ AA normal text
-       .label-chart   was text-text-tertiary    → 3.54:1  ✗ failed AA for small text
-                      now text-secondary (0.65) → 7.59:1  ✓ AA normal text
-     Re-audit if --card or these foreground tokens change. */
+     All three use --text-secondary (0.65 α) — the dedicated token that clears
+     WCAG AA on every surface (7.59:1 on --card). Previously .label-section and
+     .label-detail used `text-muted-foreground/60` and `/70`; the `/N` opacity
+     modifier on an alpha-baked CSS var is unreliable (audit F8), so the colour
+     is pinned to a single passing token instead.
+     Re-audit if --card or --text-secondary changes. */
   .label-section {
-    @apply text-[11px] font-heading font-semibold uppercase tracking-wider text-muted-foreground/60;
+    @apply text-[11px] font-heading font-semibold uppercase tracking-wider text-secondary;
   }
   .label-detail {
-    @apply text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground/70;
+    @apply text-xs font-heading font-semibold uppercase tracking-wider text-secondary;
   }
   .label-chart {
     @apply text-[10px] font-heading font-semibold uppercase tracking-widest text-secondary;
