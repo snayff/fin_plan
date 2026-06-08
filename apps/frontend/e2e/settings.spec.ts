@@ -9,8 +9,7 @@ test.describe("settings flow", () => {
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
 
     // The Account section with the profile name field should be visible
     await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
@@ -50,8 +49,7 @@ test.describe("settings flow", () => {
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
 
     // The Display section should be visible with the showPence checkbox
     await expect(page.getByRole("heading", { name: "Display", exact: true })).toBeVisible();
@@ -131,8 +129,7 @@ test.describe("settings flow", () => {
 
     await page.goto("/settings/profile");
     await expect(page).toHaveURL(/\/settings\/profile/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
 
     // SecurityActivitySection renders with title "Security activity"
     await expect(page.getByRole("heading", { name: "Security activity" })).toBeVisible();

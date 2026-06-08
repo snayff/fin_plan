@@ -18,6 +18,12 @@ export default defineConfig({
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: BASE_URL,
+    // Render entry animations at their final state instantly. framer-motion's
+    // useReducedMotion() + the CSS prefers-reduced-motion block then settle
+    // immediately, so axe never samples an element mid-fade (a transient low
+    // opacity reads as a near-invisible color-contrast failure). Also matches
+    // the accessible experience we assert against.
+    reducedMotion: "reduce",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { registerNewUser, completeOnboarding } from "./support/auth";
-import { checkA11y } from "./support/axe";
+import { checkA11y, waitForWaterfallSettled, OVERVIEW_DATAVIZ_EXCLUDE } from "./support/axe";
 
 test.describe("waterfall flow", () => {
   test("add income item, add committed item, overview loads with data", async ({ page }) => {
@@ -10,8 +10,7 @@ test.describe("waterfall flow", () => {
     // ── Income ──────────────────────────────────────────────────────────────
     await page.goto("/income");
     await expect(page).toHaveURL(/\/income/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
 
     // The right panel header contains the "+ Add" GhostAddButton (first match;
     // the empty-state CTA also reads "+ Add").
@@ -36,8 +35,7 @@ test.describe("waterfall flow", () => {
     // ── Committed ───────────────────────────────────────────────────────────
     await page.goto("/committed");
     await expect(page).toHaveURL(/\/committed/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
 
     await page
       .getByRole("button", { name: /^\+ add$/i })
@@ -54,8 +52,10 @@ test.describe("waterfall flow", () => {
     // ── Overview ─────────────────────────────────────────────────────────────
     await page.goto("/overview");
     await expect(page).toHaveURL(/\/overview/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await waitForWaterfallSettled(page);
+    // Populated overview: data-viz panel contrast deferred to #80; the nav and
+    // waterfall left panel are still fully checked.
+    await checkA11y(page, { exclude: [OVERVIEW_DATAVIZ_EXCLUDE] });
 
     // The overview page renders the waterfall left panel and a financial summary.
     // At minimum the overview page container should be visible.

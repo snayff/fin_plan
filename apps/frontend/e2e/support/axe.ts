@@ -4,34 +4,52 @@ import { expect, type Page } from "@playwright/test";
 const FAILING_IMPACTS = ["serious", "critical"] as const;
 
 /**
- * Pre-existing a11y violations on authenticated pages, tracked for holistic
- * remediation in https://github.com/snayff/fin_plan/issues/71. These were
- * invisible until #69 unblocked the authed-page tests. Deferred (not fixed) so
- * this branch stays focused on #69's two named causes:
- *   - color-contrast    — inactive nav links (opacity-70 over tier colours),
- *                         forecast tertiary text, NetWorth label.
- *   - nested-interactive — overview tier-heading button wraps a glossary marker.
- *   - list               — gifts page list markup.
- * Public auth pages (register/login/welcome/accept-invite) must NOT defer —
- * they fully enforce a11y, which guards the #69 page-accent contrast fix.
+ * The overview's right-hand financial-summary panel (Sankey, doughnuts, tier
+ * sparkline cards) renders many tier-coloured / reduced-opacity data-viz labels
+ * that still fail WCAG AA color-contrast. Per-component remediation of these
+ * visualisations is deferred to https://github.com/snayff/fin_plan/issues/80
+ * (the contrast audit explicitly defers data-viz to a design-sign-off pass).
+ *
+ * Overview a11y checks exclude ONLY this panel; every rule remains fully
+ * enforced on every other authed page and on the rest of the overview (top
+ * nav, waterfall left panel, page chrome).
  */
-const DEFERRED_AUTHED_A11Y_RULES = ["color-contrast", "nested-interactive", "list"];
+export const OVERVIEW_DATAVIZ_EXCLUDE = '[data-testid="financial-summary-panel"]';
+
+/**
+ * Wait for the overview waterfall left-panel entrance animation to settle.
+ * `WaterfallLeftPanel` fades its tier sections in with a framer-motion stagger;
+ * a frame sampled mid-stagger renders tier text at partial opacity, which axe
+ * reads as a near-invisible color-contrast failure. We poll until every direct
+ * section wrapper has reached full opacity (resolves instantly under reduced
+ * motion). Best-effort: if the panel never mounts, fall through to the check.
+ */
+export async function waitForWaterfallSettled(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () => {
+        const nav = document.querySelector('nav[aria-label="Waterfall items"]');
+        if (!nav) return false;
+        return Array.from(nav.children).every(
+          (c) => parseFloat(getComputedStyle(c).opacity || "1") >= 0.99
+        );
+      },
+      { timeout: 5_000 }
+    )
+    .catch(() => {
+      /* panel absent or still animating at timeout — proceed with the check */
+    });
+}
 
 export interface AxeOptions {
   exclude?: string[];
   disableRules?: string[];
-  /** Defer the known authed-page a11y debt tracked in #71. Authed pages only. */
-  deferKnownA11yDebt?: boolean;
 }
 
 export async function checkA11y(page: Page, opts: AxeOptions = {}): Promise<void> {
   let builder = new AxeBuilder({ page });
   if (opts.exclude?.length) for (const sel of opts.exclude) builder = builder.exclude(sel);
-  const disabled = [
-    ...(opts.disableRules ?? []),
-    ...(opts.deferKnownA11yDebt ? DEFERRED_AUTHED_A11Y_RULES : []),
-  ];
-  if (disabled.length) builder = builder.disableRules(disabled);
+  if (opts.disableRules?.length) builder = builder.disableRules(opts.disableRules);
   const results = await builder.analyze();
   const blocking = results.violations.filter((v) =>
     FAILING_IMPACTS.includes(v.impact as (typeof FAILING_IMPACTS)[number])

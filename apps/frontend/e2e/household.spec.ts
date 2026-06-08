@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { registerNewUser, completeOnboarding } from "./support/auth";
 import { uniqueEmail } from "./support/api";
-import { checkA11y } from "./support/axe";
+import { checkA11y, waitForWaterfallSettled, OVERVIEW_DATAVIZ_EXCLUDE } from "./support/axe";
 
 const API_BASE = process.env.E2E_API_URL ?? "http://localhost:3001";
 
@@ -34,8 +34,9 @@ test.describe("household flow", () => {
     await completeOnboarding(page, "E2E Test Household");
 
     await expect(page).toHaveURL(/\/overview/, { timeout: 10_000 });
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await waitForWaterfallSettled(page);
+    // Overview data-viz contrast deferred to #80; everything else enforced.
+    await checkA11y(page, { exclude: [OVERVIEW_DATAVIZ_EXCLUDE] });
     await expect(page.getByTestId("overview-page")).toBeVisible();
   });
 
@@ -102,8 +103,9 @@ test.describe("household flow", () => {
 
     // Should redirect to /overview after joining
     await inviteePage.waitForURL(/\/(overview|welcome)/, { timeout: 15_000 });
-    // Authed landing page: defer known a11y debt to issue #71.
-    await checkA11y(inviteePage, { deferKnownA11yDebt: true });
+    await waitForWaterfallSettled(inviteePage);
+    // May land on overview — defer its data-viz contrast to #80 (no-op on /welcome).
+    await checkA11y(inviteePage, { exclude: [OVERVIEW_DATAVIZ_EXCLUDE] });
 
     await inviteeContext.close();
   });
@@ -114,8 +116,7 @@ test.describe("household flow", () => {
 
     await page.goto("/settings/household");
     await expect(page).toHaveURL(/\/settings\/household/);
-    // Authed page: defer known a11y debt to issue #71.
-    await checkA11y(page, { deferKnownA11yDebt: true });
+    await checkA11y(page);
     // The left panel renders the "Members & invites" section heading.
     await expect(page.getByRole("heading", { name: "Members & invites" })).toBeVisible();
   });
