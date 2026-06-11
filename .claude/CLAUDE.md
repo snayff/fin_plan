@@ -14,6 +14,17 @@ Full-stack TypeScript monorepo: Fastify backend + React/Vite frontend + shared Z
 
 ---
 
+## Issue Workflow
+
+Work is tracked on GitHub issues. Full reference: `docs/3. architecture/issue-workflow.md` (single source of truth for ticket structure).
+
+- **Two tracks:** `feature` (full pipeline: Design → Spec → Plan → Build → Verify) and `quick-change` (implement directly). Stage is tracked by the **checklist in the issue body**; `ready-to-build` is auto-managed by `.github/workflows/ticket-labels.yml`.
+- **Create tickets** with `/create-new-ticket` (or the UI issue forms) — never ad hoc; structure must match the canonical anatomy.
+- **Advance tickets** with `/progress-ticket <N>` — runs the next stage and does the bookkeeping.
+- **Public repo:** never put personal/financial/infra detail in issues or generated docs. Security weaknesses go to **private Security Advisories**, never public issues.
+
+---
+
 ## Code Quality
 
 - After every edit, run `bun run lint && bun run type-check` before committing. (Never use npm — see Commands.)

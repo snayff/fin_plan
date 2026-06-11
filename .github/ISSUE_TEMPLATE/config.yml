@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security issue (private)
+    url: https://github.com/snayff/fin_plan/security/advisories/new
+    about: Report security-sensitive issues as a private advisory — never as a public issue.

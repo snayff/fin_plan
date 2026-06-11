@@ -68,6 +68,8 @@ docs/scratch/
 !.claude/skills/write-design/
 !.claude/skills/write-plan/
 !.claude/skills/write-spec/
+!.claude/skills/create-new-ticket/
+!.claude/skills/progress-ticket/
 .claude/worktrees
 .claude/settings.local.json
 settings
