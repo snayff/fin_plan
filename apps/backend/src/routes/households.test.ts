@@ -769,6 +769,28 @@ describe("GET /api/households/:id/member-profiles", () => {
     expect(memberService.listMembers).toHaveBeenCalledWith("household-1");
   });
 
+  it("returns 404 when requesting another household's member profiles", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/households/other-household/member-profiles",
+      headers: authHeaders,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.listMembers).not.toHaveBeenCalled();
+  });
+
+  it("scopes the service call to the active household, never the URL param", async () => {
+    await app.inject({
+      method: "GET",
+      url: "/api/households/household-1/member-profiles",
+      headers: authHeaders,
+    });
+
+    expect(memberService.listMembers).toHaveBeenCalledWith("household-1");
+    expect(memberService.listMembers).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 401 without auth", async () => {
     const response = await app.inject({
       method: "GET",
@@ -839,6 +861,18 @@ describe("POST /api/households/:id/member-profiles", () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it("returns 404 when targeting another household", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/households/other-household/member-profiles",
+      headers: authHeaders,
+      payload: { name: "New Member" },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.createMember).not.toHaveBeenCalled();
+  });
+
   it("returns 401 without auth", async () => {
     const response = await app.inject({
       method: "POST",
@@ -880,6 +914,18 @@ describe("PATCH /api/households/:id/member-profiles/:memberId", () => {
       expect.objectContaining({ name: "Updated Name", retirementYear: 2060 }),
       expect.objectContaining({ actorId: "user-1" })
     );
+  });
+
+  it("returns 404 when targeting another household", async () => {
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/households/other-household/member-profiles/member-profile-1",
+      headers: authHeaders,
+      payload: { name: "Updated Name" },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.updateMember).not.toHaveBeenCalled();
   });
 
   it("returns 401 without auth", async () => {
@@ -937,6 +983,17 @@ describe("DELETE /api/households/:id/member-profiles/:memberId", () => {
       expect.objectContaining({ actorId: "user-1" }),
       "member-profile-2"
     );
+  });
+
+  it("returns 404 when targeting another household", async () => {
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/api/households/other-household/member-profiles/member-profile-1",
+      headers: authHeaders,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.deleteMember).not.toHaveBeenCalled();
   });
 
   it("returns 401 without auth", async () => {
