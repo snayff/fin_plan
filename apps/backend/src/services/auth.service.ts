@@ -1,5 +1,10 @@
 import { prisma } from "../config/database";
-import { hashPassword, verifyPassword } from "../utils/password";
+import {
+  hashPassword,
+  verifyPassword,
+  MAX_PASSWORD_LENGTH,
+  TIMING_EQUALIZATION_HASH,
+} from "../utils/password";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -71,6 +76,11 @@ export const authService = {
     // Validate password strength (minimum 12 characters)
     if (password.length < 12) {
       throw new ValidationError("Password must be at least 12 characters long");
+    }
+
+    // Bound password length (bcrypt input limit)
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
     }
 
     // Check if user already exists
@@ -153,6 +163,9 @@ export const authService = {
     });
 
     if (!user) {
+      // Run an equivalent-cost comparison so response timing matches the
+      // stored-hash path regardless of whether the account exists.
+      await verifyPassword(password, TIMING_EQUALIZATION_HASH);
       throw new AuthenticationError("Invalid credentials");
     }
 

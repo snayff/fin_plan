@@ -40,11 +40,9 @@ describe("verifyAccessToken", () => {
 
   it('throws "Token expired" for expired token', () => {
     // Generate token with 0 seconds expiry using the raw jwt library
-    const token = jwt.sign(
-      { userId: "user-1", email: "test@test.com" },
-      process.env.JWT_SECRET!,
-      { expiresIn: "0s" }
-    );
+    const token = jwt.sign({ userId: "user-1", email: "test@test.com" }, process.env.JWT_SECRET!, {
+      expiresIn: "0s",
+    });
     expect(() => verifyAccessToken(token)).toThrow("Token expired");
   });
 
@@ -60,6 +58,22 @@ describe("verifyAccessToken", () => {
       "completely-different-secret-key-that-is-32-chars-long",
       { expiresIn: "15m" }
     );
+    expect(() => verifyAccessToken(token)).toThrow("Invalid token");
+  });
+
+  it('throws "Invalid token" for a token signed with a non-pinned algorithm', () => {
+    // Signed with the correct secret but HS512 — verification pins HS256.
+    const token = jwt.sign({ userId: "user-1", email: "test@test.com" }, process.env.JWT_SECRET!, {
+      expiresIn: "15m",
+      algorithm: "HS512",
+    });
+    expect(() => verifyAccessToken(token)).toThrow("Invalid token");
+  });
+
+  it('throws "Invalid token" when required claims are missing', () => {
+    const token = jwt.sign({ email: "test@test.com" }, process.env.JWT_SECRET!, {
+      expiresIn: "15m",
+    });
     expect(() => verifyAccessToken(token)).toThrow("Invalid token");
   });
 });
@@ -96,6 +110,14 @@ describe("verifyRefreshToken", () => {
     const token = generateRefreshToken({ userId: "user-1" });
     const tamperedToken = token.slice(0, -5) + "XXXXX";
     expect(() => verifyRefreshToken(tamperedToken)).toThrow("Invalid refresh token");
+  });
+
+  it('throws "Invalid refresh token" for a token signed with a non-pinned algorithm', () => {
+    const token = jwt.sign({ userId: "user-1" }, process.env.JWT_REFRESH_SECRET!, {
+      expiresIn: "7d",
+      algorithm: "HS512",
+    });
+    expect(() => verifyRefreshToken(token)).toThrow("Invalid refresh token");
   });
 });
 

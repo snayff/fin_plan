@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../config/database.js";
-import { hashPassword } from "../utils/password.js";
+import { hashPassword, MAX_PASSWORD_LENGTH } from "../utils/password.js";
 import { subcategoryService } from "./subcategory.service.js";
 import {
   generateAccessToken,
@@ -426,6 +426,9 @@ export const householdService = {
     // Validate password (mirrors authService rules)
     if (newUser.password.length < 12) {
       throw new ValidationError("Password must be at least 12 characters long");
+    }
+    if (newUser.password.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
     }
 
     if (normalizedEmail !== invite.email) {

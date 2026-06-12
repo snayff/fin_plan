@@ -7,6 +7,7 @@ import { config } from "../config/env";
 import { blacklistToken } from "../utils/tokenBlacklist";
 import { decodeToken } from "../utils/jwt";
 import { NotFoundError, ValidationError } from "../utils/errors";
+import { MAX_PASSWORD_LENGTH } from "../utils/password";
 import { AuditAction } from "@finplan/shared";
 
 function requestContext(request: FastifyRequest) {
@@ -27,13 +28,13 @@ function blacklistCurrentToken(request: FastifyRequest): void {
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(12),
+  password: z.string().min(12).max(MAX_PASSWORD_LENGTH),
   name: z.string().min(1),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(1).max(MAX_PASSWORD_LENGTH),
   rememberMe: z.boolean().optional().default(false),
 });
 

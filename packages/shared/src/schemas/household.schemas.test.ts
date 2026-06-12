@@ -97,6 +97,16 @@ describe("acceptInviteSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts password of exactly 128 characters", () => {
+    const result = acceptInviteSchema.safeParse({ ...validInput, password: "a".repeat(128) });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects password longer than 128 characters", () => {
+    const result = acceptInviteSchema.safeParse({ ...validInput, password: "a".repeat(129) });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects empty name", () => {
     const result = acceptInviteSchema.safeParse({ ...validInput, name: "" });
     expect(result.success).toBe(false);

@@ -17,6 +17,8 @@ mock.module("../utils/jwt", () => ({
 // Password utils used by acceptInvite
 mock.module("../utils/password", () => ({
   hashPassword: mock(() => Promise.resolve("hashed-password")),
+  MAX_PASSWORD_LENGTH: 128,
+  TIMING_EQUALIZATION_HASH: "$2b$12$mockedTimingEqualizationHash",
 }));
 
 import { householdService, assertOwnerOrAdmin, updateMemberRole } from "./household.service";

@@ -10,6 +10,8 @@ mock.module("../config/database", () => ({
 mock.module("../utils/password", () => ({
   hashPassword: mock(() => Promise.resolve("$2b$10$mockedHashValue")),
   verifyPassword: mock(() => {}),
+  MAX_PASSWORD_LENGTH: 128,
+  TIMING_EQUALIZATION_HASH: "$2b$12$mockedTimingEqualizationHash",
 }));
 
 mock.module("../utils/jwt", () => ({
@@ -104,6 +106,12 @@ describe("authService.register", () => {
     );
   });
 
+  it("throws ValidationError for over-long password (> 128 chars)", async () => {
+    await expect(
+      authService.register({ ...validInput, password: "a".repeat(129) })
+    ).rejects.toThrow("Password must be at most 128 characters");
+  });
+
   it("throws ConflictError for duplicate email", async () => {
     prismaMock.user.findUnique.mockResolvedValue(buildUser());
     await expect(authService.register(validInput)).rejects.toThrow(
@@ -167,6 +175,19 @@ describe("authService.login", () => {
     await expect(
       authService.login({ email: "unknown@test.com", password: "pass123456789" })
     ).rejects.toThrow("Invalid credentials");
+  });
+
+  it("runs an equivalent-cost hash comparison when the user is not found", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    await expect(
+      authService.login({ email: "unknown@test.com", password: "pass123456789" })
+    ).rejects.toThrow("Invalid credentials");
+
+    // The dummy comparison keeps response timing uniform across both paths.
+    expect(verifyPassword).toHaveBeenCalledWith(
+      "pass123456789",
+      "$2b$12$mockedTimingEqualizationHash"
+    );
   });
 
   it("throws AuthenticationError for wrong password", async () => {

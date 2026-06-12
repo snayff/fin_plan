@@ -146,6 +146,17 @@ describe("POST /api/auth/register", () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it("returns 400 for over-long password (> 128 chars)", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { email: "test@test.com", password: "a".repeat(129), name: "Test User" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+  });
 });
 
 describe("POST /api/auth/login", () => {
@@ -238,6 +249,16 @@ describe("POST /api/auth/login", () => {
       method: "POST",
       url: "/api/auth/login",
       payload: { email: "test@test.com" },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("returns 400 for over-long password (> 128 chars)", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "test@test.com", password: "a".repeat(129) },
     });
 
     expect(response.statusCode).toBe(400);
