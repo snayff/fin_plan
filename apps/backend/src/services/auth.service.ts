@@ -276,6 +276,8 @@ export const authService = {
    * Returns a new access token AND a new refresh token.
    * The old refresh token is revoked. If a revoked token is reused,
    * the entire token family is revoked (replay attack detection).
+   * Rotation (revoke old + create new) commits atomically, so a session
+   * can never be left mid-rotation by a crash or concurrent refresh.
    */
   async refreshAccessToken(
     refreshToken: string,
@@ -286,6 +288,7 @@ export const authService = {
     rememberMe: boolean;
     expiresAt: Date;
     sessionExpiresAt: Date;
+    userId: string;
   }> {
     if (!refreshToken) {
       throw new AuthenticationError("Refresh token is required");
@@ -329,15 +332,6 @@ export const authService = {
         throw new AuthenticationError("Session expired - please login again");
       }
 
-      // Revoke the current token (it's been used)
-      await prisma.refreshToken.update({
-        where: { id: storedToken.id },
-        data: {
-          isRevoked: true,
-          lastUsedAt: now,
-        },
-      });
-
       // Find user
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },
@@ -355,20 +349,49 @@ export const authService = {
         storedToken.sessionExpiresAt
       );
 
-      // Store new refresh token in the same family
-      await prisma.refreshToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: hashToken(newRefreshToken),
-          familyId: storedToken.familyId, // Same family for reuse detection
-          expiresAt,
-          sessionExpiresAt,
-          rememberMe: storedToken.rememberMe,
-          ipAddress: context?.ipAddress,
-          userAgent: context?.userAgent,
-          lastUsedAt: now,
-        },
+      // Atomic rotation: claim (revoke) the old token and store its
+      // replacement in one transaction. The guarded updateMany only succeeds
+      // for the request that claims the token first; a concurrent refresh of
+      // the same token claims nothing and is treated as reuse below.
+      const rotated = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.refreshToken.updateMany({
+          where: { id: storedToken.id, isRevoked: false },
+          data: { isRevoked: true, lastUsedAt: now },
+        });
+
+        if (claimed.count === 0) {
+          return false;
+        }
+
+        // Store new refresh token in the same family
+        await tx.refreshToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: hashToken(newRefreshToken),
+            familyId: storedToken.familyId, // Same family for reuse detection
+            expiresAt,
+            sessionExpiresAt,
+            rememberMe: storedToken.rememberMe,
+            ipAddress: context?.ipAddress,
+            userAgent: context?.userAgent,
+            lastUsedAt: now,
+          },
+        });
+
+        return true;
       });
+
+      if (!rotated) {
+        // Another request rotated this token between our read and the claim —
+        // same protection as the replay path above.
+        await prisma.refreshToken.updateMany({
+          where: { familyId: storedToken.familyId },
+          data: { isRevoked: true },
+        });
+        throw new AuthenticationError(
+          "Refresh token reuse detected — all sessions in this family have been revoked"
+        );
+      }
 
       return {
         accessToken: newAccessToken,
@@ -376,6 +399,7 @@ export const authService = {
         rememberMe: storedToken.rememberMe,
         expiresAt,
         sessionExpiresAt,
+        userId: user.id,
       };
     } catch (error) {
       if (error instanceof AuthenticationError) {

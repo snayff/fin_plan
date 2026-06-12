@@ -261,6 +261,7 @@ describe("authService.refreshAccessToken", () => {
     const result = await authService.refreshAccessToken("valid-refresh-token");
     expect(result.accessToken).toBe("mock-access-token");
     expect(result.rememberMe).toBe(true);
+    expect(result.userId).toBe(user.id);
     expect(result.expiresAt).toBeInstanceOf(Date);
     expect(result.sessionExpiresAt).toBeInstanceOf(Date);
     expect(prismaMock.refreshToken.create).toHaveBeenCalledWith(
@@ -277,6 +278,62 @@ describe("authService.refreshAccessToken", () => {
 
   it("throws AuthenticationError for missing refresh token", async () => {
     await expect(authService.refreshAccessToken("")).rejects.toThrow("Refresh token is required");
+  });
+
+  it("rotates atomically: revoke-old and create-new run inside one transaction", async () => {
+    const user = buildUser();
+    (verifyRefreshToken as any).mockReturnValue({ userId: user.id });
+    prismaMock.refreshToken.findUnique.mockResolvedValue({
+      id: "rt-1",
+      userId: user.id,
+      familyId: "mock-family-id",
+      isRevoked: false,
+      rememberMe: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      sessionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    prismaMock.user.findUnique.mockResolvedValue(user);
+
+    await authService.refreshAccessToken("valid-refresh-token");
+
+    expect(prismaMock.$transaction).toHaveBeenCalled();
+    // The revoke is a guarded claim on the un-revoked row, not a blind update
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rt-1", isRevoked: false },
+        data: expect.objectContaining({ isRevoked: true }),
+      })
+    );
+    expect(prismaMock.refreshToken.create).toHaveBeenCalled();
+  });
+
+  it("revokes the whole family when the token was concurrently rotated", async () => {
+    const user = buildUser();
+    (verifyRefreshToken as any).mockReturnValue({ userId: user.id });
+    prismaMock.refreshToken.findUnique.mockResolvedValue({
+      id: "rt-1",
+      userId: user.id,
+      familyId: "mock-family-id",
+      isRevoked: false,
+      rememberMe: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      sessionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    prismaMock.user.findUnique.mockResolvedValue(user);
+    // First updateMany = claim attempt (loses the race), second = family revoke
+    prismaMock.refreshToken.updateMany
+      .mockResolvedValueOnce({ count: 0 } as any)
+      .mockResolvedValueOnce({ count: 2 } as any);
+
+    await expect(authService.refreshAccessToken("valid-refresh-token")).rejects.toThrow(
+      "reuse detected"
+    );
+
+    expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenLastCalledWith({
+      where: { familyId: "mock-family-id" },
+      data: { isRevoked: true },
+    });
   });
 
   it("rejects refresh when absolute session cap is reached", async () => {

@@ -9,6 +9,7 @@ mock.module("../services/auth.service", () => {
     register: mock(() => {}),
     login: mock(() => {}),
     findUserById: mock(() => {}),
+    findUserByEmail: mock(() => Promise.resolve(null)),
     refreshAccessToken: mock(() => {}),
     revokeAllUserTokens: mock(() => Promise.resolve()),
     getUserSessions: mock(() => Promise.resolve([])),
@@ -47,6 +48,9 @@ afterAll(async () => {
 
 beforeEach(() => {
   mockAuditLog.mockClear();
+  (authService.refreshAccessToken as any).mockClear();
+  (authService.findUserByEmail as any).mockClear();
+  (authService.findUserByEmail as any).mockResolvedValue(null);
   const authImpl = async (request: any) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -70,6 +74,7 @@ const mockRefreshResponse = {
   rememberMe: true,
   expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
   sessionExpiresAt: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000),
+  userId: "user-1",
 };
 
 describe("POST /api/auth/register", () => {
@@ -276,6 +281,45 @@ describe("POST /api/auth/login", () => {
     expect(response.statusCode).toBe(401);
     expect(response.json().error.code).toBe("AUTH_ERROR");
   });
+
+  it("attributes LOGIN_FAILED to the targeted account when the email exists", async () => {
+    (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
+    (authService.findUserByEmail as any).mockResolvedValue({
+      id: "user-1",
+      email: "test@test.com",
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "test@test.com", password: "wrongpassword1" },
+    });
+
+    // Client response stays generic — attribution is audit-only
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Invalid credentials");
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "LOGIN_FAILED", userId: "user-1" })
+    );
+  });
+
+  it("writes LOGIN_FAILED without userId when the email matches no account", async () => {
+    (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "nobody@test.com", password: "wrongpassword1" },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Invalid credentials");
+    const failedCall = (mockAuditLog.mock.calls as any[]).find(
+      (c) => c[0]?.action === "LOGIN_FAILED"
+    );
+    expect(failedCall).toBeDefined();
+    expect(failedCall[0].userId).toBeUndefined();
+  });
 });
 
 describe("GET /api/auth/me", () => {
@@ -316,17 +360,56 @@ describe("GET /api/auth/me", () => {
 });
 
 describe("POST /api/auth/refresh", () => {
-  it("returns 200 with new access token from body", async () => {
+  it("returns 200 with new access token from cookie", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "valid-refresh-token" },
+      cookies: { refreshToken: "valid-refresh-token" },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().accessToken).toBe("new-token");
+    expect(authService.refreshAccessToken).toHaveBeenCalledWith(
+      "valid-refresh-token",
+      expect.any(Object)
+    );
+  });
+
+  it("ignores a refresh token supplied in the request body (cookie only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      payload: { refreshToken: "body-supplied-token" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("writes a TOKEN_REFRESH audit event attributed to the user", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      cookies: { refreshToken: "valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        action: "TOKEN_REFRESH",
+        resource: "session",
+      })
+    );
   });
 
   it("sets persistent cookie on refresh when rememberMe=true", async () => {
@@ -335,7 +418,8 @@ describe("POST /api/auth/refresh", () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "valid-refresh-token" },
+      cookies: { refreshToken: "valid-refresh-token" },
+      payload: {},
     });
 
     const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
@@ -362,7 +446,8 @@ describe("POST /api/auth/refresh", () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "expired-token" },
+      cookies: { refreshToken: "expired-token" },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(401);

@@ -39,10 +39,6 @@ const loginSchema = z.object({
   rememberMe: z.boolean().optional().default(false),
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1).optional(),
-});
-
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100),
 });
@@ -163,7 +159,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       const { refreshToken: _rt, ...publicResult } = result;
       return reply.status(200).send(publicResult);
     } catch (error) {
+      // Attribute the failed attempt to the targeted account when the email
+      // matches an existing user. Best-effort only — the client response
+      // stays generic regardless.
+      let targetUserId: string | undefined;
+      try {
+        const targetUser = await authService.findUserByEmail(body.email);
+        targetUserId = targetUser?.id;
+      } catch {
+        // Attribution must never block the audit write or change the response
+      }
+
       await auditEvent({
+        ...(targetUserId ? { userId: targetUserId } : {}),
         action: "LOGIN_FAILED",
         resource: "session",
         metadata: { email: body.email },
@@ -220,13 +228,11 @@ export async function authRoutes(fastify: FastifyInstance) {
    * POST /api/auth/refresh
    * Refresh access token using refresh token
    * Rate limit: 10 attempts per 15 minutes per IP
-   * Supports BOTH cookie and request body for backward compatibility
+   * The refresh token is read from the httpOnly cookie only — it is never
+   * accepted from the request body.
    */
   fastify.post("/refresh", refreshOpts, async (request, reply) => {
-    const body = refreshSchema.parse(request.body);
-
-    // Try cookie first, then body (backward compatibility)
-    const refreshToken = request.cookies.refreshToken || body.refreshToken;
+    const refreshToken = request.cookies.refreshToken;
 
     if (!refreshToken) {
       throw new ValidationError("Refresh token required");
@@ -236,6 +242,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     const result = await authService.refreshAccessToken(refreshToken, ctx);
 
     await auditEvent({
+      userId: result.userId,
       action: "TOKEN_REFRESH",
       resource: "session",
       ...ctx,
