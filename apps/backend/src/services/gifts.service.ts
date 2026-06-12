@@ -307,61 +307,67 @@ export const giftsService = {
   ) {
     this._assertCurrentYear(year);
 
-    // Resolve virtual `member:<id>` personId by finding or creating the
-    // backing GiftPerson record, mirroring bulkUpsertAllocations.
-    let resolvedPersonId = personId;
-    if (personId.startsWith("member:")) {
-      const memberId = personId.slice("member:".length);
-      const member = await prisma.member.findUnique({ where: { id: memberId } });
-      assertOwned(member, householdId, "Gift person");
-      const existing = await prisma.giftPerson.findFirst({
-        where: { householdId, memberId },
-      });
-      if (existing) {
-        resolvedPersonId = existing.id;
-      } else {
-        const created = await prisma.giftPerson.create({
-          data: { householdId, memberId, name: member!.name, sortOrder: 999 },
+    // Resolve the person/event and write the allocation atomically so the
+    // ownership checks and the upsert can't interleave with other writes.
+    return prisma.$transaction(async (tx) => {
+      // Resolve virtual `member:<id>` personId by finding or creating the
+      // backing GiftPerson record, mirroring bulkUpsertAllocations.
+      let resolvedPersonId = personId;
+      if (personId.startsWith("member:")) {
+        const memberId = personId.slice("member:".length);
+        const member = await tx.member.findUnique({ where: { id: memberId } });
+        assertOwned(member, householdId, "Gift person");
+        const existing = await tx.giftPerson.findFirst({
+          where: { householdId, memberId },
         });
-        resolvedPersonId = created.id;
+        if (existing) {
+          resolvedPersonId = existing.id;
+        } else {
+          const created = await tx.giftPerson.create({
+            data: { householdId, memberId, name: member!.name, sortOrder: 999 },
+          });
+          resolvedPersonId = created.id;
+        }
       }
-    }
 
-    const person = await prisma.giftPerson.findUnique({ where: { id: resolvedPersonId } });
-    assertOwned(person, householdId, "Gift person");
-    const event = await prisma.giftEvent.findUnique({ where: { id: eventId } });
-    assertOwned(event, householdId, "Gift event");
+      const person = await tx.giftPerson.findUnique({ where: { id: resolvedPersonId } });
+      assertOwned(person, householdId, "Gift person");
+      const event = await tx.giftEvent.findUnique({ where: { id: eventId } });
+      assertOwned(event, householdId, "Gift event");
 
-    const status = this._resolveStatus(input);
-    const writable: Record<string, unknown> = {};
-    if (input.planned !== undefined) writable.planned = input.planned;
-    if (input.spent !== undefined) writable.spent = input.spent;
-    if (input.notes !== undefined) writable.notes = input.notes;
-    if (input.dateMonth !== undefined) writable.dateMonth = input.dateMonth;
-    if (input.dateDay !== undefined) writable.dateDay = input.dateDay;
-    if (status !== undefined) writable.status = status;
+      const status = this._resolveStatus(input);
+      const writable: Record<string, unknown> = {};
+      if (input.planned !== undefined) writable.planned = input.planned;
+      if (input.spent !== undefined) writable.spent = input.spent;
+      if (input.notes !== undefined) writable.notes = input.notes;
+      if (input.dateMonth !== undefined) writable.dateMonth = input.dateMonth;
+      if (input.dateDay !== undefined) writable.dateDay = input.dateDay;
+      if (status !== undefined) writable.status = status;
 
-    return prisma.giftAllocation.upsert({
-      where: {
-        giftPersonId_giftEventId_year: {
+      return tx.giftAllocation.upsert({
+        where: {
+          giftPersonId_giftEventId_year: {
+            giftPersonId: resolvedPersonId,
+            giftEventId: eventId,
+            year,
+          },
+          // Defence-in-depth: never update a row belonging to another household.
+          householdId,
+        },
+        create: {
+          householdId,
           giftPersonId: resolvedPersonId,
           giftEventId: eventId,
           year,
+          planned: input.planned ?? 0,
+          spent: input.spent ?? null,
+          status: status ?? "planned",
+          notes: input.notes ?? null,
+          dateMonth: input.dateMonth ?? null,
+          dateDay: input.dateDay ?? null,
         },
-      },
-      create: {
-        householdId,
-        giftPersonId: resolvedPersonId,
-        giftEventId: eventId,
-        year,
-        planned: input.planned ?? 0,
-        spent: input.spent ?? null,
-        status: status ?? "planned",
-        notes: input.notes ?? null,
-        dateMonth: input.dateMonth ?? null,
-        dateDay: input.dateDay ?? null,
-      },
-      update: writable,
+        update: writable,
+      });
     });
   },
 
@@ -445,6 +451,8 @@ export const giftsService = {
               giftEventId: cell.eventId,
               year: cell.year,
             },
+            // Defence-in-depth: never update a row belonging to another household.
+            householdId,
           },
           create: {
             householdId,
