@@ -1,5 +1,29 @@
 import { z } from "zod";
 
+// Example/weak values rejected in production for every secret below.
+const WEAK_SECRETS = [
+  "your-super-secret",
+  "change-this",
+  "change-me",
+  "example",
+  "test",
+  "development",
+  "password",
+  "secret",
+];
+
+const isWeakSecret = (val: string): boolean =>
+  WEAK_SECRETS.some((weak) => val.toLowerCase().includes(weak));
+
+/** A required secret (min 32 chars) that must not be a weak/example value in production. */
+const strongSecret = (name: string) =>
+  z
+    .string()
+    .min(32)
+    .refine((val) => process.env.NODE_ENV !== "production" || !isWeakSecret(val), {
+      message: `${name} must be a strong random string in production. Generate with: openssl rand -base64 64`,
+    });
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.string().default("3001").transform(Number),
@@ -8,61 +32,13 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
 
   // JWT
-  JWT_SECRET: z
-    .string()
-    .min(32)
-    .refine(
-      (val) => {
-        if (process.env.NODE_ENV === "production") {
-          // Reject example/weak secrets in production
-          const weakSecrets = [
-            "your-super-secret",
-            "change-this",
-            "example",
-            "test",
-            "development",
-            "password",
-            "secret",
-          ];
-          return !weakSecrets.some((weak) => val.toLowerCase().includes(weak));
-        }
-        return true;
-      },
-      {
-        message:
-          "JWT_SECRET must be a strong random string in production. Generate with: openssl rand -base64 64",
-      }
-    ),
-  JWT_REFRESH_SECRET: z
-    .string()
-    .min(32)
-    .refine(
-      (val) => {
-        if (process.env.NODE_ENV === "production") {
-          // Reject example/weak secrets in production
-          const weakSecrets = [
-            "your-super-secret",
-            "change-this",
-            "example",
-            "test",
-            "development",
-            "password",
-            "secret",
-          ];
-          return !weakSecrets.some((weak) => val.toLowerCase().includes(weak));
-        }
-        return true;
-      },
-      {
-        message:
-          "JWT_REFRESH_SECRET must be a strong random string in production. Generate with: openssl rand -base64 64",
-      }
-    ),
+  JWT_SECRET: strongSecret("JWT_SECRET"),
+  JWT_REFRESH_SECRET: strongSecret("JWT_REFRESH_SECRET"),
   JWT_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
 
   // Cookie Security
-  COOKIE_SECRET: z.string().min(32),
+  COOKIE_SECRET: strongSecret("COOKIE_SECRET"),
 
   // CSRF Protection
   CSRF_SECRET: z
@@ -72,13 +48,13 @@ const envSchema = z.object({
     .refine(
       (val) => {
         if (process.env.NODE_ENV === "production") {
-          return val !== undefined && val.length >= 32;
+          return val !== undefined && val.length >= 32 && !isWeakSecret(val);
         }
         return true;
       },
       {
         message:
-          "CSRF_SECRET is required in production (min 32 chars). Generate with: openssl rand -base64 64",
+          "CSRF_SECRET is required in production (min 32 chars) and must be a strong random string. Generate with: openssl rand -base64 64",
       }
     ),
 
