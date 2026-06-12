@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idSchema } from "./common.schemas";
 
 export const HouseholdRoleEnum = z.enum(["owner", "admin", "member"]);
 export type HouseholdRole = z.infer<typeof HouseholdRoleEnum>;
@@ -159,11 +160,11 @@ export const AuditEntrySchema = z.object({
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 
 export const AuditLogQuerySchema = z.object({
-  actorId: z.string().optional(),
+  actorId: idSchema.optional(),
   resource: ResourceSlugEnum.optional(),
   dateFrom: z.string().datetime({ offset: true }).optional(),
   dateTo: z.string().datetime({ offset: true }).optional(),
-  cursor: z.string().optional(),
+  cursor: idSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
@@ -176,7 +177,7 @@ export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;
 
 /** Security activity — per-user, auth-scoped view. */
 export const SecurityActivityQuerySchema = z.object({
-  cursor: z.string().optional(),
+  cursor: idSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type SecurityActivityQuery = z.infer<typeof SecurityActivityQuerySchema>;

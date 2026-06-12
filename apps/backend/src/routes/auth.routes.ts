@@ -26,19 +26,21 @@ function blacklistCurrentToken(request: FastifyRequest): void {
 }
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(12),
-  name: z.string().min(1),
+  email: z.string().trim().max(254).email(),
+  password: z.string().min(12).max(128),
+  name: z.string().trim().min(1).max(100),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().trim().max(254).email(),
+  // Looser cap than register so accounts created before the register-side
+  // bound existed can still sign in.
+  password: z.string().min(1).max(1024),
   rememberMe: z.boolean().optional().default(false),
 });
 
 const refreshSchema = z.object({
-  refreshToken: z.string().min(1).optional(),
+  refreshToken: z.string().min(1).max(4096).optional(),
 });
 
 const updateProfileSchema = z.object({
