@@ -28,19 +28,10 @@ The design doc agrees this is wrong: `docs/5. built/discretionary/gifts/gifts-de
 
 ---
 
-### C2. Cross-household member roster / PII leak (IDOR) ✅ runtime-confirmed
+### C2. Security finding — redacted (tracked in a private Security Advisory)
 
-**Where:** `apps/backend/src/routes/households.ts:222-230` → `apps/backend/src/services/member.service.ts:71-79`.
-
-`GET /api/households/:id/member-profiles` reads the household id straight from the URL and passes it to `listMembers(id)` with **no membership/ownership check** and no comparison against `req.householdId`. Every sibling route (`getHouseholdDetails`, the role/profile PATCH routes, create/update/delete) performs `assertMember` / `assertCallerIsOwner` — only this GET is unguarded.
-
-**Runtime proof:** I registered a second user in a _different_ household and called `GET /api/households/<victim-household-id>/member-profiles`. It returned HTTP 200 with the victim household's full roster — member names, roles, dates of birth, retirement years, and each linked user's **name + email** (`owner@finplan.test`). Household ids are UUIDs but they leak elsewhere (the unauthenticated `GET /invite/:token` returns `householdId`, and switch/detail responses echo ids), so this is a real cross-tenant PII disclosure.
-
-**Fix:** derive the household from `req.householdId!` (preferred per project convention) or call `assertMember(id, req.user!.userId)` before listing.
-
-**Handling:** repo is public — do **not** describe this in a public GitHub issue. Fix on a branch; if any real user data exists in a deployed environment, treat as a private Security Advisory.
-
-> Related lower-risk drift (not exploitable): the member-profile **mutation** routes (`households.ts:233-275`) also take `:id` from the URL rather than `req.householdId`. They're safe today only because the services re-assert ownership, but normalising all of these to `req.householdId!` is what would have prevented C2.
+A confirmed cross-tenant data-access weakness was found and reproduced at runtime. Per the project's security policy (the repo is public, so vulnerability detail must never live in a public artifact), the specifics — affected endpoint, reproduction, and fix — are **not recorded here**. They are tracked privately at
+`https://github.com/snayff/fin_plan/security/advisories`.
 
 ---
 
@@ -187,7 +178,7 @@ These page totals contradict the backend's `bySubcategory.monthlyTotal` (which u
 
 ## Suggested fix order
 
-1. **C1/C2/C3** — all confirmed at runtime, all materially wrong, mostly small fixes: C2 (IDOR/PII), C1 (12× gift overstatement), C3 (amount edits silently dropped).
+1. **C1/C2/C3** — all confirmed at runtime, all materially wrong, mostly small fixes: C2 (see private advisory), C1 (12× gift overstatement), C3 (amount edits silently dropped).
 2. **H1/M1** — introduce one shared "add-months-clamped" date helper and reuse it; add due-day 29–31 tests.
 3. **H2/H3/M3/M4/L6** — route all frontend monthly-equivalent and currency formatting through the shared `toMonthlyAmount` / `formatCurrency(showPence)`; delete the local `/12` and `toLocaleString` paths.
 4. **H4/H5** — realign staleness-setting keys to the schema; dedupe Review Wizard steps.
