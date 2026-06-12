@@ -25,6 +25,7 @@ import { securityActivityRoutes } from "./routes/security-activity.routes.js";
 import { errorHandler } from "./middleware/errorHandler";
 import { prisma } from "./config/database";
 import { startRetentionJob } from "./services/retention.service";
+import { startRevocationCleanup } from "./utils/tokenBlacklist";
 
 export async function buildApp(opts?: { logger?: boolean | object }): Promise<FastifyInstance> {
   const server = Fastify({
@@ -117,6 +118,7 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
   server.register(securityActivityRoutes, { prefix: "/api" });
 
   startRetentionJob(prisma);
+  startRevocationCleanup();
 
   return server;
 }

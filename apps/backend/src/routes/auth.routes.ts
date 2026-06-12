@@ -15,14 +15,15 @@ function requestContext(request: FastifyRequest) {
 }
 
 /** Blacklist the access token from the current request so it can't be reused after logout. */
-function blacklistCurrentToken(request: FastifyRequest): void {
+async function blacklistCurrentToken(request: FastifyRequest): Promise<void> {
   const authHeader = request.headers.authorization;
   if (!authHeader) return;
   const token = authHeader.split(" ")[1];
   if (!token) return;
   const payload = decodeToken(token);
   if (payload?.jti) {
-    blacklistToken(payload.jti);
+    const expiresAt = payload.exp ? new Date(payload.exp * 1000) : undefined;
+    await blacklistToken(payload.jti, expiresAt);
   }
 }
 
@@ -269,7 +270,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     const userId = request.user!.userId;
 
     // Blacklist the current access token so it can't be reused
-    blacklistCurrentToken(request);
+    await blacklistCurrentToken(request);
 
     // Revoke all refresh tokens for this user
     await authService.revokeAllUserTokens(userId);

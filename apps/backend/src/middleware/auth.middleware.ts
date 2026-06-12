@@ -32,7 +32,7 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
     }
 
     // Check if this token has been revoked (e.g., on logout)
-    if (payload.jti && isTokenBlacklisted(payload.jti)) {
+    if (payload.jti && (await isTokenBlacklisted(payload.jti))) {
       throw new AuthenticationError("Token has been revoked");
     }
 
@@ -113,7 +113,7 @@ export async function userOnlyAuth(request: FastifyRequest, _reply: FastifyReply
       throw new AuthenticationError("Invalid token payload");
     }
 
-    if (payload.jti && isTokenBlacklisted(payload.jti)) {
+    if (payload.jti && (await isTokenBlacklisted(payload.jti))) {
       throw new AuthenticationError("Token has been revoked");
     }
 
