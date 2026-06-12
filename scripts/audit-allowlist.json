@@ -1,0 +1,45 @@
+{
+  "_comment": "Accepted dependency advisories. CI (scripts/check-audit.ts) fails on any high/critical advisory NOT listed here; moderate/low advisories never fail the build. Only add an entry after assessing impact — include the GHSA id, a concrete reason, and the date added. Remove entries once the dependency is upgraded (the gate flags stale entries). Policy: docs/3. architecture/dependency-management.md.",
+  "advisories": [
+    {
+      "id": "GHSA-v39h-62p7-jpjc",
+      "reason": "fast-uri — transitive via fastify's ajv compiler chain; no compatible patched path through fastify yet. Revisit on next fastify/ajv dependency batch.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-q3j6-qgpj-74h6",
+      "reason": "fast-uri — transitive via fastify's ajv compiler chain; no compatible patched path through fastify yet. Revisit on next fastify/ajv dependency batch.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-49rj-9fvp-4h2h",
+      "reason": "react-router — affects the currently pinned react-router-dom version; upgrade tracked via Renovate.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-8646-j5j9-6r62",
+      "reason": "react-router — affects the currently pinned react-router-dom version; upgrade tracked via Renovate.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-8x6r-g9mw-2r78",
+      "reason": "react-router — affects the currently pinned react-router-dom version; upgrade tracked via Renovate.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-rxv8-25v2-qmq8",
+      "reason": "react-router — affects the currently pinned react-router-dom version; upgrade tracked via Renovate.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-ph9p-34f9-6g65",
+      "reason": "tmp — dev-only, transitive via @lhci/cli (Lighthouse CI tooling); not part of any shipped artefact.",
+      "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-p9ff-h696-f583",
+      "reason": "vite — dev-only build/dev-server tooling; not part of any shipped artefact. Upgrade tracked via Renovate.",
+      "added": "2026-06-12"
+    }
+  ]
+}
