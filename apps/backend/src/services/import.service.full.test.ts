@@ -308,9 +308,12 @@ describe("importService.importHousehold — overwrite restore", () => {
       where: { id: "hh-existing" },
       data: { name: "Imported Household" },
     });
-    // Purge ran for the collected item ids.
+    // Purge is scoped to the target household.
     expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
-      where: { itemId: { in: ["old-inc", "old-com"] } },
+      where: { householdId: "hh-existing" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-existing" },
     });
     // Non-caller members purged.
     expect(prismaMock.member.deleteMany).toHaveBeenCalledWith({

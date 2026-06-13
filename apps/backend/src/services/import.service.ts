@@ -186,22 +186,9 @@ export const importService = {
           await tx.householdInvite.deleteMany({ where: { householdId } });
           await tx.reviewSession.deleteMany({ where: { householdId } });
 
-          // Collect existing waterfall item ids so we can purge periods/history.
-          const [existingIncome, existingCommitted, existingDiscretionary] = await Promise.all([
-            tx.incomeSource.findMany({ where: { householdId }, select: { id: true } }),
-            tx.committedItem.findMany({ where: { householdId }, select: { id: true } }),
-            tx.discretionaryItem.findMany({ where: { householdId }, select: { id: true } }),
-          ]);
-          const allItemIds = [
-            ...existingIncome.map((i) => i.id),
-            ...existingCommitted.map((i) => i.id),
-            ...existingDiscretionary.map((i) => i.id),
-          ];
-
-          if (allItemIds.length > 0) {
-            await tx.itemAmountPeriod.deleteMany({ where: { itemId: { in: allItemIds } } });
-            await tx.waterfallHistory.deleteMany({ where: { itemId: { in: allItemIds } } });
-          }
+          // Purge amount periods and history — both are household-scoped.
+          await tx.itemAmountPeriod.deleteMany({ where: { householdId } });
+          await tx.waterfallHistory.deleteMany({ where: { householdId } });
 
           await tx.incomeSource.deleteMany({ where: { householdId } });
           await tx.committedItem.deleteMany({ where: { householdId } });
@@ -318,6 +305,7 @@ export const importService = {
             for (const p of i.periods) {
               await tx.itemAmountPeriod.create({
                 data: {
+                  householdId,
                   itemType: "income_source",
                   itemId: created.id,
                   startDate: new Date(p.startDate),
@@ -354,6 +342,7 @@ export const importService = {
             for (const p of i.periods) {
               await tx.itemAmountPeriod.create({
                 data: {
+                  householdId,
                   itemType: "committed_item",
                   itemId: created.id,
                   startDate: new Date(p.startDate),
@@ -390,6 +379,7 @@ export const importService = {
             for (const p of i.periods) {
               await tx.itemAmountPeriod.create({
                 data: {
+                  householdId,
                   itemType: "discretionary_item",
                   itemId: created.id,
                   startDate: new Date(p.startDate),
@@ -421,6 +411,7 @@ export const importService = {
           }
           await tx.waterfallHistory.create({
             data: {
+              householdId,
               itemType: h.itemType,
               itemId,
               value: h.value,

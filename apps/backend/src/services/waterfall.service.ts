@@ -102,6 +102,7 @@ async function validateMemberOwnership(householdId: string, memberId: string) {
 // ─── Period enrichment helper ────────────────────────────────────────────────
 
 async function enrichItemsWithPeriods<T extends { id: string }>(
+  householdId: string,
   items: T[],
   itemType: string
 ): Promise<Array<T & { amount: number; lifecycleState: string; periods: any[] }>> {
@@ -110,6 +111,7 @@ async function enrichItemsWithPeriods<T extends { id: string }>(
   const now = new Date();
   const allPeriods = await prisma.itemAmountPeriod.findMany({
     where: {
+      householdId,
       itemType: itemType as any,
       itemId: { in: items.map((i) => i.id) },
     },
@@ -221,6 +223,7 @@ export const waterfallService = {
       allItemIds.length > 0
         ? await prisma.itemAmountPeriod.findMany({
             where: {
+              householdId,
               OR: allItemIds.map((item) => ({ itemType: item.type, itemId: item.id })),
             },
             orderBy: { startDate: "asc" },
@@ -428,7 +431,7 @@ export const waterfallService = {
       where: { householdId },
       orderBy: { sortOrder: "asc" },
     });
-    return enrichItemsWithPeriods(items, "income_source");
+    return enrichItemsWithPeriods(householdId, items, "income_source");
   },
 
   async createIncome(householdId: string, data: CreateIncomeSourceInput, ctx: ActorCtx) {
@@ -522,7 +525,7 @@ export const waterfallService = {
       where: { householdId },
       orderBy: { sortOrder: "asc" },
     });
-    return enrichItemsWithPeriods(items, "committed_item");
+    return enrichItemsWithPeriods(householdId, items, "committed_item");
   },
 
   async createCommitted(householdId: string, data: CreateCommittedItemInput, ctx: ActorCtx) {
@@ -616,7 +619,7 @@ export const waterfallService = {
       where: { householdId, spendType: "yearly" },
       orderBy: { sortOrder: "asc" },
     });
-    return enrichItemsWithPeriods(items, "committed_item");
+    return enrichItemsWithPeriods(householdId, items, "committed_item");
   },
 
   async createYearly(householdId: string, data: CreateCommittedItemInput, ctx: ActorCtx) {
@@ -711,7 +714,7 @@ export const waterfallService = {
       orderBy: { sortOrder: "asc" },
       include: { linkedAccount: { select: { id: true, name: true, type: true } } },
     });
-    return enrichItemsWithPeriods(items, "discretionary_item");
+    return enrichItemsWithPeriods(householdId, items, "discretionary_item");
   },
 
   async listDiscretionaryStale(householdId: string) {
@@ -720,7 +723,7 @@ export const waterfallService = {
       orderBy: { sortOrder: "asc" },
       include: { linkedAccount: { select: { id: true, name: true, type: true } } },
     });
-    return enrichItemsWithPeriods(items, "discretionary_item");
+    return enrichItemsWithPeriods(householdId, items, "discretionary_item");
   },
 
   async createDiscretionary(
@@ -856,7 +859,7 @@ export const waterfallService = {
       orderBy: { sortOrder: "asc" },
       include: { linkedAccount: { select: { id: true, name: true, type: true } } },
     });
-    return enrichItemsWithPeriods(items, "discretionary_item");
+    return enrichItemsWithPeriods(householdId, items, "discretionary_item");
   },
 
   async createSavings(householdId: string, data: CreateDiscretionaryItemInput, ctx: ActorCtx) {
@@ -980,7 +983,7 @@ export const waterfallService = {
     cutoff.setMonth(cutoff.getMonth() - 24);
 
     return prisma.waterfallHistory.findMany({
-      where: { itemType: type as any, itemId: id, recordedAt: { gte: cutoff } },
+      where: { householdId, itemType: type as any, itemId: id, recordedAt: { gte: cutoff } },
       orderBy: { recordedAt: "asc" },
     });
   },
@@ -1024,20 +1027,7 @@ export const waterfallService = {
 
   async deleteAll(householdId: string) {
     await prisma.$transaction(async (tx) => {
-      // Get all item IDs first to clean up periods
-      const [incomes, committed, discretionary] = await Promise.all([
-        tx.incomeSource.findMany({ where: { householdId }, select: { id: true } }),
-        tx.committedItem.findMany({ where: { householdId }, select: { id: true } }),
-        tx.discretionaryItem.findMany({ where: { householdId }, select: { id: true } }),
-      ]);
-      const allIds = [
-        ...incomes.map((i) => i.id),
-        ...committed.map((i) => i.id),
-        ...discretionary.map((i) => i.id),
-      ];
-      if (allIds.length > 0) {
-        await tx.itemAmountPeriod.deleteMany({ where: { itemId: { in: allIds } } });
-      }
+      await tx.itemAmountPeriod.deleteMany({ where: { householdId } });
       await tx.incomeSource.deleteMany({ where: { householdId } });
       await tx.committedItem.deleteMany({ where: { householdId } });
       await tx.discretionaryItem.deleteMany({ where: { householdId } });

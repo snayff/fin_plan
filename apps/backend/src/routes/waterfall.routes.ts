@@ -76,7 +76,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.post("/income", preMutation, async (req, reply) => {
     const data = createIncomeSourceSchema.parse(req.body);
     const source = await waterfallService.createIncome(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod({
+    await periodService.createPeriod(req.householdId!, {
       itemType: "income_source",
       itemId: source.id,
       startDate: data.startDate ?? new Date(),
@@ -115,7 +115,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.post("/committed", preMutation, async (req, reply) => {
     const data = createCommittedItemSchema.parse(req.body);
     const bill = await waterfallService.createCommitted(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod({
+    await periodService.createPeriod(req.householdId!, {
       itemType: "committed_item",
       itemId: bill.id,
       startDate: data.startDate ?? new Date(),
@@ -154,7 +154,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.post("/yearly", preMutation, async (req, reply) => {
     const data = createCommittedItemSchema.parse(req.body);
     const bill = await waterfallService.createYearly(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod({
+    await periodService.createPeriod(req.householdId!, {
       itemType: "committed_item",
       itemId: bill.id,
       startDate: data.startDate ?? new Date(),
@@ -193,7 +193,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.post("/discretionary", preMutation, async (req, reply) => {
     const data = createDiscretionaryItemSchema.parse(req.body);
     const cat = await waterfallService.createDiscretionary(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod({
+    await periodService.createPeriod(req.householdId!, {
       itemType: "discretionary_item",
       itemId: cat.id,
       startDate: data.startDate ?? new Date(),
@@ -237,7 +237,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.post("/savings", preMutation, async (req, reply) => {
     const data = createDiscretionaryItemSchema.parse(req.body);
     const alloc = await waterfallService.createSavings(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod({
+    await periodService.createPeriod(req.householdId!, {
       itemType: "discretionary_item",
       itemId: alloc.id,
       startDate: data.startDate ?? new Date(),
@@ -293,14 +293,14 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.get("/periods/:itemType/:itemId", pre, async (req, reply) => {
     const { itemType, itemId } = req.params as { itemType: string; itemId: string };
     await verifyItemOwnership(req.householdId!, itemType, itemId);
-    const periods = await periodService.listPeriods(itemType, itemId);
+    const periods = await periodService.listPeriods(req.householdId!, itemType, itemId);
     return reply.send(periods);
   });
 
   fastify.post("/periods", preMutation, async (req, reply) => {
     const data = createPeriodSchema.parse(req.body);
     await verifyItemOwnership(req.householdId!, data.itemType, data.itemId);
-    const period = await periodService.createPeriod(data);
+    const period = await periodService.createPeriod(req.householdId!, data);
     return reply.status(201).send(period);
   });
 
@@ -311,7 +311,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
     const existing = await prisma.itemAmountPeriod.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError("Period not found");
     await verifyItemOwnership(req.householdId!, existing.itemType, existing.itemId);
-    const period = await periodService.updatePeriod(id, data);
+    const period = await periodService.updatePeriod(req.householdId!, id, data);
     return reply.send(period);
   });
 
@@ -321,7 +321,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
     const existing = await prisma.itemAmountPeriod.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError("Period not found");
     await verifyItemOwnership(req.householdId!, existing.itemType, existing.itemId);
-    const result = await periodService.deletePeriod(id);
+    const result = await periodService.deletePeriod(req.householdId!, id);
     if (result?.deleteItem) {
       switch (result.itemType) {
         case "income_source":

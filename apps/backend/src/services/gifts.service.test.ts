@@ -490,7 +490,7 @@ describe("giftsService.setMode", () => {
     await giftsService.setMode("hh-1", { mode: "independent" });
 
     expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
-      where: { itemType: "discretionary_item", itemId: "d1" },
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "d1" },
     });
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "d1" } });
     expect(prismaMock.subcategory.update).toHaveBeenCalledWith({

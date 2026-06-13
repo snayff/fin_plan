@@ -42,6 +42,8 @@ model Household {
   assets         Asset[]
   accounts       Account[]
   importBackups  ImportBackup[]
+  itemAmountPeriods ItemAmountPeriod[]
+  waterfallHistory  WaterfallHistory[]
 
   @@map("households")
 }
@@ -309,27 +311,33 @@ enum WaterfallItemType {
 }
 
 model WaterfallHistory {
-  id         String            @id @default(cuid())
-  itemType   WaterfallItemType
-  itemId     String
-  value      Float
-  recordedAt DateTime
-  createdAt  DateTime          @default(now())
+  id          String            @id @default(cuid())
+  householdId String
+  itemType    WaterfallItemType
+  itemId      String
+  value       Float
+  recordedAt  DateTime
+  createdAt   DateTime          @default(now())
+  household   Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
   @@index([itemType, itemId, recordedAt])
+  @@index([householdId])
 }
 
 model ItemAmountPeriod {
-  id        String            @id @default(cuid())
-  itemType  WaterfallItemType
-  itemId    String
-  startDate DateTime          @db.Date
-  endDate   DateTime?         @db.Date
-  amount    Float
-  createdAt DateTime          @default(now())
+  id          String            @id @default(cuid())
+  householdId String
+  itemType    WaterfallItemType
+  itemId      String
+  startDate   DateTime          @db.Date
+  endDate     DateTime?         @db.Date
+  amount      Float
+  createdAt   DateTime          @default(now())
+  household   Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
   @@unique([itemType, itemId, startDate])
   @@index([itemType, itemId])
+  @@index([householdId])
   @@map("item_amount_periods")
 }
 

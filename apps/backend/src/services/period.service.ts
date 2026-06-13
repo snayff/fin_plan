@@ -2,20 +2,21 @@ import { prisma } from "../config/database.js";
 import type { CreatePeriodInput, UpdatePeriodInput, ItemLifecycleState } from "@finplan/shared";
 
 export const periodService = {
-  async listPeriods(itemType: string, itemId: string) {
+  async listPeriods(householdId: string, itemType: string, itemId: string) {
     return prisma.itemAmountPeriod.findMany({
-      where: { itemType: itemType as any, itemId },
+      where: { householdId, itemType: itemType as any, itemId },
       orderBy: { startDate: "asc" },
     });
   },
 
   async getCurrentAmount(
+    householdId: string,
     itemType: string,
     itemId: string,
     now: Date = new Date()
   ): Promise<number> {
     const periods = await prisma.itemAmountPeriod.findMany({
-      where: { itemType: itemType as any, itemId },
+      where: { householdId, itemType: itemType as any, itemId },
       orderBy: { startDate: "asc" },
     });
     const current = findEffectivePeriod(periods, now);
@@ -23,13 +24,14 @@ export const periodService = {
   },
 
   async getEffectiveAmountForMonth(
+    householdId: string,
     itemType: string,
     itemId: string,
     year: number,
     month: number
   ): Promise<number> {
     const periods = await prisma.itemAmountPeriod.findMany({
-      where: { itemType: itemType as any, itemId },
+      where: { householdId, itemType: itemType as any, itemId },
       orderBy: { startDate: "asc" },
     });
     // Use the 1st of the month as reference date
@@ -39,20 +41,21 @@ export const periodService = {
   },
 
   async getLifecycleState(
+    householdId: string,
     itemType: string,
     itemId: string,
     now: Date = new Date()
   ): Promise<ItemLifecycleState> {
     const periods = await prisma.itemAmountPeriod.findMany({
-      where: { itemType: itemType as any, itemId },
+      where: { householdId, itemType: itemType as any, itemId },
       orderBy: { startDate: "asc" },
     });
     return computeLifecycleState(periods, now);
   },
 
-  async createPeriod(data: CreatePeriodInput) {
+  async createPeriod(householdId: string, data: CreatePeriodInput) {
     const existing = await prisma.itemAmountPeriod.findMany({
-      where: { itemType: data.itemType as any, itemId: data.itemId },
+      where: { householdId, itemType: data.itemType as any, itemId: data.itemId },
       orderBy: { startDate: "asc" },
     });
 
@@ -71,6 +74,7 @@ export const periodService = {
 
     return prisma.itemAmountPeriod.create({
       data: {
+        householdId,
         itemType: data.itemType as any,
         itemId: data.itemId,
         startDate: data.startDate,
@@ -80,8 +84,8 @@ export const periodService = {
     });
   },
 
-  async updatePeriod(id: string, data: UpdatePeriodInput) {
-    const period = await prisma.itemAmountPeriod.findUnique({ where: { id } });
+  async updatePeriod(householdId: string, id: string, data: UpdatePeriodInput) {
+    const period = await prisma.itemAmountPeriod.findFirst({ where: { id, householdId } });
     if (!period) throw new Error("Period not found");
 
     const updateData: Record<string, unknown> = {};
@@ -92,7 +96,7 @@ export const periodService = {
     // If startDate changes, update the previous period's endDate
     if (data.startDate && data.startDate.getTime() !== period.startDate.getTime()) {
       const allPeriods = await prisma.itemAmountPeriod.findMany({
-        where: { itemType: period.itemType, itemId: period.itemId },
+        where: { householdId, itemType: period.itemType, itemId: period.itemId },
         orderBy: { startDate: "asc" },
       });
       const prevPeriod = findPreviousPeriod(allPeriods, period.startDate);
@@ -104,17 +108,18 @@ export const periodService = {
       }
     }
 
-    return prisma.itemAmountPeriod.update({ where: { id }, data: updateData });
+    return prisma.itemAmountPeriod.update({ where: { id, householdId }, data: updateData });
   },
 
   async deletePeriod(
+    householdId: string,
     id: string
   ): Promise<{ deleteItem: boolean; itemType?: string; itemId?: string } | void> {
-    const period = await prisma.itemAmountPeriod.findUnique({ where: { id } });
+    const period = await prisma.itemAmountPeriod.findFirst({ where: { id, householdId } });
     if (!period) throw new Error("Period not found");
 
     const allPeriods = await prisma.itemAmountPeriod.findMany({
-      where: { itemType: period.itemType, itemId: period.itemId },
+      where: { householdId, itemType: period.itemType, itemId: period.itemId },
       orderBy: { startDate: "asc" },
     });
 
@@ -135,7 +140,7 @@ export const periodService = {
       });
     }
 
-    await prisma.itemAmountPeriod.delete({ where: { id } });
+    await prisma.itemAmountPeriod.delete({ where: { id, householdId } });
   },
 };
 

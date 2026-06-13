@@ -349,6 +349,7 @@ export const assetsService = {
       allLinkedItemIds.length > 0
         ? await prisma.itemAmountPeriod.findMany({
             where: {
+              householdId,
               itemType: "discretionary_item",
               itemId: { in: allLinkedItemIds },
               startDate: { lte: now },
@@ -627,6 +628,7 @@ export const assetsService = {
       allLinkedItemIds.length > 0
         ? await prisma.itemAmountPeriod.findMany({
             where: {
+              householdId,
               itemType: "discretionary_item",
               itemId: { in: allLinkedItemIds },
               startDate: { lte: today },

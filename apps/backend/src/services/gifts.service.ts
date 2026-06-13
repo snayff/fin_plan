@@ -65,8 +65,10 @@ export const giftsService = {
             itemId: created.id,
             startDate,
           },
+          householdId,
         },
         create: {
+          householdId,
           itemType: "discretionary_item",
           itemId: created.id,
           startDate,
@@ -509,8 +511,10 @@ export const giftsService = {
             itemId: settings.syncedDiscretionaryItemId,
             startDate,
           },
+          householdId,
         },
         create: {
+          householdId,
           itemType: "discretionary_item",
           itemId: settings.syncedDiscretionaryItemId,
           startDate,
@@ -1036,8 +1040,10 @@ export const giftsService = {
             itemId: settings.syncedDiscretionaryItemId,
             startDate: new Date(Date.UTC(year, 0, 1)),
           },
+          householdId,
         },
         create: {
+          householdId,
           itemType: "discretionary_item",
           itemId: settings.syncedDiscretionaryItemId,
           startDate: new Date(Date.UTC(year, 0, 1)),
@@ -1074,7 +1080,7 @@ export const giftsService = {
       await prisma.$transaction(async (tx) => {
         if (itemId) {
           await tx.itemAmountPeriod.deleteMany({
-            where: { itemType: "discretionary_item", itemId },
+            where: { householdId, itemType: "discretionary_item", itemId },
           });
           await tx.discretionaryItem.delete({ where: { id: itemId } });
         }
