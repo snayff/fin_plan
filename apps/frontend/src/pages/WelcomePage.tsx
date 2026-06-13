@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +8,14 @@ import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
 import { useAuthStore } from "@/stores/authStore";
 import { householdService } from "@/services/household.service";
 import { authService } from "@/services/auth.service";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { usePrefersReducedMotion } from "@/utils/motion";
 
 type Phase = "welcome" | "name" | "celebrate";
 
 export default function WelcomePage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -40,6 +43,7 @@ export default function WelcomePage() {
         const { user: refreshed } = await authService.getCurrentUser(accessToken);
         setUser(refreshed, accessToken);
       }
+      purgeStaleQueries(qc);
       setPhase("celebrate");
       setShowConfetti(true);
     } catch {
@@ -47,7 +51,7 @@ export default function WelcomePage() {
     } finally {
       setSaving(false);
     }
-  }, [name, accessToken, setUser]);
+  }, [name, accessToken, setUser, qc]);
 
   function handleContinue() {
     navigate("/overview", { replace: true });

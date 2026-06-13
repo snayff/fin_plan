@@ -1,5 +1,17 @@
 import { QueryClient } from "@tanstack/react-query";
 
+/**
+ * Purge cached query data after the active household context changes
+ * (switch, leave, delete, import). Queries without active observers are
+ * removed outright so data from the previous household cannot be served
+ * from cache; queries currently on screen are invalidated and refetch
+ * under the new context.
+ */
+export function purgeStaleQueries(client: QueryClient): void {
+  client.removeQueries({ type: "inactive" });
+  void client.invalidateQueries();
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
