@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idSchema } from "./common.schemas";
 
 // ─── Query schemas ──────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export const bulkUpdateLinkedAccountsSchema = z.object({
   updates: z
     .array(
       z.object({
-        accountId: z.string().min(1),
+        accountId: idSchema,
         isCashflowLinked: z.boolean(),
       })
     )
