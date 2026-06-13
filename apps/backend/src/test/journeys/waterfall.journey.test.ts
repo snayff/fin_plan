@@ -421,6 +421,20 @@ describe("Waterfall Journey", () => {
     });
     expect(listAsB.statusCode).toBe(404);
 
+    // ── User B cannot create a period attached to user A's item ──
+    const createAsB = await app.inject({
+      method: "POST",
+      url: "/api/waterfall/periods",
+      headers: await authedMutationHeaders(userB.accessToken),
+      payload: {
+        itemType: "income_source",
+        itemId: incomeId,
+        startDate: new Date().toISOString(),
+        amount: 1,
+      },
+    });
+    expect(createAsB.statusCode).toBe(404);
+
     // ── User B cannot update or delete user A's period ──
     const patchAsB = await app.inject({
       method: "PATCH",
@@ -442,10 +456,12 @@ describe("Waterfall Journey", () => {
     });
     expect(deleteAsB.statusCode).toBe(404);
 
-    // Period unchanged after the rejected mutations.
+    // Period unchanged after the rejected mutations, and no extra period created.
     const periodAfter = await prisma.itemAmountPeriod.findFirst({ where: { id: periodRow!.id } });
     expect(periodAfter).not.toBeNull();
     expect(periodAfter!.amount).toBe(3000);
+    const periodCount = await prisma.itemAmountPeriod.count({ where: { itemId: incomeId } });
+    expect(periodCount).toBe(1);
 
     // ── Value history is household-scoped too ──
     await prisma.waterfallHistory.create({
