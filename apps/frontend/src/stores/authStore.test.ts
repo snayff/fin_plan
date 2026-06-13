@@ -245,6 +245,43 @@ describe("useAuthStore", () => {
       expect(sessionStorage.getItem(`${SEARCH_RECENTS_STORAGE_PREFIX}other-user`)).toBeNull();
     });
 
+    it("clears caches even when the logout API call fails", async () => {
+      setAuthenticated();
+      (authService.logout as any).mockRejectedValue(new Error("Network error"));
+      queryClient.setQueryData(["accounts"], [{ id: "ac1", name: "Current account" }]);
+      localStorage.setItem(recentsKey, "[]");
+
+      await useAuthStore.getState().logout();
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
+    it("clears caches when session restore fails on startup", async () => {
+      (authService.refreshToken as any).mockRejectedValue({ message: "Refresh failed" });
+      queryClient.setQueryData(["accounts"], [{ id: "ac1", name: "Current account" }]);
+      localStorage.setItem(recentsKey, "[]");
+
+      await useAuthStore.getState().initializeAuth();
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
+    it("clears caches when a scheduled token refresh fails", async () => {
+      setAuthenticated(mockUser, tokenExpiringInMs(60 * 60 * 1000));
+      (authService.refreshToken as any).mockRejectedValue({ message: "expired" });
+      queryClient.setQueryData(["forecast"], { years: [2026] });
+      localStorage.setItem(recentsKey, "[]");
+
+      useAuthStore.getState().updateAccessToken(tokenExpiringInMs(50));
+      await wait(50);
+
+      expect(useAuthStore.getState().authStatus).toBe("unauthenticated");
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
     it("leaves non-user-data storage keys untouched", () => {
       setAuthenticated();
       localStorage.setItem("finplan.theme", "dark");

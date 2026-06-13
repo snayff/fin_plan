@@ -2,17 +2,18 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { Route, Routes } from "react-router-dom";
+import { QueryClient } from "@tanstack/react-query";
 import AcceptInvitePage from "./AcceptInvitePage";
 import { renderWithProviders } from "../../test/helpers/render";
 import { setAuthenticated, setUnauthenticated } from "../../test/helpers/auth";
 import { server } from "../../test/msw/server";
 
-function renderAcceptInvitePage() {
+function renderAcceptInvitePage(queryClient?: QueryClient) {
   return renderWithProviders(
     <Routes>
       <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
     </Routes>,
-    { initialEntries: ["/accept-invite/token-123"] }
+    { initialEntries: ["/accept-invite/token-123"], queryClient }
   );
 }
 
@@ -60,5 +61,24 @@ describe("AcceptInvitePage", () => {
         )
       ).toBeTruthy();
     });
+  });
+
+  it("drops previously cached query data after a logged-in user joins a household", async () => {
+    setAuthenticated();
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["accounts"], [{ id: "ac1", name: "Old household account" }]);
+    qc.setQueryData(["waterfall", "summary"], { surplus: 100 });
+
+    renderAcceptInvitePage(qc);
+
+    // Auto-join runs via useEffect for authenticated users
+    await waitFor(() => {
+      expect(screen.getByText(/you're in!/i)).toBeTruthy();
+    });
+
+    expect(qc.getQueryData(["accounts"])).toBeUndefined();
+    expect(qc.getQueryData(["waterfall", "summary"])).toBeUndefined();
   });
 });
