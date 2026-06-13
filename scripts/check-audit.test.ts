@@ -80,6 +80,59 @@ describe("evaluateAudit", () => {
     expect(result.blocking).toHaveLength(1);
     expect(result.blocking[0]?.id).toBe("GHSA-ZZZZ-YYYY-XXXX");
   });
+
+  test("an allow-list entry keyed on the GHSA id excuses it regardless of package name", () => {
+    // The allow-list matches on advisory id, not package — the same GHSA can
+    // surface under more than one package via different dependency paths.
+    const result = evaluateAudit(
+      {
+        "pkg-a": [adv({ severity: "high" })],
+        "pkg-b": [adv({ severity: "high" })],
+      },
+      [{ id: "GHSA-aaaa-bbbb-cccc", reason: "accepted" }]
+    );
+    expect(result.ok).toBe(true);
+    expect(result.allowed).toHaveLength(2);
+    expect(result.unusedAllowlistIds).toEqual([]);
+  });
+
+  test("an allow-list entry for an absent advisory is reported stale while a real one still blocks", () => {
+    const result = evaluateAudit({ pkg: [adv({ severity: "critical" })] }, [
+      { id: "GHSA-dddd-eeee-ffff", reason: "wrong id" },
+    ]);
+    expect(result.ok).toBe(false);
+    expect(result.blocking).toHaveLength(1);
+    expect(result.blocking[0]?.id).toBe("GHSA-AAAA-BBBB-CCCC");
+    expect(result.unusedAllowlistIds).toEqual(["GHSA-DDDD-EEEE-FFFF"]);
+  });
+
+  test("counts every severity even when nothing blocks", () => {
+    const result = evaluateAudit(
+      {
+        pkg: [
+          adv({ severity: "high" }),
+          adv({ severity: "high", url: "https://github.com/advisories/GHSA-1111-2222-3333" }),
+          adv({ severity: "moderate" }),
+        ],
+      },
+      [
+        { id: "GHSA-aaaa-bbbb-cccc", reason: "ok" },
+        { id: "GHSA-1111-2222-3333", reason: "ok" },
+      ]
+    );
+    expect(result.ok).toBe(true);
+    expect(result.counts.high).toBe(2);
+    expect(result.counts.moderate).toBe(1);
+  });
+
+  test("falls back to the numeric id for blocking when the advisory has no GHSA url", () => {
+    const result = evaluateAudit(
+      { pkg: [adv({ severity: "high", url: undefined, id: 4242 })] },
+      []
+    );
+    expect(result.ok).toBe(false);
+    expect(result.blocking[0]?.id).toBe("4242");
+  });
 });
 
 describe("parseAuditOutput", () => {
@@ -90,5 +143,15 @@ describe("parseAuditOutput", () => {
 
   test("returns an empty report when there is no JSON", () => {
     expect(parseAuditOutput("")).toEqual({});
+  });
+
+  test("throws on malformed JSON so the caller can fail closed", () => {
+    // check-audit's main() catches this and exits 1 rather than treating a
+    // garbled audit response as 'no advisories'.
+    expect(() => parseAuditOutput('warning\n{"pkg": [')).toThrow();
+  });
+
+  test("parses from the first brace, ignoring trailing noise is not required", () => {
+    expect(parseAuditOutput('noise {"pkg":[]}')).toEqual({ pkg: [] });
   });
 });
