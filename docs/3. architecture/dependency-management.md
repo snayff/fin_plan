@@ -50,6 +50,29 @@ Minor and patch updates for these packages still flow through Renovate.
 - **Review depth:** scan the changelog / release notes linked in the PR body
   — not just the version bump.
 
+## CI Audit Gate
+
+The `security-audit` CI job runs `bun scripts/check-audit.ts`, which wraps
+`bun audit --json` with severity gating:
+
+- **High/critical advisories fail the build** unless explicitly accepted.
+- **Moderate/low advisories are reported** in the job log but never fail CI.
+
+Accepted advisories live in `scripts/audit-allowlist.json`. To accept one:
+
+1. Assess the advisory: is the vulnerable code path reachable? Is it dev-only
+   tooling? Is a compatible fixed version available (prefer upgrading)?
+2. Add an entry with the **GHSA id**, a **concrete reason**, and the **date**:
+   ```json
+   { "id": "GHSA-xxxx-xxxx-xxxx", "reason": "why it is accepted", "added": "YYYY-MM-DD" }
+   ```
+3. Remove the entry once the dependency is upgraded — the gate logs stale
+   entries (`stale allow-list entry no longer matched`) so they are easy to
+   spot and prune.
+
+The allow-list is reviewed as part of the weekly Renovate pass: every entry is
+a deferred upgrade, not a permanent exception.
+
 ## Target Branch
 
 All Renovate PRs target `stage`, never `main`/`prod`, per repo branching

@@ -14,6 +14,13 @@ function assertOwned(item: { householdId: string } | null, householdId: string, 
   if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
 }
 
+async function validateFundingAccount(householdId: string, fundingAccountId: string) {
+  const account = await prisma.account.findFirst({
+    where: { id: fundingAccountId, householdId },
+  });
+  if (!account) throw new NotFoundError("Account not found");
+}
+
 export const plannerService = {
   // ─── Purchases ────────────────────────────────────────────────────────────
 
@@ -25,6 +32,9 @@ export const plannerService = {
   },
 
   async createPurchase(householdId: string, data: CreatePurchaseInput, ctx: ActorCtx) {
+    if (data.fundingAccountId) {
+      await validateFundingAccount(householdId, data.fundingAccountId);
+    }
     return audited({
       db: prisma,
       ctx,
@@ -42,6 +52,9 @@ export const plannerService = {
   async updatePurchase(householdId: string, id: string, data: UpdatePurchaseInput, ctx: ActorCtx) {
     const existing = await prisma.purchaseItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Purchase");
+    if (data.fundingAccountId) {
+      await validateFundingAccount(householdId, data.fundingAccountId);
+    }
     return audited({
       db: prisma,
       ctx,
