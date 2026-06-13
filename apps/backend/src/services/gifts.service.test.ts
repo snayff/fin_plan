@@ -424,7 +424,8 @@ describe("giftsService.setAnnualBudget", () => {
         householdId: "hh-1",
         subcategoryId: "sub-gifts",
         name: "Gifts",
-        spendType: "monthly",
+        // Annual budget stored as yearly so the waterfall divides it by 12.
+        spendType: "yearly",
         isPlannerOwned: true,
       }),
     });
@@ -529,7 +530,8 @@ describe("giftsService.setMode", () => {
         householdId: "hh-1",
         subcategoryId: "sub-gifts",
         name: "Gifts",
-        spendType: "monthly",
+        // Annual budget stored as yearly so the waterfall divides it by 12.
+        spendType: "yearly",
         isPlannerOwned: true,
       }),
     });
