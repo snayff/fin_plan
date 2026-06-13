@@ -15,7 +15,7 @@ import {
   ConflictError,
   ValidationError,
 } from "../utils/errors.js";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 
@@ -515,18 +515,16 @@ export const householdService = {
 
       // Audit the acceptance — actor is the newly created user
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: invite.householdId,
-          actorId: created.id,
-          actorName: newUser.name,
-          ipAddress: requestCtx?.ipAddress,
-          userAgent: requestCtx?.userAgent,
-          action: AuditAction.ACCEPT_INVITE,
-          resource: "household-invite",
-          resourceId: invite.id,
-          changes: [],
-        },
+      await auditEventTx(tx, {
+        householdId: invite.householdId,
+        actorId: created.id,
+        actorName: newUser.name,
+        ipAddress: requestCtx?.ipAddress,
+        userAgent: requestCtx?.userAgent,
+        action: AuditAction.ACCEPT_INVITE,
+        resource: "household-invite",
+        resourceId: invite.id,
+        changes: [],
       });
 
       return { user: updated, personalHouseholdId: personal.id };
@@ -651,27 +649,25 @@ export const householdService = {
         ]);
 
       // durable: committed atomically with the surrounding $transaction
-      await tx.auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.DELETE_HOUSEHOLD,
-          resource: "household",
-          resourceId: householdId,
-          metadata: {
-            cascaded: {
-              members,
-              assets,
-              accounts,
-              income,
-              committed,
-              discretionary,
-              snapshots,
-              goals,
-            },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_HOUSEHOLD,
+        resource: "household",
+        resourceId: householdId,
+        metadata: {
+          cascaded: {
+            members,
+            assets,
+            accounts,
+            income,
+            committed,
+            discretionary,
+            snapshots,
+            goals,
           },
         },
       });

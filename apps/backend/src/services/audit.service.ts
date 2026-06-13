@@ -218,6 +218,44 @@ export function computeDiff(
   return changes;
 }
 
+/**
+ * Audit entry written from inside an existing transaction.
+ * Mirrors the actor-attributed shape `audited()` writes.
+ */
+export interface TxAuditEntry {
+  householdId: string;
+  actorId: string;
+  actorName: string;
+  ipAddress?: string;
+  userAgent?: string;
+  action: string;
+  resource: string;
+  resourceId: string;
+  metadata?: Prisma.InputJsonValue;
+  changes?: AuditChange[];
+}
+
+/**
+ * Write an audit row inside an existing transaction so it commits atomically
+ * with the mutation it describes. Use this (never `tx.auditLog.create`) when a
+ * service manages its own transaction; for simple mutations prefer `audited()`,
+ * and for mutationless events use `auditEvent()`.
+ */
+export async function auditEventTx(
+  tx: Prisma.TransactionClient,
+  entry: TxAuditEntry
+): Promise<void> {
+  const { changes, ...rest } = entry;
+  await tx.auditLog.create({
+    data: {
+      ...rest,
+      // AuditChange values are JSON-safe by construction (computeDiff reads
+      // them off Prisma rows), but `unknown` doesn't satisfy InputJsonValue.
+      ...(changes !== undefined ? { changes: changes as unknown as Prisma.InputJsonValue } : {}),
+    },
+  });
+}
+
 export type AuditedParams<T> = {
   db: PrismaClient;
   ctx: ActorCtx;
@@ -250,18 +288,16 @@ export async function audited<T>({
 
     const resolvedResourceId = typeof resourceId === "function" ? resourceId(result) : resourceId;
 
-    await (tx as any).auditLog.create({
-      data: {
-        householdId: ctx.householdId,
-        actorId: ctx.actorId,
-        actorName: ctx.actorName,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-        action,
-        resource,
-        resourceId: resolvedResourceId,
-        changes,
-      },
+    await auditEventTx(tx, {
+      householdId: ctx.householdId,
+      actorId: ctx.actorId,
+      actorName: ctx.actorName,
+      ipAddress: ctx.ipAddress,
+      userAgent: ctx.userAgent,
+      action,
+      resource,
+      resourceId: resolvedResourceId,
+      changes,
     });
 
     return result;

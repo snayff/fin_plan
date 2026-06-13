@@ -1,6 +1,6 @@
 import { prisma } from "../config/database.js";
 import { NotFoundError } from "../utils/errors.js";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 import type {
@@ -102,18 +102,16 @@ export const plannerService = {
       });
 
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.UPSERT_YEAR_BUDGET,
-          resource: "year-budget",
-          resourceId: String(year),
-          metadata: { counts: { created: isNew ? 1 : 0, updated: isNew ? 0 : 1 } },
-        },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.UPSERT_YEAR_BUDGET,
+        resource: "year-budget",
+        resourceId: String(year),
+        metadata: { counts: { created: isNew ? 1 : 0, updated: isNew ? 0 : 1 } },
       });
 
       return result;

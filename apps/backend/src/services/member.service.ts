@@ -7,7 +7,7 @@ import {
 } from "../utils/errors.js";
 import type { CreateMemberInput, UpdateMemberInput } from "@finplan/shared";
 import { AuditAction } from "@finplan/shared";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 
 async function assertCallerIsOwner(householdId: string, userId: string) {
@@ -203,17 +203,15 @@ export const memberService = {
 
       // Write audit row inside transaction
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.DELETE_MEMBER_PROFILE,
-          resource: "member-profile",
-          resourceId: memberId,
-        },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_MEMBER_PROFILE,
+        resource: "member-profile",
+        resourceId: memberId,
       });
     });
   },

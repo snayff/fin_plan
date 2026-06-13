@@ -11,7 +11,7 @@ import type {
   GiftPlannerMode,
 } from "@finplan/shared";
 import { AuditAction } from "@finplan/shared";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 
 function assertOwned(item: { householdId: string } | null, householdId: string, label: string) {
@@ -461,18 +461,16 @@ export const giftsService = {
         ...(updated > 0 ? [{ field: "updated", after: updated }] : []),
       ];
       // durable: committed atomically with the surrounding $transaction
-      await tx.auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.UPSERT_GIFT_ALLOCATIONS,
-          resource: "gift-allocation",
-          resourceId: "bulk",
-          changes,
-        },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.UPSERT_GIFT_ALLOCATIONS,
+        resource: "gift-allocation",
+        resourceId: "bulk",
+        changes,
       });
     });
     return { count: resolvedCells.length };
