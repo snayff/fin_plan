@@ -1,6 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
-import { ZodError, z } from "zod";
-import { AppError, ValidationError, NotFoundError } from "../utils/errors";
+import { z } from "zod";
+import { ValidationError, NotFoundError } from "../utils/errors";
 import { errorHandler } from "./errorHandler";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
