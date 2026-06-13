@@ -103,10 +103,10 @@ describe("householdService.delete — full data removal", () => {
       ["discretionary_item", discretionary.id],
     ] as const) {
       await prisma.itemAmountPeriod.create({
-        data: { itemType, itemId, startDate: new Date("2026-01-01"), amount: 100 },
+        data: { householdId, itemType, itemId, startDate: new Date("2026-01-01"), amount: 100 },
       });
       await prisma.waterfallHistory.create({
-        data: { itemType, itemId, value: 100, recordedAt: new Date("2026-01-01") },
+        data: { householdId, itemType, itemId, value: 100, recordedAt: new Date("2026-01-01") },
       });
     }
 

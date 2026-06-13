@@ -28,6 +28,7 @@ async function createItemWithPeriod(
 
   await prisma.itemAmountPeriod.create({
     data: {
+      householdId,
       itemType,
       itemId: item.id,
       startDate: new Date(),

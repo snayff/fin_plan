@@ -285,6 +285,26 @@ describe("giftsService.upsertAllocation status transitions", () => {
       giftsService.upsertAllocation("hh-1", "p1", "e1", year, { planned: 10 })
     ).rejects.toMatchObject({ name: "NotFoundError" });
   });
+
+  it("scopes the upsert where-clause to the household", async () => {
+    const year = new Date().getFullYear();
+    prismaMock.giftAllocation.upsert.mockResolvedValue({} as any);
+    await giftsService.upsertAllocation("hh-1", "p1", "e1", year, { planned: 10 });
+    const args = (prismaMock.giftAllocation.upsert.mock.calls[0] as any)[0];
+    expect(args.where.householdId).toBe("hh-1");
+    expect(args.where.giftPersonId_giftEventId_year).toEqual({
+      giftPersonId: "p1",
+      giftEventId: "e1",
+      year,
+    });
+  });
+
+  it("runs resolve and write inside a transaction", async () => {
+    const year = new Date().getFullYear();
+    prismaMock.giftAllocation.upsert.mockResolvedValue({} as any);
+    await giftsService.upsertAllocation("hh-1", "p1", "e1", year, { planned: 10 });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("giftsService.bulkUpsertAllocations", () => {
@@ -470,7 +490,7 @@ describe("giftsService.setMode", () => {
     await giftsService.setMode("hh-1", { mode: "independent" });
 
     expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
-      where: { itemType: "discretionary_item", itemId: "d1" },
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "d1" },
     });
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "d1" } });
     expect(prismaMock.subcategory.update).toHaveBeenCalledWith({

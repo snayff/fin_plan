@@ -2,6 +2,30 @@
  * Shared validation schemas and types
  */
 
+// Common bounded input primitives
+export {
+  MONEY_MAX,
+  SORT_ORDER_MAX,
+  YEAR_MIN,
+  YEAR_MAX,
+  NAME_MAX,
+  NOTES_MAX,
+  EMAIL_MAX,
+  PASSWORD_MAX,
+  ID_MAX,
+  positiveMoneySchema,
+  nonNegativeMoneySchema,
+  signedMoneySchema,
+  percentageSchema,
+  signedPercentageSchema,
+  sortOrderSchema,
+  yearSchema,
+  nameSchema,
+  notesSchema,
+  idSchema,
+  emailSchema,
+} from "./common.schemas";
+
 // Household schemas and types
 export {
   createHouseholdSchema,

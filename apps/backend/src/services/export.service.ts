@@ -111,13 +111,13 @@ export const exportService = {
         const [periods, history] = await Promise.all([
           allItemIds.length > 0
             ? tx.itemAmountPeriod.findMany({
-                where: { itemId: { in: allItemIds } },
+                where: { householdId, itemId: { in: allItemIds } },
                 orderBy: { startDate: "asc" },
               })
             : Promise.resolve([] as Awaited<ReturnType<typeof tx.itemAmountPeriod.findMany>>),
           allItemIds.length > 0
             ? tx.waterfallHistory.findMany({
-                where: { itemId: { in: allItemIds } },
+                where: { householdId, itemId: { in: allItemIds } },
                 orderBy: { recordedAt: "asc" },
               })
             : Promise.resolve([] as Awaited<ReturnType<typeof tx.waterfallHistory.findMany>>),

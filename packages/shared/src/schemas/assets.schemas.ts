@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idSchema, nonNegativeMoneySchema, notesSchema, positiveMoneySchema } from "./common.schemas";
 
 export const assetTypeSchema = z.enum(["Property", "Vehicle", "Other"]);
 export const accountTypeSchema = z.enum([
@@ -16,7 +17,7 @@ const isoDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY
 
 const disposalPair = {
   disposedAt: isoDateString.nullable().optional(),
-  disposalAccountId: z.string().min(1).nullable().optional(),
+  disposalAccountId: idSchema.nullable().optional(),
 };
 
 type DisposalShape = { disposedAt?: string | null; disposalAccountId?: string | null };
@@ -42,9 +43,9 @@ export const createAssetSchema = z
   .object({
     name: z.string().min(1).max(100).trim(),
     type: assetTypeSchema,
-    memberId: z.string().nullable().optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
-    initialValue: z.number().positive().optional(),
+    initialValue: positiveMoneySchema.optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage);
@@ -52,16 +53,16 @@ export const createAssetSchema = z
 export const updateAssetSchema = z
   .object({
     name: z.string().min(1).max(100).trim().optional(),
-    memberId: z.string().nullable().optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage);
 
 export const recordAssetBalanceSchema = z.object({
-  value: z.number().positive(),
+  value: positiveMoneySchema,
   date: isoDateString,
-  note: z.string().max(500).nullable().optional(),
+  note: notesSchema.nullable().optional(),
 });
 
 // ISA helpers
@@ -89,13 +90,13 @@ export const createAccountSchema = z
   .object({
     name: z.string().min(1).max(100).trim(),
     type: accountTypeSchema,
-    memberId: z.string().nullable().optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(0).max(100).nullable().optional(),
-    monthlyContributionLimit: z.number().min(0).nullable().optional(),
+    monthlyContributionLimit: nonNegativeMoneySchema.nullable().optional(),
     isCashflowLinked: z.boolean().optional(),
-    initialValue: z.number().positive().optional(),
+    initialValue: positiveMoneySchema.optional(),
     isISA: z.boolean().optional(),
-    isaYearContribution: z.number().min(0).nullable().optional(),
+    isaYearContribution: nonNegativeMoneySchema.nullable().optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage)
@@ -104,21 +105,21 @@ export const createAccountSchema = z
 export const updateAccountSchema = z
   .object({
     name: z.string().min(1).max(100).trim().optional(),
-    memberId: z.string().nullable().optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(0).max(100).nullable().optional(),
-    monthlyContributionLimit: z.number().min(0).nullable().optional(),
+    monthlyContributionLimit: nonNegativeMoneySchema.nullable().optional(),
     isCashflowLinked: z.boolean().optional(),
     isISA: z.boolean().optional(),
-    isaYearContribution: z.number().min(0).nullable().optional(),
+    isaYearContribution: nonNegativeMoneySchema.nullable().optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage)
   .refine(isaRefine, isaRefineMessage);
 
 export const recordAccountBalanceSchema = z.object({
-  value: z.number().positive(),
+  value: positiveMoneySchema,
   date: isoDateString,
-  note: z.string().max(500).nullable().optional(),
+  note: notesSchema.nullable().optional(),
 });
 
 // Member profile (retirement fields)

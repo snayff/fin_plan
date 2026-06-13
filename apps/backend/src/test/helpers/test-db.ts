@@ -341,6 +341,7 @@ export async function seedScenario<T extends ScenarioShape>(scenario: T): Promis
     if (inc.amount !== undefined) {
       await prisma.itemAmountPeriod.create({
         data: {
+          householdId: inc.householdId,
           itemType: "income_source",
           itemId: inc.id,
           startDate: inc.dueDate,
@@ -369,6 +370,7 @@ export async function seedScenario<T extends ScenarioShape>(scenario: T): Promis
     if (ci.amount !== undefined) {
       await prisma.itemAmountPeriod.create({
         data: {
+          householdId: ci.householdId,
           itemType: "committed_item",
           itemId: ci.id,
           startDate: ci.dueDate,
@@ -396,6 +398,7 @@ export async function seedScenario<T extends ScenarioShape>(scenario: T): Promis
     if (di.amount !== undefined) {
       await prisma.itemAmountPeriod.create({
         data: {
+          householdId: di.householdId,
           itemType: "discretionary_item",
           itemId: di.id,
           startDate: di.dueDate ?? new Date("2026-01-01"),

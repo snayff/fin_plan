@@ -378,7 +378,12 @@ describe("waterfallService.getHistory", () => {
     const result = await waterfallService.getHistory("hh-1", "income_source", "inc-1");
     expect(result).toEqual([{ id: "h1" }] as any);
     expect(prismaMock.waterfallHistory.findMany).toHaveBeenCalledWith({
-      where: { itemType: "income_source", itemId: "inc-1", recordedAt: { gte: expect.any(Date) } },
+      where: {
+        householdId: "hh-1",
+        itemType: "income_source",
+        itemId: "inc-1",
+        recordedAt: { gte: expect.any(Date) },
+      },
       orderBy: { recordedAt: "asc" },
     });
   });
@@ -438,17 +443,15 @@ describe("waterfallService.confirmBatch routes every item-type label", () => {
   });
 });
 
-// ─── deleteAll — empty household ─────────────────────────────────────────────────
+// ─── deleteAll ───────────────────────────────────────────────────────────────────
 
-describe("waterfallService.deleteAll with no items", () => {
-  it("skips period cleanup when there is nothing to delete", async () => {
-    prismaMock.incomeSource.findMany.mockResolvedValue([]);
-    prismaMock.committedItem.findMany.mockResolvedValue([]);
-    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
-
+describe("waterfallService.deleteAll", () => {
+  it("scopes every delete to the household", async () => {
     await waterfallService.deleteAll("hh-1");
 
-    expect(prismaMock.itemAmountPeriod.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1" },
+    });
     expect(prismaMock.incomeSource.deleteMany).toHaveBeenCalledWith({
       where: { householdId: "hh-1" },
     });

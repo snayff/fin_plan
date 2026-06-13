@@ -34,17 +34,16 @@ async function blacklistCurrentToken(request: FastifyRequest): Promise<void> {
 }
 
 const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().max(254).email(),
   password: z.string().min(12).max(MAX_PASSWORD_LENGTH),
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(100),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().max(254).email(),
   password: z.string().min(1).max(MAX_PASSWORD_LENGTH),
   rememberMe: z.boolean().optional().default(false),
 });
-
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100),
 });

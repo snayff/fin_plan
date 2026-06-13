@@ -383,7 +383,10 @@ async function loadPlanContext(householdId: string) {
   const periods =
     allRefs.length > 0
       ? await prisma.itemAmountPeriod.findMany({
-          where: { OR: allRefs.map((r) => ({ itemType: r.type as any, itemId: r.id })) },
+          where: {
+            householdId,
+            OR: allRefs.map((r) => ({ itemType: r.type as any, itemId: r.id })),
+          },
           orderBy: { startDate: "asc" },
         })
       : [];

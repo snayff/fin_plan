@@ -1,25 +1,26 @@
 import { z } from "zod";
+import { EMAIL_MAX, NAME_MAX, PASSWORD_MAX, idSchema } from "./common.schemas";
 
 export const createHouseholdSchema = z.object({
-  name: z.string().min(1, "Household name is required").trim(),
+  name: z.string().trim().min(1, "Household name is required").max(NAME_MAX),
 });
 
 export const renameHouseholdSchema = z.object({
-  name: z.string().min(1, "Household name is required").trim(),
+  name: z.string().trim().min(1, "Household name is required").max(NAME_MAX),
 });
 
 export const createHouseholdInviteSchema = z.object({
-  email: z.string().trim().email("A valid email address is required"),
+  email: z.string().trim().max(EMAIL_MAX).email("A valid email address is required"),
   role: z.enum(["member", "admin"]).optional().default("member"),
 });
 
 export const acceptInviteSchema = z.object({
-  name: z.string().min(1, "Name is required").trim(),
-  email: z.string().email("A valid email address is required"),
+  name: z.string().trim().min(1, "Name is required").max(NAME_MAX),
+  email: z.string().trim().max(EMAIL_MAX).email("A valid email address is required"),
   password: z
     .string()
     .min(12, "Password must be at least 12 characters long")
-    .max(128, "Password must be at most 128 characters long"),
+    .max(PASSWORD_MAX, "Password is too long"),
 });
 
 // role: only member or admin can be assigned — owner is immutable
@@ -29,19 +30,19 @@ export const updateMemberRoleSchema = z.object({
 });
 
 export const createMemberSchema = z.object({
-  name: z.string().min(1, "Member name is required").trim(),
+  name: z.string().trim().min(1, "Member name is required").max(NAME_MAX),
   dateOfBirth: z.string().datetime().nullable().optional(),
   retirementYear: z.number().int().min(2000).max(2100).nullable().optional(),
 });
 
 export const updateMemberSchema = z.object({
-  name: z.string().min(1, "Member name is required").trim().optional(),
+  name: z.string().trim().min(1, "Member name is required").max(NAME_MAX).optional(),
   dateOfBirth: z.string().datetime().nullable().optional(),
   retirementYear: z.number().int().min(2000).max(2100).nullable().optional(),
 });
 
 export const deleteMemberSchema = z.object({
-  reassignToMemberId: z.string().optional(),
+  reassignToMemberId: idSchema.optional(),
 });
 
 export type CreateHouseholdInput = z.infer<typeof createHouseholdSchema>;
