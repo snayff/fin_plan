@@ -4,7 +4,7 @@ import { audited, auditEventTx, computeDiff } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { findEffectivePeriod } from "./period.service.js";
 import { compoundForwardYears } from "./forecast.service.js";
-import { toMonthlyAmount } from "@finplan/shared";
+import { toMonthlyAmount, clampedUTCDate } from "@finplan/shared";
 import type {
   LinkableAccountRow,
   BulkUpdateLinkedAccountsInput,
@@ -155,7 +155,11 @@ function buildEvents(
     const due: Date = item.dueDate;
     if (frequencyKey === "monthly") {
       const day = due.getUTCDate();
-      const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), day));
+      // Step by month-offset from the window start, clamping day 29-31 to each
+      // month's last day. Stepping via setUTCMonth would overflow (Jan 31 ->
+      // "Feb 31" -> Mar 3), drifting and skipping February entirely.
+      let offset = 0;
+      let cursor = clampedUTCDate(from.getUTCFullYear(), from.getUTCMonth(), day);
       while (cursor < to) {
         if (cursor >= from) {
           const amount = periodActiveOn(periods, cursor);
@@ -168,7 +172,8 @@ function buildEvents(
               itemId: item.id,
             });
         }
-        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+        offset += 1;
+        cursor = clampedUTCDate(from.getUTCFullYear(), from.getUTCMonth() + offset, day);
       }
     } else if (frequencyKey === "weekly") {
       // Anchor on the weekday of dueDate. Find the first occurrence on-or-after max(from, due).
@@ -198,7 +203,8 @@ function buildEvents(
       // so a future-dated annual bill never emits phantom past occurrences.
       let year = Math.max(from.getUTCFullYear(), due.getUTCFullYear());
       while (true) {
-        const occ = new Date(Date.UTC(year, month, day));
+        // Clamp Feb 29 anchors to Feb 28 in non-leap years (never roll to Mar 1).
+        const occ = clampedUTCDate(year, month, day);
         if (occ >= to) break;
         if (occ >= from && occ >= due) {
           const amount = periodActiveOn(periods, occ);
@@ -221,7 +227,7 @@ function buildEvents(
       let curYear = due.getUTCFullYear();
       let curMonth = due.getUTCMonth();
       while (true) {
-        const occ = new Date(Date.UTC(curYear, curMonth, day));
+        const occ = clampedUTCDate(curYear, curMonth, day);
         if (occ >= anchorDate) break;
         curMonth += 3;
         if (curMonth >= 12) {
@@ -230,7 +236,8 @@ function buildEvents(
         }
       }
       while (true) {
-        const occ = new Date(Date.UTC(curYear, curMonth, day));
+        // Clamp day 29-31 anchors to each quarter's month length.
+        const occ = clampedUTCDate(curYear, curMonth, day);
         if (occ >= to) break;
         if (occ >= from && occ >= due) {
           const amount = periodActiveOn(periods, occ);
