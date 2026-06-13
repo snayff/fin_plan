@@ -53,7 +53,9 @@ export const giftsService = {
           householdId,
           subcategoryId: giftsSubcategory.id,
           name: "Gifts",
-          spendType: "monthly",
+          // Annual gift budget: store as a yearly spendType so the waterfall
+          // divides it by 12 (an annual budget of £X contributes £X/12 per month).
+          spendType: "yearly",
           isPlannerOwned: true,
           lastReviewedAt: new Date(),
         },
