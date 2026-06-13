@@ -366,6 +366,147 @@ describe("waterfallService.createDiscretionary guard branches", () => {
   });
 });
 
+// ─── Bug #108: amount / frequency / dueDate edits persist via update ────────────
+
+describe("waterfallService update methods persist amount to the current period (bug #108)", () => {
+  /** A single active (open-ended) period covering `now`. */
+  function currentPeriod(itemType: string, itemId: string, amount: number) {
+    return {
+      id: `p-${itemId}`,
+      householdId: "hh-1",
+      itemType,
+      itemId,
+      startDate: new Date("2020-01-01"),
+      endDate: null,
+      amount,
+      createdAt: new Date(),
+    };
+  }
+
+  it("updateIncome writes amount to the current period and never forwards it to incomeSource.update", async () => {
+    prismaMock.incomeSource.findUnique.mockResolvedValue({
+      id: "inc-1",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.incomeSource.update.mockResolvedValue({ id: "inc-1" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      currentPeriod("income_source", "inc-1", 1000),
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    await waterfallService.updateIncome(
+      "hh-1",
+      "inc-1",
+      { amount: 1500, frequency: "annual" } as any,
+      ctx
+    );
+
+    // frequency is a real income column → forwarded to the item update
+    expect(prismaMock.incomeSource.update).toHaveBeenCalledWith({
+      where: { id: "inc-1" },
+      data: { frequency: "annual", lastReviewedAt: expect.any(Date) },
+    });
+    // amount must NOT leak into the item update (no `amount` column on the row)
+    const incomeUpdateArg = prismaMock.incomeSource.update.mock.calls[0]![0] as any;
+    expect(incomeUpdateArg.data).not.toHaveProperty("amount");
+    // amount goes to the current effective period
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-inc-1" },
+      data: { amount: 1500 },
+    });
+  });
+
+  it("updateCommitted writes amount to the current period and keeps it off committedItem.update", async () => {
+    prismaMock.committedItem.findUnique.mockResolvedValue({
+      id: "ci-1",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.committedItem.update.mockResolvedValue({ id: "ci-1" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      currentPeriod("committed_item", "ci-1", 200),
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    await waterfallService.updateCommitted("hh-1", "ci-1", { amount: 350 } as any, ctx);
+
+    const arg = prismaMock.committedItem.update.mock.calls[0]![0] as any;
+    expect(arg.data).not.toHaveProperty("amount");
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-ci-1" },
+      data: { amount: 350 },
+    });
+  });
+
+  it("updateDiscretionary persists amount AND dueDate (dueDate is a real column)", async () => {
+    prismaMock.discretionaryItem.findUnique.mockResolvedValue({
+      id: "di-1",
+      householdId: "hh-1",
+      isPlannerOwned: false,
+      subcategoryId: "sub-food",
+    } as any);
+    // getSavingsSubcategoryId → no Savings subcategory, so no auto-null branch
+    prismaMock.subcategory.findFirst.mockResolvedValue(null);
+    prismaMock.discretionaryItem.update.mockResolvedValue({ id: "di-1" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      currentPeriod("discretionary_item", "di-1", 50),
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    const due = new Date("2026-09-01");
+    await waterfallService.updateDiscretionary(
+      "hh-1",
+      "di-1",
+      { amount: 75, dueDate: due } as any,
+      ctx
+    );
+
+    const arg = prismaMock.discretionaryItem.update.mock.calls[0]![0] as any;
+    expect(arg.data).not.toHaveProperty("amount");
+    expect(arg.data).toMatchObject({ dueDate: due });
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-di-1" },
+      data: { amount: 75 },
+    });
+  });
+
+  it("creates a period starting today when no effective period exists", async () => {
+    prismaMock.committedItem.findUnique.mockResolvedValue({
+      id: "ci-9",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.committedItem.update.mockResolvedValue({ id: "ci-9" } as any);
+    // No periods at all → setCurrentAmount must create one
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([] as any);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({} as any);
+
+    await waterfallService.updateCommitted("hh-1", "ci-9", { amount: 99 } as any, ctx);
+
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        householdId: "hh-1",
+        itemType: "committed_item",
+        itemId: "ci-9",
+        amount: 99,
+      }),
+    });
+  });
+
+  it("does not touch periods when amount is omitted", async () => {
+    prismaMock.incomeSource.findUnique.mockResolvedValue({
+      id: "inc-2",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.incomeSource.update.mockResolvedValue({ id: "inc-2" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([] as any);
+
+    await waterfallService.updateIncome("hh-1", "inc-2", { name: "Renamed" } as any, ctx);
+
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
+  });
+});
+
 // ─── getHistory ─────────────────────────────────────────────────────────────────
 
 describe("waterfallService.getHistory", () => {

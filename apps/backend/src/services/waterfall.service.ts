@@ -21,7 +21,7 @@ import type {
   SpendType,
   IncomeFrequency,
 } from "@finplan/shared";
-import { computeLifecycleState } from "./period.service.js";
+import { computeLifecycleState, periodService } from "./period.service.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -476,19 +476,32 @@ export const waterfallService = {
       await validateMemberOwnership(householdId, data.memberId);
     }
 
+    const { amount, ...itemData } = data;
+
     return audited({
       db: prisma,
       ctx,
       action: "UPDATE_INCOME_SOURCE",
       resource: "income-source",
       resourceId: id,
-      beforeFetch: async (tx) =>
-        tx.incomeSource.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
+      beforeFetch: async (tx) => {
+        const row = await tx.incomeSource.findUnique({ where: { id } });
+        if (!row) return null;
+        const before: Record<string, unknown> = { ...row };
+        if (amount !== undefined) {
+          before.amount = await periodService.getCurrentAmount(householdId, "income_source", id);
+        }
+        return before;
+      },
       mutation: async (tx) => {
         const updated = await tx.incomeSource.update({
           where: { id },
-          data: { ...data, lastReviewedAt: new Date() },
+          data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (amount !== undefined) {
+          await periodService.setCurrentAmount(tx, householdId, "income_source", id, amount);
+          return { ...updated, amount };
+        }
         return updated;
       },
     });
@@ -570,19 +583,32 @@ export const waterfallService = {
       await validateMemberOwnership(householdId, data.memberId);
     }
 
+    const { amount, ...itemData } = data;
+
     return audited({
       db: prisma,
       ctx,
       action: "UPDATE_COMMITTED_ITEM",
       resource: "committed-item",
       resourceId: id,
-      beforeFetch: async (tx) =>
-        tx.committedItem.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
+      beforeFetch: async (tx) => {
+        const row = await tx.committedItem.findUnique({ where: { id } });
+        if (!row) return null;
+        const before: Record<string, unknown> = { ...row };
+        if (amount !== undefined) {
+          before.amount = await periodService.getCurrentAmount(householdId, "committed_item", id);
+        }
+        return before;
+      },
       mutation: async (tx) => {
         const updated = await tx.committedItem.update({
           where: { id },
-          data: { ...data, lastReviewedAt: new Date() },
+          data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (amount !== undefined) {
+          await periodService.setCurrentAmount(tx, householdId, "committed_item", id, amount);
+          return { ...updated, amount };
+        }
         return updated;
       },
     });
@@ -664,19 +690,32 @@ export const waterfallService = {
       await validateMemberOwnership(householdId, data.memberId);
     }
 
+    const { amount, ...itemData } = data;
+
     return audited({
       db: prisma,
       ctx,
       action: "UPDATE_COMMITTED_ITEM",
       resource: "committed-item",
       resourceId: id,
-      beforeFetch: async (tx) =>
-        tx.committedItem.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
+      beforeFetch: async (tx) => {
+        const row = await tx.committedItem.findUnique({ where: { id } });
+        if (!row) return null;
+        const before: Record<string, unknown> = { ...row };
+        if (amount !== undefined) {
+          before.amount = await periodService.getCurrentAmount(householdId, "committed_item", id);
+        }
+        return before;
+      },
       mutation: async (tx) => {
         const updated = await tx.committedItem.update({
           where: { id },
-          data: { ...data, lastReviewedAt: new Date() },
+          data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (amount !== undefined) {
+          await periodService.setCurrentAmount(tx, householdId, "committed_item", id, amount);
+          return { ...updated, amount };
+        }
         return updated;
       },
     });
@@ -795,22 +834,36 @@ export const waterfallService = {
       ? { ...data, linkedAccountId: null }
       : data;
 
+    const { amount, ...itemData } = effectiveData;
+
     return audited({
       db: prisma,
       ctx,
       action: "UPDATE_DISCRETIONARY_ITEM",
       resource: "discretionary-item",
       resourceId: id,
-      beforeFetch: async (tx) =>
-        tx.discretionaryItem.findUnique({ where: { id } }) as Promise<Record<
-          string,
-          unknown
-        > | null>,
+      beforeFetch: async (tx) => {
+        const row = await tx.discretionaryItem.findUnique({ where: { id } });
+        if (!row) return null;
+        const before: Record<string, unknown> = { ...row };
+        if (amount !== undefined) {
+          before.amount = await periodService.getCurrentAmount(
+            householdId,
+            "discretionary_item",
+            id
+          );
+        }
+        return before;
+      },
       mutation: async (tx) => {
         const updated = await tx.discretionaryItem.update({
           where: { id },
-          data: { ...effectiveData, lastReviewedAt: new Date() },
+          data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (amount !== undefined) {
+          await periodService.setCurrentAmount(tx, householdId, "discretionary_item", id, amount);
+          return { ...updated, amount };
+        }
         return updated;
       },
     });
@@ -915,22 +968,36 @@ export const waterfallService = {
       });
     }
 
+    const { amount, ...itemData } = data;
+
     return audited({
       db: prisma,
       ctx,
       action: "UPDATE_DISCRETIONARY_ITEM",
       resource: "discretionary-item",
       resourceId: id,
-      beforeFetch: async (tx) =>
-        tx.discretionaryItem.findUnique({ where: { id } }) as Promise<Record<
-          string,
-          unknown
-        > | null>,
+      beforeFetch: async (tx) => {
+        const row = await tx.discretionaryItem.findUnique({ where: { id } });
+        if (!row) return null;
+        const before: Record<string, unknown> = { ...row };
+        if (amount !== undefined) {
+          before.amount = await periodService.getCurrentAmount(
+            householdId,
+            "discretionary_item",
+            id
+          );
+        }
+        return before;
+      },
       mutation: async (tx) => {
         const updated = await tx.discretionaryItem.update({
           where: { id },
-          data: { ...data, lastReviewedAt: new Date() },
+          data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (amount !== undefined) {
+          await periodService.setCurrentAmount(tx, householdId, "discretionary_item", id, amount);
+          return { ...updated, amount };
+        }
         return updated;
       },
     });
