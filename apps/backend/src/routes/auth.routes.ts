@@ -1,4 +1,10 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+  RouteShorthandOptions,
+  onRequestHookHandler,
+} from "fastify";
 import { z } from "zod";
 import { authService } from "../services/auth.service";
 import { auditEvent } from "../services/audit.service";
@@ -94,7 +100,20 @@ export async function authRoutes(fastify: FastifyInstance) {
     },
   };
 
+  // CSRF protection for cookie-authenticated state-changing endpoints.
+  // Tokens are issued by GET /csrf-token and sent back in the X-CSRF-Token
+  // header (the frontend ApiClient does this automatically).
+  //
+  // fastify.csrfProtection returns the (thenable) reply object when it
+  // rejects a request, which makes the hook runner resume the lifecycle
+  // after the 403 has already been sent. Wrapping it discards the return
+  // value so a rejected request stops here.
+  const csrfProtection: onRequestHookHandler = (request, reply, done) => {
+    fastify.csrfProtection(request, reply, done);
+  };
+
   const refreshOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
     config: {
       rateLimit: {
         max: 10,
@@ -272,28 +291,33 @@ export async function authRoutes(fastify: FastifyInstance) {
   /**
    * POST /api/auth/logout
    * Logout user - clears refresh token cookie
+   * Requires a CSRF token in addition to the access token.
    */
-  fastify.post("/logout", { preHandler: authMiddleware }, async (request, reply) => {
-    const userId = request.user!.userId;
+  fastify.post(
+    "/logout",
+    { onRequest: csrfProtection, preHandler: authMiddleware },
+    async (request, reply) => {
+      const userId = request.user!.userId;
 
-    // Blacklist the current access token so it can't be reused
-    await blacklistCurrentToken(request);
+      // Blacklist the current access token so it can't be reused
+      await blacklistCurrentToken(request);
 
-    // Revoke all refresh tokens for this user
-    await authService.revokeAllUserTokens(userId);
+      // Revoke all refresh tokens for this user
+      await authService.revokeAllUserTokens(userId);
 
-    await auditEvent({
-      userId,
-      action: "LOGOUT",
-      resource: "session",
-      ...requestContext(request),
-    });
+      await auditEvent({
+        userId,
+        action: "LOGOUT",
+        resource: "session",
+        ...requestContext(request),
+      });
 
-    // Clear refresh token cookie
-    clearRefreshTokenCookie(reply);
+      // Clear refresh token cookie
+      clearRefreshTokenCookie(reply);
 
-    return reply.status(200).send({ message: "Logged out successfully" });
-  });
+      return reply.status(200).send({ message: "Logged out successfully" });
+    }
+  );
 
   /**
    * GET /api/auth/sessions

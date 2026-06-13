@@ -318,6 +318,53 @@ describe("Auth Journey", () => {
     expect(meBody.user.email).toBe(TEST_USER.email);
   });
 
+  // Refresh and logout are cookie-authenticated, so they must reject requests
+  // that present valid cookies but no CSRF token.
+  it("refresh and logout without a CSRF token are rejected", async () => {
+    const csrf = await getCsrfToken();
+    const registerRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
+      payload: TEST_USER,
+    });
+    expect(registerRes.statusCode).toBe(201);
+    const accessToken = JSON.parse(registerRes.body).accessToken as string;
+
+    const rawCookies = registerRes.headers["set-cookie"];
+    const cookieArr = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
+    const refreshCookie = cookieArr.find((c) => c?.startsWith("refreshToken="))!.split(";")[0]!;
+
+    // Refresh with a valid refresh cookie but no CSRF token → 403
+    const refreshRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "content-type": "application/json", cookie: refreshCookie },
+      payload: {},
+    });
+    expect(refreshRes.statusCode).toBe(403);
+
+    // Logout with a valid access token but no CSRF token → 403
+    const logoutRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(logoutRes.statusCode).toBe(403);
+
+    // The session must still be alive — nothing was revoked
+    const meRes = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(meRes.statusCode).toBe(200);
+  });
+
   // ─── 3. Security: duplicate registration ─────────────────────────────────
 
   it("duplicate registration fails with a generic error", async () => {

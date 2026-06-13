@@ -77,6 +77,23 @@ const mockRefreshResponse = {
   userId: "user-1",
 };
 
+/**
+ * Fetch a CSRF token plus its secret cookie. Refresh and logout enforce CSRF,
+ * so requests to them must carry both the X-CSRF-Token header and the _csrf
+ * cookie (forwarded via `extraCookies`).
+ */
+async function getCsrf(extraCookies = ""): Promise<{ token: string; cookie: string }> {
+  const res = await app.inject({ method: "GET", url: "/api/auth/csrf-token" });
+  expect(res.statusCode).toBe(200);
+  const raw = res.headers["set-cookie"];
+  const cookies = Array.isArray(raw) ? raw : [raw];
+  const csrfCookie = cookies.find((c) => c?.startsWith("_csrf="))!.split(";")[0]!;
+  return {
+    token: res.json().csrfToken as string,
+    cookie: extraCookies ? `${csrfCookie}; ${extraCookies}` : csrfCookie,
+  };
+}
+
 describe("POST /api/auth/register", () => {
   it("returns 201 with valid input", async () => {
     (authService.register as any).mockResolvedValue(mockAuthResponse);
@@ -362,11 +379,12 @@ describe("GET /api/auth/me", () => {
 describe("POST /api/auth/refresh", () => {
   it("returns 200 with new access token from cookie", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      cookies: { refreshToken: "valid-refresh-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -378,12 +396,43 @@ describe("POST /api/auth/refresh", () => {
     );
   });
 
-  it("ignores a refresh token supplied in the request body (cookie only)", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
+      cookies: { refreshToken: "valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token does not match the secret cookie", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": "forged-token", cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("ignores a refresh token supplied in the request body (cookie only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: { refreshToken: "body-supplied-token" },
     });
 
@@ -394,11 +443,12 @@ describe("POST /api/auth/refresh", () => {
 
   it("writes a TOKEN_REFRESH audit event attributed to the user", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      cookies: { refreshToken: "valid-refresh-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -414,11 +464,12 @@ describe("POST /api/auth/refresh", () => {
 
   it("sets persistent cookie on refresh when rememberMe=true", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      cookies: { refreshToken: "valid-refresh-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -428,9 +479,12 @@ describe("POST /api/auth/refresh", () => {
   });
 
   it("returns 400 when no refresh token provided", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -442,11 +496,12 @@ describe("POST /api/auth/refresh", () => {
     (authService.refreshAccessToken as any).mockRejectedValue(
       new AuthenticationError("Invalid or expired refresh token")
     );
+    const csrf = await getCsrf("refreshToken=expired-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      cookies: { refreshToken: "expired-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -456,21 +511,43 @@ describe("POST /api/auth/refresh", () => {
 
 describe("POST /api/auth/logout", () => {
   it("returns 200 when authenticated", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
-      headers: { authorization: "Bearer valid-token" },
+      headers: {
+        authorization: "Bearer valid-token",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().message).toContain("Logged out");
   });
 
-  it("clears refreshToken cookie", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
       headers: { authorization: "Bearer valid-token" },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("clears refreshToken cookie", async () => {
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: {
+        authorization: "Bearer valid-token",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
     });
 
     const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
@@ -479,9 +556,12 @@ describe("POST /api/auth/logout", () => {
   });
 
   it("returns 401 without auth token", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
     });
 
     expect(response.statusCode).toBe(401);

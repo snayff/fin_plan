@@ -99,6 +99,14 @@ describe("ApiClient state-changing requests", () => {
     expect((global as any).fetch).toHaveBeenCalled();
   });
 
+  it("sends the CSRF token on PATCH requests", async () => {
+    mainQueue.push(res({ ok: true }));
+    const client = new ApiClient("");
+    await client.patch("/api/things/1", { a: 1 });
+    const call = ((global as any).fetch.mock.calls.at(-1) as any)[1];
+    expect(call.headers["X-CSRF-Token"]).toBe("csrf-1");
+  });
+
   it("retries once with a fresh CSRF token on FST_CSRF_INVALID_TOKEN", async () => {
     mainQueue.push(res({ error: { code: "FST_CSRF_INVALID_TOKEN" } }, 403));
     mainQueue.push(res({ ok: true }));
