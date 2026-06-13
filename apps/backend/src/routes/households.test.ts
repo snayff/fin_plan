@@ -873,6 +873,21 @@ describe("POST /api/households/:id/member-profiles", () => {
     expect(memberService.createMember).not.toHaveBeenCalled();
   });
 
+  it("returns 404 (not 400) when targeting another household with an invalid body", async () => {
+    // The active-household guard must run before body validation so a caller
+    // cannot distinguish "household exists" from "household does not exist"
+    // via a validation-error differential.
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/households/other-household/member-profiles",
+      headers: authHeaders,
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.createMember).not.toHaveBeenCalled();
+  });
+
   it("returns 401 without auth", async () => {
     const response = await app.inject({
       method: "POST",

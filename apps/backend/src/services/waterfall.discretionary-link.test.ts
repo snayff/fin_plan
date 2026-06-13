@@ -322,6 +322,38 @@ describe("waterfallService — linkedAccountId", () => {
     expect(threw).toBe(true);
   });
 
+  it("updateDiscretionary rejects a cross-household link even when subcategoryId is supplied explicitly", async () => {
+    // Exercises the `data.subcategoryId ?? existing.subcategoryId` branch in the
+    // update guard: an explicit (own) Savings subcategory must not let a foreign
+    // account slip through the household-scoped account lookup.
+    const foreign = await createTestHousehold();
+    const foreignAccount = await prisma.account.create({
+      data: { householdId: foreign.id, name: "Foreign ISA", type: "Savings" },
+    });
+    const item = await prisma.discretionaryItem.create({
+      data: { householdId, subcategoryId: savingsSubId, name: "Own item" },
+    });
+    try {
+      let threw = false;
+      try {
+        await waterfallService.updateDiscretionary(
+          householdId,
+          item.id,
+          { subcategoryId: savingsSubId, linkedAccountId: foreignAccount.id } as any,
+          ctx
+        );
+      } catch (e: any) {
+        threw = true;
+        expect(e.message).toMatch(/not found/i);
+      }
+      expect(threw).toBe(true);
+      const reloaded = await prisma.discretionaryItem.findUnique({ where: { id: item.id } });
+      expect(reloaded?.linkedAccountId).toBeNull();
+    } finally {
+      await prisma.household.delete({ where: { id: foreign.id } });
+    }
+  });
+
   it("auto-nulls linkedAccountId when an item is moved out of Savings", async () => {
     const item = await waterfallService.createDiscretionary(
       householdId,
