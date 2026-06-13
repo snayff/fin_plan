@@ -16,12 +16,11 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────
-  # Lint & Type Check (runs on PRs)
+  # Lint & Type Check (PRs + branch pushes)
   # ─────────────────────────────────────────
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -50,12 +49,11 @@ jobs:
         run: bun run type-check
 
   # ─────────────────────────────────────────
-  # Tests (runs on PRs)
+  # Tests (PRs + branch pushes)
   # ─────────────────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     services:
       postgres:
@@ -197,12 +195,11 @@ jobs:
         run: docker compose -f docker-compose.dev.yml down -v
 
   # ─────────────────────────────────────────
-  # Security Audit (runs on PRs)
+  # Security Audit (PRs + branch pushes)
   # ─────────────────────────────────────────
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -215,20 +212,17 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run security audit
-        # continue-on-error suppresses the 1 known moderate: ajv ReDoS (GHSA-2g4f-4pwh-qvx6)
-        # via ESLint's internal ajv v6 dependency. ESLint uses ajv v6-only APIs that are
-        # incompatible with v8 — forcing v8 crashes the linter at runtime. Suppressed until
-        # ESLint migrates to ajv v8 internally: https://github.com/eslint/eslint/issues/18084
-        run: bun audit
-        continue-on-error: true
+        # Fails on high/critical advisories. Accepted advisories live in
+        # scripts/audit-allowlist.json — see docs/3. architecture/dependency-management.md
+        # for the policy and how to add an entry.
+        run: bun scripts/check-audit.ts
 
   # ─────────────────────────────────────────
-  # Compile Check (runs on PRs)
+  # Compile Check (PRs + branch pushes)
   # ─────────────────────────────────────────
   check-compile:
     name: Check Compile
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     env:
       DATABASE_URL: postgresql://finplan:unused@localhost:5432/unused
@@ -391,12 +385,13 @@ jobs:
           include-hidden-files: true
 
   # ─────────────────────────────────────────
-  # Deploy (runs on push to main)
+  # Deploy (runs on push to production, after checks pass)
   # ─────────────────────────────────────────
   deploy:
     name: Deploy to Coolify
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/production'
+    needs: [lint-and-typecheck, test, check-compile, security-audit]
     environment: PROD
 
     steps:
@@ -408,4 +403,4 @@ jobs:
           echo "${{ secrets.COOLIFY_HOST_KEY }}" >> ~/.ssh/known_hosts
 
       - name: Trigger Coolify deploy
-        run: ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 gabriel@95.146.81.51
+        run: ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
