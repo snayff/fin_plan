@@ -40,6 +40,11 @@
       "id": "GHSA-p9ff-h696-f583",
       "reason": "vite — dev-only build/dev-server tooling; not part of any shipped artefact. Upgrade tracked via Renovate.",
       "added": "2026-06-12"
+    },
+    {
+      "id": "GHSA-gv7w-rqvm-qjhr",
+      "reason": "esbuild — dev-only build tooling, transitive via vite; the advisory concerns esbuild's Deno binary installer, a code path this repo never uses (binaries install via the npm package with lockfile integrity hashes). Fixed only in esbuild 0.28.1, outside vite's ^0.25.0 range; revisit on next vite upgrade.",
+      "added": "2026-06-13"
     }
   ]
 }
