@@ -425,6 +425,66 @@ describe("POST /api/auth/refresh", () => {
     expect(authService.refreshAccessToken).not.toHaveBeenCalled();
   });
 
+  it("returns 403 for an empty-string CSRF token (no rotation side effect)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": "", cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF secret cookie is absent (header only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    // Present a syntactically valid token but drop the _csrf secret cookie,
+    // keeping only the refresh cookie. Without the secret the token cannot be
+    // verified, so the request must be rejected before the handler runs.
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: "refreshToken=valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("accepts the CSRF header regardless of its name casing", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "X-CSRF-Token": csrf.token, cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(authService.refreshAccessToken).toHaveBeenCalled();
+  });
+
+  it("returns 403 when the logout CSRF secret cookie is absent (header only)", async () => {
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { authorization: "Bearer valid-token", "x-csrf-token": csrf.token },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
   it("ignores a refresh token supplied in the request body (cookie only)", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
     const csrf = await getCsrf();
