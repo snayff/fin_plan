@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../config/database.js";
-import { hashPassword } from "../utils/password.js";
+import { hashPassword, MAX_PASSWORD_LENGTH } from "../utils/password.js";
 import { subcategoryService } from "./subcategory.service.js";
 import {
   generateAccessToken,
@@ -15,7 +15,7 @@ import {
   ConflictError,
   ValidationError,
 } from "../utils/errors.js";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 
@@ -427,6 +427,9 @@ export const householdService = {
     if (newUser.password.length < 12) {
       throw new ValidationError("Password must be at least 12 characters long");
     }
+    if (newUser.password.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
 
     if (normalizedEmail !== invite.email) {
       throw new ValidationError("This invite must be used with the invited email address");
@@ -512,18 +515,16 @@ export const householdService = {
 
       // Audit the acceptance — actor is the newly created user
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: invite.householdId,
-          actorId: created.id,
-          actorName: newUser.name,
-          ipAddress: requestCtx?.ipAddress,
-          userAgent: requestCtx?.userAgent,
-          action: AuditAction.ACCEPT_INVITE,
-          resource: "household-invite",
-          resourceId: invite.id,
-          changes: [],
-        },
+      await auditEventTx(tx, {
+        householdId: invite.householdId,
+        actorId: created.id,
+        actorName: newUser.name,
+        ipAddress: requestCtx?.ipAddress,
+        userAgent: requestCtx?.userAgent,
+        action: AuditAction.ACCEPT_INVITE,
+        resource: "household-invite",
+        resourceId: invite.id,
+        changes: [],
       });
 
       return { user: updated, personalHouseholdId: personal.id };
@@ -653,27 +654,25 @@ export const householdService = {
       ]);
 
       // durable: committed atomically with the surrounding $transaction
-      await tx.auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.DELETE_HOUSEHOLD,
-          resource: "household",
-          resourceId: householdId,
-          metadata: {
-            cascaded: {
-              members,
-              assets,
-              accounts,
-              income: incomeItems.length,
-              committed: committedItems.length,
-              discretionary: discretionaryItems.length,
-              snapshots,
-              goals,
-            },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_HOUSEHOLD,
+        resource: "household",
+        resourceId: householdId,
+        metadata: {
+          cascaded: {
+            members,
+            assets,
+            accounts,
+            income: incomeItems.length,
+            committed: committedItems.length,
+            discretionary: discretionaryItems.length,
+            snapshots,
+            goals,
           },
         },
       });

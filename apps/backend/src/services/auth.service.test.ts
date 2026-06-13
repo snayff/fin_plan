@@ -10,6 +10,8 @@ mock.module("../config/database", () => ({
 mock.module("../utils/password", () => ({
   hashPassword: mock(() => Promise.resolve("$2b$10$mockedHashValue")),
   verifyPassword: mock(() => {}),
+  MAX_PASSWORD_LENGTH: 128,
+  TIMING_EQUALIZATION_HASH: "$2b$12$mockedTimingEqualizationHash",
 }));
 
 mock.module("../utils/jwt", () => ({
@@ -104,6 +106,12 @@ describe("authService.register", () => {
     );
   });
 
+  it("throws ValidationError for over-long password (> 128 chars)", async () => {
+    await expect(
+      authService.register({ ...validInput, password: "a".repeat(129) })
+    ).rejects.toThrow("Password must be at most 128 characters");
+  });
+
   it("throws ConflictError for duplicate email", async () => {
     prismaMock.user.findUnique.mockResolvedValue(buildUser());
     await expect(authService.register(validInput)).rejects.toThrow(
@@ -167,6 +175,19 @@ describe("authService.login", () => {
     await expect(
       authService.login({ email: "unknown@test.com", password: "pass123456789" })
     ).rejects.toThrow("Invalid credentials");
+  });
+
+  it("runs an equivalent-cost hash comparison when the user is not found", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    await expect(
+      authService.login({ email: "unknown@test.com", password: "pass123456789" })
+    ).rejects.toThrow("Invalid credentials");
+
+    // The dummy comparison keeps response timing uniform across both paths.
+    expect(verifyPassword).toHaveBeenCalledWith(
+      "pass123456789",
+      "$2b$12$mockedTimingEqualizationHash"
+    );
   });
 
   it("throws AuthenticationError for wrong password", async () => {
@@ -240,6 +261,7 @@ describe("authService.refreshAccessToken", () => {
     const result = await authService.refreshAccessToken("valid-refresh-token");
     expect(result.accessToken).toBe("mock-access-token");
     expect(result.rememberMe).toBe(true);
+    expect(result.userId).toBe(user.id);
     expect(result.expiresAt).toBeInstanceOf(Date);
     expect(result.sessionExpiresAt).toBeInstanceOf(Date);
     expect(prismaMock.refreshToken.create).toHaveBeenCalledWith(
@@ -256,6 +278,62 @@ describe("authService.refreshAccessToken", () => {
 
   it("throws AuthenticationError for missing refresh token", async () => {
     await expect(authService.refreshAccessToken("")).rejects.toThrow("Refresh token is required");
+  });
+
+  it("rotates atomically: revoke-old and create-new run inside one transaction", async () => {
+    const user = buildUser();
+    (verifyRefreshToken as any).mockReturnValue({ userId: user.id });
+    prismaMock.refreshToken.findUnique.mockResolvedValue({
+      id: "rt-1",
+      userId: user.id,
+      familyId: "mock-family-id",
+      isRevoked: false,
+      rememberMe: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      sessionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    prismaMock.user.findUnique.mockResolvedValue(user);
+
+    await authService.refreshAccessToken("valid-refresh-token");
+
+    expect(prismaMock.$transaction).toHaveBeenCalled();
+    // The revoke is a guarded claim on the un-revoked row, not a blind update
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rt-1", isRevoked: false },
+        data: expect.objectContaining({ isRevoked: true }),
+      })
+    );
+    expect(prismaMock.refreshToken.create).toHaveBeenCalled();
+  });
+
+  it("revokes the whole family when the token was concurrently rotated", async () => {
+    const user = buildUser();
+    (verifyRefreshToken as any).mockReturnValue({ userId: user.id });
+    prismaMock.refreshToken.findUnique.mockResolvedValue({
+      id: "rt-1",
+      userId: user.id,
+      familyId: "mock-family-id",
+      isRevoked: false,
+      rememberMe: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      sessionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    prismaMock.user.findUnique.mockResolvedValue(user);
+    // First updateMany = claim attempt (loses the race), second = family revoke
+    prismaMock.refreshToken.updateMany
+      .mockResolvedValueOnce({ count: 0 } as any)
+      .mockResolvedValueOnce({ count: 2 } as any);
+
+    await expect(authService.refreshAccessToken("valid-refresh-token")).rejects.toThrow(
+      "reuse detected"
+    );
+
+    expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
+    expect(prismaMock.refreshToken.updateMany).toHaveBeenLastCalledWith({
+      where: { familyId: "mock-family-id" },
+      data: { isRevoked: true },
+    });
   });
 
   it("rejects refresh when absolute session cap is reached", async () => {

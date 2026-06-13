@@ -101,7 +101,7 @@ export class ApiClient {
     try {
       // Get CSRF token for all state-changing requests (including auth endpoints)
       let csrfToken: string | undefined;
-      if (["POST", "PUT", "DELETE"].includes(options.method || "GET")) {
+      if (["POST", "PUT", "PATCH", "DELETE"].includes(options.method || "GET")) {
         csrfToken = await this.fetchCsrfToken();
       }
 

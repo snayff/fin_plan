@@ -9,6 +9,7 @@ mock.module("../services/auth.service", () => {
     register: mock(() => {}),
     login: mock(() => {}),
     findUserById: mock(() => {}),
+    findUserByEmail: mock(() => Promise.resolve(null)),
     refreshAccessToken: mock(() => {}),
     revokeAllUserTokens: mock(() => Promise.resolve()),
     getUserSessions: mock(() => Promise.resolve([])),
@@ -47,6 +48,9 @@ afterAll(async () => {
 
 beforeEach(() => {
   mockAuditLog.mockClear();
+  (authService.refreshAccessToken as any).mockClear();
+  (authService.findUserByEmail as any).mockClear();
+  (authService.findUserByEmail as any).mockResolvedValue(null);
   const authImpl = async (request: any) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -70,7 +74,25 @@ const mockRefreshResponse = {
   rememberMe: true,
   expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
   sessionExpiresAt: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000),
+  userId: "user-1",
 };
+
+/**
+ * Fetch a CSRF token plus its secret cookie. Refresh and logout enforce CSRF,
+ * so requests to them must carry both the X-CSRF-Token header and the _csrf
+ * cookie (forwarded via `extraCookies`).
+ */
+async function getCsrf(extraCookies = ""): Promise<{ token: string; cookie: string }> {
+  const res = await app.inject({ method: "GET", url: "/api/auth/csrf-token" });
+  expect(res.statusCode).toBe(200);
+  const raw = res.headers["set-cookie"];
+  const cookies = Array.isArray(raw) ? raw : [raw];
+  const csrfCookie = cookies.find((c) => c?.startsWith("_csrf="))!.split(";")[0]!;
+  return {
+    token: res.json().csrfToken as string,
+    cookie: extraCookies ? `${csrfCookie}; ${extraCookies}` : csrfCookie,
+  };
+}
 
 describe("POST /api/auth/register", () => {
   it("returns 201 with valid input", async () => {
@@ -145,6 +167,17 @@ describe("POST /api/auth/register", () => {
     });
 
     expect(response.statusCode).toBe(400);
+  });
+
+  it("returns 400 for over-long password (> 128 chars)", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { email: "test@test.com", password: "a".repeat(129), name: "Test User" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
   });
 });
 
@@ -243,6 +276,16 @@ describe("POST /api/auth/login", () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it("returns 400 for over-long password (> 128 chars)", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "test@test.com", password: "a".repeat(129) },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it("returns 401 for invalid credentials", async () => {
     (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
 
@@ -254,6 +297,45 @@ describe("POST /api/auth/login", () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json().error.code).toBe("AUTH_ERROR");
+  });
+
+  it("attributes LOGIN_FAILED to the targeted account when the email exists", async () => {
+    (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
+    (authService.findUserByEmail as any).mockResolvedValue({
+      id: "user-1",
+      email: "test@test.com",
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "test@test.com", password: "wrongpassword1" },
+    });
+
+    // Client response stays generic — attribution is audit-only
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Invalid credentials");
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "LOGIN_FAILED", userId: "user-1" })
+    );
+  });
+
+  it("writes LOGIN_FAILED without userId when the email matches no account", async () => {
+    (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "nobody@test.com", password: "wrongpassword1" },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Invalid credentials");
+    const failedCall = (mockAuditLog.mock.calls as any[]).find(
+      (c) => c[0]?.action === "LOGIN_FAILED"
+    );
+    expect(failedCall).toBeDefined();
+    expect(failedCall[0].userId).toBeUndefined();
   });
 });
 
@@ -295,26 +377,160 @@ describe("GET /api/auth/me", () => {
 });
 
 describe("POST /api/auth/refresh", () => {
-  it("returns 200 with new access token from body", async () => {
+  it("returns 200 with new access token from cookie", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "valid-refresh-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().accessToken).toBe("new-token");
+    expect(authService.refreshAccessToken).toHaveBeenCalledWith(
+      "valid-refresh-token",
+      expect.any(Object)
+    );
   });
 
-  it("sets persistent cookie on refresh when rememberMe=true", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "valid-refresh-token" },
+      cookies: { refreshToken: "valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token does not match the secret cookie", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": "forged-token", cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for an empty-string CSRF token (no rotation side effect)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": "", cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF secret cookie is absent (header only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    // Present a syntactically valid token but drop the _csrf secret cookie,
+    // keeping only the refresh cookie. Without the secret the token cannot be
+    // verified, so the request must be rejected before the handler runs.
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: "refreshToken=valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("accepts the CSRF header regardless of its name casing", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "X-CSRF-Token": csrf.token, cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(authService.refreshAccessToken).toHaveBeenCalled();
+  });
+
+  it("returns 403 when the logout CSRF secret cookie is absent (header only)", async () => {
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { authorization: "Bearer valid-token", "x-csrf-token": csrf.token },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("ignores a refresh token supplied in the request body (cookie only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: { refreshToken: "body-supplied-token" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("writes a TOKEN_REFRESH audit event attributed to the user", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        action: "TOKEN_REFRESH",
+        resource: "session",
+      })
+    );
+  });
+
+  it("sets persistent cookie on refresh when rememberMe=true", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
     });
 
     const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
@@ -323,9 +539,12 @@ describe("POST /api/auth/refresh", () => {
   });
 
   it("returns 400 when no refresh token provided", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -337,11 +556,13 @@ describe("POST /api/auth/refresh", () => {
     (authService.refreshAccessToken as any).mockRejectedValue(
       new AuthenticationError("Invalid or expired refresh token")
     );
+    const csrf = await getCsrf("refreshToken=expired-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "expired-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(401);
@@ -350,21 +571,43 @@ describe("POST /api/auth/refresh", () => {
 
 describe("POST /api/auth/logout", () => {
   it("returns 200 when authenticated", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
-      headers: { authorization: "Bearer valid-token" },
+      headers: {
+        authorization: "Bearer valid-token",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().message).toContain("Logged out");
   });
 
-  it("clears refreshToken cookie", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
       headers: { authorization: "Bearer valid-token" },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("clears refreshToken cookie", async () => {
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: {
+        authorization: "Bearer valid-token",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
     });
 
     const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
@@ -373,9 +616,12 @@ describe("POST /api/auth/logout", () => {
   });
 
   it("returns 401 without auth token", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
     });
 
     expect(response.statusCode).toBe(401);

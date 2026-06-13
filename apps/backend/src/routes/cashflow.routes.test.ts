@@ -43,10 +43,12 @@ mock.module("../lib/actor-ctx", () => ({
 // Audit service is called from cashflowService.updateAccountCashflowLink when ctx provided.
 mock.module("../services/audit.service.js", () => ({
   audited: async ({ mutation }: any) => mutation(prismaMock),
+  auditEventTx: async (tx: any, entry: any) => tx.auditLog.create({ data: entry }),
   computeDiff: () => [],
 }));
 mock.module("../services/audit.service", () => ({
   audited: async ({ mutation }: any) => mutation(prismaMock),
+  auditEventTx: async (tx: any, entry: any) => tx.auditLog.create({ data: entry }),
   computeDiff: () => [],
 }));
 

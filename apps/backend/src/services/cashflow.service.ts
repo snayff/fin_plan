@@ -1,6 +1,6 @@
 import { prisma } from "../config/database.js";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
-import { audited, computeDiff } from "./audit.service.js";
+import { audited, auditEventTx, computeDiff } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { findEffectivePeriod } from "./period.service.js";
 import { compoundForwardYears } from "./forecast.service.js";
@@ -492,18 +492,16 @@ export const cashflowService = {
         });
 
         // durable: committed atomically with the surrounding $transaction
-        await (tx as any).auditLog.create({
-          data: {
-            householdId,
-            actorId: ctx.actorId,
-            actorName: ctx.actorName,
-            ipAddress: ctx.ipAddress,
-            userAgent: ctx.userAgent,
-            action: "UPDATE_ACCOUNT_CASHFLOW_LINK",
-            resource: "account",
-            resourceId: update.accountId,
-            changes,
-          },
+        await auditEventTx(tx, {
+          householdId,
+          actorId: ctx.actorId,
+          actorName: ctx.actorName,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          action: "UPDATE_ACCOUNT_CASHFLOW_LINK",
+          resource: "account",
+          resourceId: update.accountId,
+          changes,
         });
 
         results.push(toLinkableRow(updated));
