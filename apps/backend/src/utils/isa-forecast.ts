@@ -1,4 +1,5 @@
 import type { SpendType } from "@prisma/client";
+import { addMonthsClamped } from "@finplan/shared";
 
 export interface ForecastInput {
   amount: number;
@@ -104,21 +105,24 @@ function countWeeklyOccurrences(base: Date, start: Date, end: Date): number {
 
 function countPeriodicOccurrences(base: Date, start: Date, end: Date, step: number): number {
   if (end < start) return 0;
+  const anchorDay = base.getUTCDate();
+  // Drive iteration by an integer month-offset from `base` and clamp each step
+  // to the destination month's last day (anchored on base.day). Stepping via
+  // setUTCMonth would overflow for day 29-31 (e.g. Jan 31 -> "Feb 31" -> Mar 3),
+  // permanently drifting and skipping a month entirely.
+  let offset = 0;
+  // Walk backwards to the first occurrence on-or-after `start`.
+  while (addMonthsClamped(base, offset, anchorDay) > start) {
+    offset -= step;
+  }
+  // Walk forwards to the first occurrence on-or-after `start`.
+  while (addMonthsClamped(base, offset, anchorDay) < start) {
+    offset += step;
+  }
   let count = 0;
-  const cursor = new Date(base.getTime());
-  const endTs = end.getTime();
-  while (cursor > end) {
-    cursor.setUTCMonth(cursor.getUTCMonth() - step);
-  }
-  while (cursor < start) {
-    cursor.setUTCMonth(cursor.getUTCMonth() + step);
-  }
-  // NB: the forward loop above can overshoot end when the step spans the
-  // entire window. Use cursor.getTime() so static analysis recognises this
-  // as a fresh read of the mutated timestamp rather than a stable reference.
-  while (cursor.getTime() <= endTs) {
+  while (addMonthsClamped(base, offset, anchorDay) <= end) {
     count++;
-    cursor.setUTCMonth(cursor.getUTCMonth() + step);
+    offset += step;
   }
   return count;
 }

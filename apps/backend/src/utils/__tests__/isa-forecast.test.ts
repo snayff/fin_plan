@@ -67,6 +67,35 @@ describe("forecastContribution", () => {
     expect(result.estimated).toBe(false);
   });
 
+  it("counts a day-31 monthly schedule once per month across February (non-leap, #109)", () => {
+    // Jan 31 2025 through Dec 31 2025 inclusive must be 12 occurrences, NOT 11:
+    // February must be clamped to the 28th, never skipped.
+    const result = forecastContribution(
+      [{ amount: 100, spendType: "monthly", dueDate: new Date(Date.UTC(2025, 0, 31)) }],
+      new Date(Date.UTC(2025, 0, 1)),
+      new Date(Date.UTC(2025, 11, 31))
+    );
+    expect(result.amount).toBeCloseTo(100 * 12, 5);
+  });
+
+  it("counts a day-29 monthly schedule once per month across a leap February (#109)", () => {
+    const result = forecastContribution(
+      [{ amount: 100, spendType: "monthly", dueDate: new Date(Date.UTC(2024, 0, 29)) }],
+      new Date(Date.UTC(2024, 0, 1)),
+      new Date(Date.UTC(2024, 11, 31))
+    );
+    expect(result.amount).toBeCloseTo(100 * 12, 5);
+  });
+
+  it("counts a day-30 monthly schedule once per month across February (#109)", () => {
+    const result = forecastContribution(
+      [{ amount: 100, spendType: "monthly", dueDate: new Date(Date.UTC(2026, 0, 30)) }],
+      new Date(Date.UTC(2026, 0, 1)),
+      new Date(Date.UTC(2026, 11, 31))
+    );
+    expect(result.amount).toBeCloseTo(100 * 12, 5);
+  });
+
   it("aggregates multiple items", () => {
     const result = forecastContribution(
       [
