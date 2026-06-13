@@ -17,6 +17,8 @@ mock.module("../utils/jwt", () => ({
 // Password utils used by acceptInvite
 mock.module("../utils/password", () => ({
   hashPassword: mock(() => Promise.resolve("hashed-password")),
+  MAX_PASSWORD_LENGTH: 128,
+  TIMING_EQUALIZATION_HASH: "$2b$12$mockedTimingEqualizationHash",
 }));
 
 import { householdService, assertOwnerOrAdmin, updateMemberRole } from "./household.service";
@@ -785,9 +787,13 @@ describe("householdService.delete", () => {
     prismaMock.member.count.mockResolvedValue(3);
     prismaMock.asset.count.mockResolvedValue(2);
     prismaMock.account.count.mockResolvedValue(1);
-    prismaMock.incomeSource.count.mockResolvedValue(4);
-    prismaMock.committedItem.count.mockResolvedValue(5);
-    prismaMock.discretionaryItem.count.mockResolvedValue(0);
+    prismaMock.incomeSource.findMany.mockResolvedValue(
+      Array.from({ length: 4 }, (_, i) => ({ id: `inc-${i}` })) as any
+    );
+    prismaMock.committedItem.findMany.mockResolvedValue(
+      Array.from({ length: 5 }, (_, i) => ({ id: `com-${i}` })) as any
+    );
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
     prismaMock.snapshot.count.mockResolvedValue(0);
     prismaMock.purchaseItem.count.mockResolvedValue(0);
     prismaMock.household.delete.mockResolvedValue({} as any);
@@ -922,12 +928,16 @@ describe("householdService.delete", () => {
 
   function mockCascadeCounts(counts: Record<string, number> = {}) {
     const value = (key: string) => counts[key] ?? 0;
+    const idRows = (prefix: string, n: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `${prefix}-${i}` }));
     prismaMock.member.count.mockResolvedValue(value("members") as never);
     prismaMock.asset.count.mockResolvedValue(value("assets") as never);
     prismaMock.account.count.mockResolvedValue(value("accounts") as never);
-    prismaMock.incomeSource.count.mockResolvedValue(value("income") as never);
-    prismaMock.committedItem.count.mockResolvedValue(value("committed") as never);
-    prismaMock.discretionaryItem.count.mockResolvedValue(value("discretionary") as never);
+    prismaMock.incomeSource.findMany.mockResolvedValue(idRows("inc", value("income")) as never);
+    prismaMock.committedItem.findMany.mockResolvedValue(idRows("com", value("committed")) as never);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue(
+      idRows("dis", value("discretionary")) as never
+    );
     prismaMock.snapshot.count.mockResolvedValue(value("snapshots") as never);
     prismaMock.purchaseItem.count.mockResolvedValue(value("goals") as never);
   }

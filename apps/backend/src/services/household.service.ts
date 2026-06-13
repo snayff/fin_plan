@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../config/database.js";
-import { hashPassword } from "../utils/password.js";
+import { hashPassword, MAX_PASSWORD_LENGTH } from "../utils/password.js";
 import { subcategoryService } from "./subcategory.service.js";
 import {
   generateAccessToken,
@@ -15,7 +15,7 @@ import {
   ConflictError,
   ValidationError,
 } from "../utils/errors.js";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 
@@ -427,6 +427,9 @@ export const householdService = {
     if (newUser.password.length < 12) {
       throw new ValidationError("Password must be at least 12 characters long");
     }
+    if (newUser.password.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
 
     if (normalizedEmail !== invite.email) {
       throw new ValidationError("This invite must be used with the invited email address");
@@ -512,18 +515,16 @@ export const householdService = {
 
       // Audit the acceptance — actor is the newly created user
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: invite.householdId,
-          actorId: created.id,
-          actorName: newUser.name,
-          ipAddress: requestCtx?.ipAddress,
-          userAgent: requestCtx?.userAgent,
-          action: AuditAction.ACCEPT_INVITE,
-          resource: "household-invite",
-          resourceId: invite.id,
-          changes: [],
-        },
+      await auditEventTx(tx, {
+        householdId: invite.householdId,
+        actorId: created.id,
+        actorName: newUser.name,
+        ipAddress: requestCtx?.ipAddress,
+        userAgent: requestCtx?.userAgent,
+        action: AuditAction.ACCEPT_INVITE,
+        resource: "household-invite",
+        resourceId: invite.id,
+        changes: [],
       });
 
       return { user: updated, personalHouseholdId: personal.id };
@@ -635,44 +636,85 @@ export const householdService = {
   async delete(householdId: string, ctx: ActorCtx) {
     await assertOwner(householdId, ctx.actorId);
     return prisma.$transaction(async (tx) => {
-      const [members, assets, accounts, income, committed, discretionary, snapshots, goals] =
-        await Promise.all([
-          tx.member.count({ where: { householdId } }),
-          tx.asset.count({ where: { householdId } }),
-          tx.account.count({ where: { householdId } }),
-          tx.incomeSource.count({ where: { householdId } }),
-          tx.committedItem.count({ where: { householdId } }),
-          tx.discretionaryItem.count({ where: { householdId } }),
-          tx.snapshot.count({ where: { householdId } }),
-          tx.purchaseItem.count({ where: { householdId } }),
-        ]);
+      const [members, assets, accounts, snapshots, goals] = await Promise.all([
+        tx.member.count({ where: { householdId } }),
+        tx.asset.count({ where: { householdId } }),
+        tx.account.count({ where: { householdId } }),
+        tx.snapshot.count({ where: { householdId } }),
+        tx.purchaseItem.count({ where: { householdId } }),
+      ]);
+
+      // Waterfall item ids are needed up front: history and amount-period rows
+      // reference items polymorphically (itemType/itemId) without a FK, so they
+      // can only be removed by id.
+      const [incomeItems, committedItems, discretionaryItems] = await Promise.all([
+        tx.incomeSource.findMany({ where: { householdId }, select: { id: true } }),
+        tx.committedItem.findMany({ where: { householdId }, select: { id: true } }),
+        tx.discretionaryItem.findMany({ where: { householdId }, select: { id: true } }),
+      ]);
 
       // durable: committed atomically with the surrounding $transaction
-      await tx.auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.DELETE_HOUSEHOLD,
-          resource: "household",
-          resourceId: householdId,
-          metadata: {
-            cascaded: {
-              members,
-              assets,
-              accounts,
-              income,
-              committed,
-              discretionary,
-              snapshots,
-              goals,
-            },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_HOUSEHOLD,
+        resource: "household",
+        resourceId: householdId,
+        metadata: {
+          cascaded: {
+            members,
+            assets,
+            accounts,
+            income: incomeItems.length,
+            committed: committedItems.length,
+            discretionary: discretionaryItems.length,
+            snapshots,
+            goals,
           },
         },
       });
 
+      // Remove every household-scoped row. Most of these tables carry a plain
+      // householdId column without a FK to households, so deleting the
+      // household row alone would leave them behind. Order matters: waterfall
+      // items reference subcategories with ON DELETE RESTRICT, so items go
+      // before subcategories.
+      const itemIds = [
+        ...incomeItems.map((i) => i.id),
+        ...committedItems.map((i) => i.id),
+        ...discretionaryItems.map((i) => i.id),
+      ];
+      if (itemIds.length > 0) {
+        await tx.itemAmountPeriod.deleteMany({ where: { itemId: { in: itemIds } } });
+        await tx.waterfallHistory.deleteMany({ where: { itemId: { in: itemIds } } });
+      }
+      await tx.incomeSource.deleteMany({ where: { householdId } });
+      await tx.committedItem.deleteMany({ where: { householdId } });
+      await tx.discretionaryItem.deleteMany({ where: { householdId } });
+      await tx.subcategory.deleteMany({ where: { householdId } });
+
+      // Planner & gifts (allocations cascade from persons/events, but are
+      // deleted explicitly so this list stays the full household-scope set)
+      await tx.giftAllocation.deleteMany({ where: { householdId } });
+      await tx.giftPerson.deleteMany({ where: { householdId } });
+      await tx.giftEvent.deleteMany({ where: { householdId } });
+      await tx.giftPlannerSettings.deleteMany({ where: { householdId } });
+      await tx.giftRolloverDismissal.deleteMany({ where: { householdId } });
+      await tx.purchaseItem.deleteMany({ where: { householdId } });
+      await tx.plannerYearBudget.deleteMany({ where: { householdId } });
+
+      // Snapshots, wizard sessions and settings
+      await tx.snapshot.deleteMany({ where: { householdId } });
+      await tx.reviewSession.deleteMany({ where: { householdId } });
+      await tx.householdSettings.deleteMany({ where: { householdId } });
+
+      // The household row cascades the FK-linked rows: members, invites,
+      // assets/accounts (and their balances), and import backups. Audit logs
+      // are retained with householdId set to null, and users' active
+      // household reference is cleared (ON DELETE SET NULL).
       await tx.household.delete({ where: { id: householdId } });
     });
   },

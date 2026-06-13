@@ -21,6 +21,7 @@ function buildModelMock() {
 export const prismaMock = {
   auditLog: buildModelMock(),
   refreshToken: buildModelMock(),
+  revokedAccessToken: buildModelMock(),
   user: buildModelMock(),
   household: buildModelMock(),
   member: buildModelMock(),

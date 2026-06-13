@@ -15,6 +15,7 @@ mock.module("../config/database", () => ({
 
 import { authMiddleware } from "./auth.middleware";
 import { verifyAccessToken } from "../utils/jwt";
+import { isTokenBlacklisted } from "../utils/tokenBlacklist";
 import { AuthenticationError } from "../utils/errors";
 import { buildUser, buildMember } from "../test/fixtures";
 
@@ -67,6 +68,18 @@ describe("authMiddleware", () => {
   it("throws AuthenticationError for missing token after Bearer", async () => {
     const request = buildMockRequest("Bearer ");
     await expect(authMiddleware(request, mockReply)).rejects.toThrow(AuthenticationError);
+  });
+
+  it("throws AuthenticationError for a revoked token (persisted denylist hit)", async () => {
+    (verifyAccessToken as any).mockReturnValue({
+      userId: "user-1",
+      email: "test@test.com",
+      jti: "revoked-jti",
+    });
+    (isTokenBlacklisted as any).mockResolvedValueOnce(true);
+
+    const request = buildMockRequest("Bearer revoked-token");
+    await expect(authMiddleware(request, mockReply)).rejects.toThrow("Token has been revoked");
   });
 
   it("throws AuthenticationError when user not found in DB", async () => {

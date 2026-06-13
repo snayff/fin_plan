@@ -147,6 +147,7 @@ const ALL_TABLES = [
   // Auth & identity
   "audit_logs",
   "refresh_tokens",
+  "revoked_access_tokens",
   "devices",
   // Planner — gifts
   "GiftAllocation",

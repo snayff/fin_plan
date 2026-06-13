@@ -21,8 +21,10 @@ export default tseslint.config(
     },
   },
   {
-    // Block direct prisma.auditLog.create calls outside audit.service.ts.
-    // Use audited() for mutations or auditEvent() for mutationless events.
+    // Block direct auditLog.create calls outside audit.service.ts, on any
+    // client (prisma, tx, or a cast thereof). Use audited() for mutations,
+    // auditEvent() for mutationless events, or auditEventTx() inside an
+    // existing transaction.
     files: ["src/**/*.ts"],
     ignores: ["src/services/audit.service.ts"],
     rules: {
@@ -30,9 +32,9 @@ export default tseslint.config(
         "error",
         {
           selector:
-            "CallExpression[callee.type='MemberExpression'][callee.property.name='create'][callee.object.type='MemberExpression'][callee.object.property.name='auditLog'][callee.object.object.name='prisma']",
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='create'][callee.object.type='MemberExpression'][callee.object.property.name='auditLog']",
           message:
-            "Do not call prisma.auditLog.create directly. Use audited() for mutations or auditEvent() for mutationless events.",
+            "Do not call auditLog.create directly (on prisma or a transaction client). Use audited() for mutations, auditEvent() for mutationless events, or auditEventTx() inside an existing transaction.",
         },
       ],
     },

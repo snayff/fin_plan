@@ -6,6 +6,7 @@ import { Check, ChevronDown, Plus, Settings } from "lucide-react";
 import { householdService } from "@/services/household.service";
 import { authService } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/authStore";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { CreateHouseholdDialog } from "./CreateHouseholdDialog";
 
 export function HouseholdSwitcher() {
@@ -33,7 +34,7 @@ export function HouseholdSwitcher() {
         const { user: updatedUser } = await authService.getCurrentUser(accessToken);
         setUser(updatedUser, accessToken);
       }
-      qc.invalidateQueries();
+      purgeStaleQueries(qc);
       navigate("/overview");
       setIsOpen(false);
     },
@@ -49,7 +50,7 @@ export function HouseholdSwitcher() {
         const { user: updatedUser } = await authService.getCurrentUser(accessToken);
         setUser(updatedUser, accessToken);
       }
-      qc.invalidateQueries();
+      purgeStaleQueries(qc);
       navigate("/overview");
       setShowCreate(false);
       toast.success("Household created");

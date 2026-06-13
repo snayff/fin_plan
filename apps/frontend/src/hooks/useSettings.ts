@@ -7,6 +7,7 @@ import { authService } from "@/services/auth.service";
 import type { UpdateSettingsInput, AuditLogQuery } from "@finplan/shared";
 import { fetchAuditLog, updateMemberRole } from "@/services/auditLog.service";
 import { fetchSecurityActivity } from "@/services/securityActivity.service";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { showError } from "@/lib/toast";
 
 export const SETTINGS_KEYS = {
@@ -165,11 +166,11 @@ export function useLeaveHousehold() {
 
   return useMutation({
     mutationFn: (householdId: string) => householdService.leaveHousehold(householdId),
-    onSuccess: async (_data, householdId) => {
+    onSuccess: async () => {
       const { user } = await authService.getCurrentUser(accessToken!);
       setUser(user, accessToken!);
-      void queryClient.invalidateQueries({ queryKey: ["households"] });
-      void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
+      // Drop all cached data from the household we just left.
+      purgeStaleQueries(queryClient);
     },
     onError: (err: Error) => {
       showError(err.message ?? "Failed to leave household");
@@ -184,13 +185,13 @@ export function useDeleteHousehold() {
 
   return useMutation({
     mutationFn: (householdId: string) => householdService.deleteHousehold(householdId),
-    onSuccess: async (_data, householdId) => {
+    onSuccess: async () => {
       // The user's activeHouseholdId is auto-cleared by the FK ON DELETE SET NULL,
       // so re-fetching the user lets the auth state reflect the post-deletion reality.
       const { user } = await authService.getCurrentUser(accessToken!);
       setUser(user, accessToken!);
-      void queryClient.invalidateQueries({ queryKey: ["households"] });
-      void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
+      // Drop all cached data from the deleted household.
+      purgeStaleQueries(queryClient);
     },
   });
 }

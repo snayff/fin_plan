@@ -157,6 +157,57 @@ describe("Auth Journey", () => {
     expect(meAfterLogoutRes.statusCode).toBe(401);
   });
 
+  // Access-token revocation must be persisted (DB-backed), not held in process
+  // memory — a freshly built app instance (simulating a restart/another
+  // instance) must still reject a token revoked before it started.
+  it("token revoked on logout is still rejected by a fresh app instance", async () => {
+    const csrf = await getCsrfToken();
+    const registerRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
+      payload: TEST_USER,
+    });
+    expect(registerRes.statusCode).toBe(201);
+    const accessToken = JSON.parse(registerRes.body).accessToken as string;
+    await createHousehold(accessToken, "Restart Test Household");
+
+    const csrfLogout = await getCsrfToken();
+    const logoutRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "x-csrf-token": csrfLogout.token,
+        cookie: csrfLogout.cookie,
+      },
+    });
+    expect(logoutRes.statusCode).toBe(200);
+
+    // The revocation must be visible in the database
+    const revoked = await prisma.revokedAccessToken.findFirst();
+    expect(revoked).not.toBeNull();
+    expect(revoked!.expiresAt.getTime()).toBeGreaterThan(Date.now());
+
+    // A separate app instance (no shared memory) must reject the token too
+    const restartedApp = await buildApp();
+    await restartedApp.ready();
+    try {
+      const meRes = await restartedApp.inject({
+        method: "GET",
+        url: "/api/auth/me",
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(meRes.statusCode).toBe(401);
+    } finally {
+      await restartedApp.close();
+    }
+  });
+
   // A freshly-registered user has no household yet (they create one via the
   // WelcomePage). The frontend's session restore calls /me on every hard reload
   // and routes on `activeHouseholdId` (null → /welcome). /me must therefore
@@ -265,6 +316,53 @@ describe("Auth Journey", () => {
     expect(meRes.statusCode).toBe(200);
     const meBody = JSON.parse(meRes.body);
     expect(meBody.user.email).toBe(TEST_USER.email);
+  });
+
+  // Refresh and logout are cookie-authenticated, so they must reject requests
+  // that present valid cookies but no CSRF token.
+  it("refresh and logout without a CSRF token are rejected", async () => {
+    const csrf = await getCsrfToken();
+    const registerRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
+      payload: TEST_USER,
+    });
+    expect(registerRes.statusCode).toBe(201);
+    const accessToken = JSON.parse(registerRes.body).accessToken as string;
+
+    const rawCookies = registerRes.headers["set-cookie"];
+    const cookieArr = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
+    const refreshCookie = cookieArr.find((c) => c?.startsWith("refreshToken="))!.split(";")[0]!;
+
+    // Refresh with a valid refresh cookie but no CSRF token → 403
+    const refreshRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "content-type": "application/json", cookie: refreshCookie },
+      payload: {},
+    });
+    expect(refreshRes.statusCode).toBe(403);
+
+    // Logout with a valid access token but no CSRF token → 403
+    const logoutRes = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(logoutRes.statusCode).toBe(403);
+
+    // The session must still be alive — nothing was revoked
+    const meRes = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(meRes.statusCode).toBe(200);
   });
 
   // ─── 3. Security: duplicate registration ─────────────────────────────────

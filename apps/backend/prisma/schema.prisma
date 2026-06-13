@@ -143,6 +143,18 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Server-side denylist for access tokens revoked before their natural expiry
+// (e.g. logout). Survives restarts and is shared across instances. Rows are
+// purged once the underlying token would have expired anyway.
+model RevokedAccessToken {
+  jti       String   @id
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("revoked_access_tokens")
+}
+
 model Device {
   id         String     @id @default(uuid())
   userId     String     @map("user_id")

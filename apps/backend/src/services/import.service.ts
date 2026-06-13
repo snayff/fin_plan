@@ -6,7 +6,7 @@ import {
   ValidationError,
 } from "../utils/errors.js";
 import { exportService } from "./export.service.js";
-import type { ActorCtx } from "./audit.service.js";
+import { auditEventTx, type ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 import {
   CURRENT_EXPORT_SCHEMA_VERSION,
@@ -625,28 +625,26 @@ export const importService = {
         // Write single IMPORT_DATA audit row with counts
         if (ctx) {
           // durable: committed atomically with the surrounding $transaction
-          await (tx as any).auditLog.create({
-            data: {
-              householdId,
-              actorId: ctx.actorId,
-              actorName: ctx.actorName,
-              ipAddress: ctx.ipAddress,
-              userAgent: ctx.userAgent,
-              action: AuditAction.IMPORT_DATA,
-              resource: "household",
-              resourceId: householdId,
-              metadata: {
-                counts: {
-                  incomeSources: data.incomeSources.length,
-                  committedItems: data.committedItems.length,
-                  discretionaryItems: data.discretionaryItems.length,
-                  assets: data.assets?.length ?? 0,
-                  accounts: data.accounts?.length ?? 0,
-                  members: data.members.length,
-                  giftPeople: data.gifts?.people.length ?? 0,
-                  giftEvents: data.gifts?.events.length ?? 0,
-                  giftAllocations: data.gifts?.allocations.length ?? 0,
-                },
+          await auditEventTx(tx, {
+            householdId,
+            actorId: ctx.actorId,
+            actorName: ctx.actorName,
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+            action: AuditAction.IMPORT_DATA,
+            resource: "household",
+            resourceId: householdId,
+            metadata: {
+              counts: {
+                incomeSources: data.incomeSources.length,
+                committedItems: data.committedItems.length,
+                discretionaryItems: data.discretionaryItems.length,
+                assets: data.assets?.length ?? 0,
+                accounts: data.accounts?.length ?? 0,
+                members: data.members.length,
+                giftPeople: data.gifts?.people.length ?? 0,
+                giftEvents: data.gifts?.events.length ?? 0,
+                giftAllocations: data.gifts?.allocations.length ?? 0,
               },
             },
           });

@@ -864,6 +864,9 @@ export const waterfallService = {
 
   async createSavings(householdId: string, data: CreateDiscretionaryItemInput, ctx: ActorCtx) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
+    if ((data as any).linkedAccountId) {
+      await validateLinkedAccount(householdId, data.subcategoryId, (data as any).linkedAccountId);
+    }
     if ((data as any).memberId) {
       await validateMemberOwnership(householdId, (data as any).memberId);
     }
@@ -902,6 +905,14 @@ export const waterfallService = {
     }
     if ((data as any).memberId) {
       await validateMemberOwnership(householdId, (data as any).memberId);
+    }
+
+    // Validate linkedAccountId if being set (same guard as the discretionary path)
+    if ((data as any).linkedAccountId) {
+      const targetSubcategoryId = data.subcategoryId ?? existing!.subcategoryId ?? "";
+      await validateLinkedAccount(householdId, targetSubcategoryId, (data as any).linkedAccountId, {
+        isPlannerOwned: !!(existing as any).isPlannerOwned,
+      });
     }
 
     return audited({

@@ -206,6 +206,36 @@ describe("useSettings mutation hooks", () => {
     expect(householdService.deleteHousehold).toHaveBeenCalledWith("h1");
   });
 
+  it("leaving a household purges cached data from other queries", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["waterfall", "summary"], { surplus: 100 });
+    qc.setQueryData(["accounts"], [{ id: "ac1", name: "Joint account" }]);
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    await run(renderHook(() => hooks.useLeaveHousehold(), { wrapper }).result, "h1");
+
+    expect(qc.getQueryData(["waterfall", "summary"])).toBeUndefined();
+    expect(qc.getQueryData(["accounts"])).toBeUndefined();
+  });
+
+  it("deleting a household purges cached data from other queries", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["forecast"], { years: [2026] });
+    qc.setQueryData(["gifts", "state"], { people: [] });
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    await run(renderHook(() => hooks.useDeleteHousehold(), { wrapper }).result, "h1");
+
+    expect(qc.getQueryData(["forecast"])).toBeUndefined();
+    expect(qc.getQueryData(["gifts", "state"])).toBeUndefined();
+  });
+
   it("useUpdateMemberRole optimistically updates the cached role", async () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

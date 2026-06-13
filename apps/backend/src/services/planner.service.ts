@@ -1,6 +1,6 @@
 import { prisma } from "../config/database.js";
 import { NotFoundError } from "../utils/errors.js";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 import type {
@@ -14,6 +14,13 @@ function assertOwned(item: { householdId: string } | null, householdId: string, 
   if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
 }
 
+async function validateFundingAccount(householdId: string, fundingAccountId: string) {
+  const account = await prisma.account.findFirst({
+    where: { id: fundingAccountId, householdId },
+  });
+  if (!account) throw new NotFoundError("Account not found");
+}
+
 export const plannerService = {
   // ─── Purchases ────────────────────────────────────────────────────────────
 
@@ -25,6 +32,9 @@ export const plannerService = {
   },
 
   async createPurchase(householdId: string, data: CreatePurchaseInput, ctx: ActorCtx) {
+    if (data.fundingAccountId) {
+      await validateFundingAccount(householdId, data.fundingAccountId);
+    }
     return audited({
       db: prisma,
       ctx,
@@ -42,6 +52,9 @@ export const plannerService = {
   async updatePurchase(householdId: string, id: string, data: UpdatePurchaseInput, ctx: ActorCtx) {
     const existing = await prisma.purchaseItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Purchase");
+    if (data.fundingAccountId) {
+      await validateFundingAccount(householdId, data.fundingAccountId);
+    }
     return audited({
       db: prisma,
       ctx,
@@ -102,18 +115,16 @@ export const plannerService = {
       });
 
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.UPSERT_YEAR_BUDGET,
-          resource: "year-budget",
-          resourceId: String(year),
-          metadata: { counts: { created: isNew ? 1 : 0, updated: isNew ? 0 : 1 } },
-        },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.UPSERT_YEAR_BUDGET,
+        resource: "year-budget",
+        resourceId: String(year),
+        metadata: { counts: { created: isNew ? 1 : 0, updated: isNew ? 0 : 1 } },
       });
 
       return result;

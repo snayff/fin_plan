@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { householdService } from "../../services/household.service";
 import { authService } from "../../services/auth.service";
 import type { ApiError } from "../../lib/api";
+import { purgeStaleQueries } from "../../lib/queryClient";
 import { Input } from "@/components/ui/input";
 
 type PageState =
@@ -57,7 +58,7 @@ export default function AcceptInvitePage() {
           useAuthStore.getState().accessToken!
         );
         setUser(updatedUser, useAuthStore.getState().accessToken!);
-        void qc.invalidateQueries();
+        purgeStaleQueries(qc);
         setTimeout(() => navigate("/overview"), 1500);
       } catch (err) {
         setPageState({ status: "ready", householdName, emailRequired, maskedInvitedEmail });

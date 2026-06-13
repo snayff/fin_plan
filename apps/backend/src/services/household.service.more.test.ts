@@ -6,6 +6,9 @@ mock.module("./audit.service.js", () => ({
   audited: mock(({ mutation }: { mutation: (tx: typeof prismaMock) => unknown }) =>
     mutation(prismaMock)
   ),
+  auditEventTx: mock(async (tx: typeof prismaMock, entry: Record<string, unknown>) => {
+    await tx.auditLog.create({ data: entry });
+  }),
 }));
 mock.module("./subcategory.service.js", () => ({
   subcategoryService: { seedDefaults: mock(async () => {}) },

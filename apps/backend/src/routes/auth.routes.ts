@@ -1,4 +1,10 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+  RouteShorthandOptions,
+  onRequestHookHandler,
+} from "fastify";
 import { z } from "zod";
 import { authService } from "../services/auth.service";
 import { auditEvent } from "../services/audit.service";
@@ -7,6 +13,7 @@ import { config } from "../config/env";
 import { blacklistToken } from "../utils/tokenBlacklist";
 import { decodeToken } from "../utils/jwt";
 import { NotFoundError, ValidationError } from "../utils/errors";
+import { MAX_PASSWORD_LENGTH } from "../utils/password";
 import { AuditAction } from "@finplan/shared";
 
 function requestContext(request: FastifyRequest) {
@@ -14,35 +21,29 @@ function requestContext(request: FastifyRequest) {
 }
 
 /** Blacklist the access token from the current request so it can't be reused after logout. */
-function blacklistCurrentToken(request: FastifyRequest): void {
+async function blacklistCurrentToken(request: FastifyRequest): Promise<void> {
   const authHeader = request.headers.authorization;
   if (!authHeader) return;
   const token = authHeader.split(" ")[1];
   if (!token) return;
   const payload = decodeToken(token);
   if (payload?.jti) {
-    blacklistToken(payload.jti);
+    const expiresAt = payload.exp ? new Date(payload.exp * 1000) : undefined;
+    await blacklistToken(payload.jti, expiresAt);
   }
 }
 
 const registerSchema = z.object({
   email: z.string().trim().max(254).email(),
-  password: z.string().min(12).max(128),
+  password: z.string().min(12).max(MAX_PASSWORD_LENGTH),
   name: z.string().trim().min(1).max(100),
 });
 
 const loginSchema = z.object({
   email: z.string().trim().max(254).email(),
-  // Looser cap than register so accounts created before the register-side
-  // bound existed can still sign in.
-  password: z.string().min(1).max(1024),
+  password: z.string().min(1).max(MAX_PASSWORD_LENGTH),
   rememberMe: z.boolean().optional().default(false),
 });
-
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1).max(4096).optional(),
-});
-
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100),
 });
@@ -98,7 +99,20 @@ export async function authRoutes(fastify: FastifyInstance) {
     },
   };
 
+  // CSRF protection for cookie-authenticated state-changing endpoints.
+  // Tokens are issued by GET /csrf-token and sent back in the X-CSRF-Token
+  // header (the frontend ApiClient does this automatically).
+  //
+  // fastify.csrfProtection returns the (thenable) reply object when it
+  // rejects a request, which makes the hook runner resume the lifecycle
+  // after the 403 has already been sent. Wrapping it discards the return
+  // value so a rejected request stops here.
+  const csrfProtection: onRequestHookHandler = (request, reply, done) => {
+    fastify.csrfProtection(request, reply, done);
+  };
+
   const refreshOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
     config: {
       rateLimit: {
         max: 10,
@@ -163,7 +177,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       const { refreshToken: _rt, ...publicResult } = result;
       return reply.status(200).send(publicResult);
     } catch (error) {
+      // Attribute the failed attempt to the targeted account when the email
+      // matches an existing user. Best-effort only — the client response
+      // stays generic regardless.
+      let targetUserId: string | undefined;
+      try {
+        const targetUser = await authService.findUserByEmail(body.email);
+        targetUserId = targetUser?.id;
+      } catch {
+        // Attribution must never block the audit write or change the response
+      }
+
       await auditEvent({
+        ...(targetUserId ? { userId: targetUserId } : {}),
         action: "LOGIN_FAILED",
         resource: "session",
         metadata: { email: body.email },
@@ -220,13 +246,11 @@ export async function authRoutes(fastify: FastifyInstance) {
    * POST /api/auth/refresh
    * Refresh access token using refresh token
    * Rate limit: 10 attempts per 15 minutes per IP
-   * Supports BOTH cookie and request body for backward compatibility
+   * The refresh token is read from the httpOnly cookie only — it is never
+   * accepted from the request body.
    */
   fastify.post("/refresh", refreshOpts, async (request, reply) => {
-    const body = refreshSchema.parse(request.body);
-
-    // Try cookie first, then body (backward compatibility)
-    const refreshToken = request.cookies.refreshToken || body.refreshToken;
+    const refreshToken = request.cookies.refreshToken;
 
     if (!refreshToken) {
       throw new ValidationError("Refresh token required");
@@ -236,6 +260,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     const result = await authService.refreshAccessToken(refreshToken, ctx);
 
     await auditEvent({
+      userId: result.userId,
       action: "TOKEN_REFRESH",
       resource: "session",
       ...ctx,
@@ -265,28 +290,33 @@ export async function authRoutes(fastify: FastifyInstance) {
   /**
    * POST /api/auth/logout
    * Logout user - clears refresh token cookie
+   * Requires a CSRF token in addition to the access token.
    */
-  fastify.post("/logout", { preHandler: authMiddleware }, async (request, reply) => {
-    const userId = request.user!.userId;
+  fastify.post(
+    "/logout",
+    { onRequest: csrfProtection, preHandler: authMiddleware },
+    async (request, reply) => {
+      const userId = request.user!.userId;
 
-    // Blacklist the current access token so it can't be reused
-    blacklistCurrentToken(request);
+      // Blacklist the current access token so it can't be reused
+      await blacklistCurrentToken(request);
 
-    // Revoke all refresh tokens for this user
-    await authService.revokeAllUserTokens(userId);
+      // Revoke all refresh tokens for this user
+      await authService.revokeAllUserTokens(userId);
 
-    await auditEvent({
-      userId,
-      action: "LOGOUT",
-      resource: "session",
-      ...requestContext(request),
-    });
+      await auditEvent({
+        userId,
+        action: "LOGOUT",
+        resource: "session",
+        ...requestContext(request),
+      });
 
-    // Clear refresh token cookie
-    clearRefreshTokenCookie(reply);
+      // Clear refresh token cookie
+      clearRefreshTokenCookie(reply);
 
-    return reply.status(200).send({ message: "Logged out successfully" });
-  });
+      return reply.status(200).send({ message: "Logged out successfully" });
+    }
+  );
 
   /**
    * GET /api/auth/sessions

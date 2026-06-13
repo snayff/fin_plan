@@ -1,5 +1,6 @@
 import { describe, it, expect, mock } from "bun:test";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "@/test/helpers/render";
 import { HouseholdSwitcher } from "./HouseholdSwitcher";
 
@@ -50,5 +51,24 @@ describe("HouseholdSwitcher dropdown", () => {
     fireEvent.click(trigger);
     const menu = await screen.findByRole("menu");
     expect(menu.className).toContain("right-0");
+  });
+
+  it("drops cached query data from the previous household when switching", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["accounts"], [{ id: "ac1", name: "Old account" }]);
+    qc.setQueryData(["waterfall", "summary"], { surplus: 100 });
+
+    renderWithProviders(<HouseholdSwitcher />, { queryClient: qc });
+    const trigger = await screen.findByRole("button", { name: /snaith/i });
+    fireEvent.click(trigger);
+    const item = await screen.findByRole("menuitem", { name: /^parents/i });
+    fireEvent.click(item);
+
+    await waitFor(() => {
+      expect(qc.getQueryData(["accounts"])).toBeUndefined();
+      expect(qc.getQueryData(["waterfall", "summary"])).toBeUndefined();
+    });
   });
 });

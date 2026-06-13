@@ -22,6 +22,18 @@ import { AuthorizationError, NotFoundError } from "../utils/errors.js";
 import { actorCtx } from "../lib/actor-ctx.js";
 import { audited } from "../services/audit.service.js";
 
+/**
+ * Asserts that the household id supplied in the URL matches the caller's
+ * active household resolved by authMiddleware. Data scoping must never trust
+ * URL params; a mismatch is masked as NotFoundError so resource existence is
+ * not revealed to callers outside the household.
+ */
+function assertActiveHousehold(urlHouseholdId: string, activeHouseholdId: string | undefined) {
+  if (!activeHouseholdId || urlHouseholdId !== activeHouseholdId) {
+    throw new NotFoundError("Household not found");
+  }
+}
+
 export async function householdRoutes(fastify: FastifyInstance) {
   // List all households the current user belongs to
   fastify.get("/households", { preHandler: [userOnlyAuth] }, async (request, reply) => {
@@ -224,7 +236,8 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const members = await memberService.listMembers(id);
+      assertActiveHousehold(id, request.householdId);
+      const members = await memberService.listMembers(request.householdId!);
       return reply.send({ members });
     }
   );
@@ -236,8 +249,14 @@ export async function householdRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = request.user!.userId;
       const { id } = request.params as { id: string };
+      assertActiveHousehold(id, request.householdId);
       const data = createMemberSchema.parse(request.body);
-      const member = await memberService.createMember(id, userId, data, actorCtx(request));
+      const member = await memberService.createMember(
+        request.householdId!,
+        userId,
+        data,
+        actorCtx(request)
+      );
       return reply.status(201).send({ member });
     }
   );
@@ -249,9 +268,10 @@ export async function householdRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = request.user!.userId;
       const { id, memberId } = request.params as { id: string; memberId: string };
+      assertActiveHousehold(id, request.householdId);
       const data = updateMemberSchema.parse(request.body);
       const member = await memberService.updateMember(
-        id,
+        request.householdId!,
         userId,
         memberId,
         data,
@@ -268,8 +288,15 @@ export async function householdRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = request.user!.userId;
       const { id, memberId } = request.params as { id: string; memberId: string };
+      assertActiveHousehold(id, request.householdId);
       const { reassignToMemberId } = deleteMemberSchema.parse(request.body ?? {});
-      await memberService.deleteMember(id, userId, memberId, actorCtx(request), reassignToMemberId);
+      await memberService.deleteMember(
+        request.householdId!,
+        userId,
+        memberId,
+        actorCtx(request),
+        reassignToMemberId
+      );
       return reply.send({ success: true });
     }
   );
