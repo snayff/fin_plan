@@ -5,13 +5,9 @@ import type {
   CreateIncomeSourceInput,
   UpdateIncomeSourceInput,
   CreateCommittedItemInput,
-  UpdateCommittedBillInput,
-  CreateYearlyBillInput,
-  UpdateYearlyBillInput,
+  UpdateCommittedItemInput,
   CreateDiscretionaryItemInput,
   UpdateDiscretionaryItemInput,
-  CreateSavingsAllocationInput,
-  UpdateSavingsAllocationInput,
   ConfirmBatchInput,
   UpsertYearBudgetInput,
   FinancialSummary,
@@ -39,15 +35,16 @@ export const waterfallService = {
   listCommitted: () => apiClient.get<any[]>("/api/waterfall/committed"),
   createCommitted: (data: CreateCommittedItemInput) =>
     apiClient.post<any>("/api/waterfall/committed", data),
-  updateCommitted: (id: string, data: UpdateCommittedBillInput) =>
+  updateCommitted: (id: string, data: UpdateCommittedItemInput) =>
     apiClient.patch<any>(`/api/waterfall/committed/${id}`, data),
   deleteCommitted: (id: string) => apiClient.delete<void>(`/api/waterfall/committed/${id}`),
   confirmCommitted: (id: string) => apiClient.post<any>(`/api/waterfall/committed/${id}/confirm`),
 
   // Yearly bills
   listYearly: () => apiClient.get<any[]>("/api/waterfall/yearly"),
-  createYearly: (data: CreateYearlyBillInput) => apiClient.post<any>("/api/waterfall/yearly", data),
-  updateYearly: (id: string, data: UpdateYearlyBillInput) =>
+  createYearly: (data: CreateCommittedItemInput) =>
+    apiClient.post<any>("/api/waterfall/yearly", data),
+  updateYearly: (id: string, data: UpdateCommittedItemInput) =>
     apiClient.patch<any>(`/api/waterfall/yearly/${id}`, data),
   deleteYearly: (id: string) => apiClient.delete<void>(`/api/waterfall/yearly/${id}`),
   confirmYearly: (id: string) => apiClient.post<any>(`/api/waterfall/yearly/${id}/confirm`),
@@ -65,9 +62,9 @@ export const waterfallService = {
 
   // Savings
   listSavings: () => apiClient.get<DiscretionaryItemResponse[]>("/api/waterfall/savings"),
-  createSavings: (data: CreateSavingsAllocationInput) =>
+  createSavings: (data: CreateDiscretionaryItemInput) =>
     apiClient.post<DiscretionaryItemResponse>("/api/waterfall/savings", data),
-  updateSavings: (id: string, data: UpdateSavingsAllocationInput) =>
+  updateSavings: (id: string, data: UpdateDiscretionaryItemInput) =>
     apiClient.patch<DiscretionaryItemResponse>(`/api/waterfall/savings/${id}`, data),
   deleteSavings: (id: string) => apiClient.delete<void>(`/api/waterfall/savings/${id}`),
   confirmSavings: (id: string) =>

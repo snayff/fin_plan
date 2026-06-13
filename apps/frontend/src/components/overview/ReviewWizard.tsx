@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for inline edit fields */
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -126,6 +125,7 @@ function ItemCard({
         <div className="flex items-center gap-2">
           <input
             type="number"
+            aria-label="New amount"
             className="flex-1 rounded border px-2 py-1 text-sm bg-background focus:outline-none focus:border-primary"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
@@ -309,16 +309,18 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
     const svcType = getServiceType(currentStep, item);
     const fromAmount = getItemAmount(item);
     try {
-      // Amount updates for income go through periods now; confirm only for review
-      if (svcType === "income") await waterfallService.confirmIncome(item.id);
+      // Amounts live in the ItemAmountPeriod table; the update endpoints now
+      // persist `amount` by writing the current effective period. The summary
+      // below only records changes that actually succeeded here.
+      if (svcType === "income") await waterfallService.updateIncome(item.id, { amount: newAmount });
       else if (svcType === "committed")
         await waterfallService.updateCommitted(item.id, { amount: newAmount });
       else if (svcType === "yearly")
         await waterfallService.updateYearly(item.id, { amount: newAmount });
-      // Amount updates for discretionary go through periods now; confirm only for review
-      else if (svcType === "discretionary") await waterfallService.confirmDiscretionary(item.id);
+      else if (svcType === "discretionary")
+        await waterfallService.updateDiscretionary(item.id, { amount: newAmount });
       else if (svcType === "savings")
-        await waterfallService.updateSavings(item.id, { monthlyAmount: newAmount });
+        await waterfallService.updateSavings(item.id, { amount: newAmount });
 
       const newUpdated = {
         ...updatedItems,
@@ -556,8 +558,12 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
                 )}
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Snapshot name</label>
+                  <label className="text-sm font-medium" htmlFor="review-snapshot-name">
+                    Snapshot name
+                  </label>
                   <input
+                    id="review-snapshot-name"
+                    aria-label="Snapshot name"
                     className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:border-primary"
                     value={snapshotName}
                     onChange={(e) => setSnapshotName(e.target.value)}

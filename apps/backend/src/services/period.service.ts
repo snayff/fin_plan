@@ -1,7 +1,65 @@
 import { prisma } from "../config/database.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CreatePeriodInput, UpdatePeriodInput, ItemLifecycleState } from "@finplan/shared";
 
+/**
+ * A Prisma client or an interactive-transaction client. `setCurrentAmount`
+ * accepts either so the amount write can join an existing audited transaction.
+ */
+type PrismaLike = PrismaClient | Prisma.TransactionClient;
+
 export const periodService = {
+  /**
+   * Set the amount of the item's CURRENT effective period in place. If no
+   * period covers `now` (e.g. the item has only future/expired periods, or
+   * none at all), a new period starting today is created and stitched into the
+   * timeline. Designed to run inside an existing transaction (pass the audited
+   * `tx`) so the amount change commits atomically with the item mutation.
+   */
+  async setCurrentAmount(
+    db: PrismaLike,
+    householdId: string,
+    itemType: string,
+    itemId: string,
+    amount: number,
+    now: Date = new Date()
+  ) {
+    const periods = await db.itemAmountPeriod.findMany({
+      where: { householdId, itemType: itemType as any, itemId },
+      orderBy: { startDate: "asc" },
+    });
+
+    const current = findEffectivePeriod(periods, now);
+    if (current) {
+      return db.itemAmountPeriod.update({
+        where: { id: current.id },
+        data: { amount },
+      });
+    }
+
+    // No effective period — create one starting today, closing the previous
+    // period and inheriting the next period's start as our end (mirrors
+    // createPeriod's stitching logic).
+    const prevPeriod = findPreviousPeriod(periods, now);
+    if (prevPeriod) {
+      await db.itemAmountPeriod.update({
+        where: { id: prevPeriod.id },
+        data: { endDate: now },
+      });
+    }
+    const nextPeriod = findNextPeriod(periods, now);
+    return db.itemAmountPeriod.create({
+      data: {
+        householdId,
+        itemType: itemType as any,
+        itemId,
+        startDate: now,
+        endDate: nextPeriod?.startDate ?? null,
+        amount,
+      },
+    });
+  },
+
   async listPeriods(householdId: string, itemType: string, itemId: string) {
     return prisma.itemAmountPeriod.findMany({
       where: { householdId, itemType: itemType as any, itemId },

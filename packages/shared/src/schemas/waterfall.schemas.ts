@@ -82,6 +82,9 @@ export const createCommittedItemSchema = z.object({
 
 export const updateCommittedItemSchema = z.object({
   name: nameSchema.optional(),
+  // Amount is stored in the ItemAmountPeriod table, not on the item row. The
+  // service destructures this out and writes it to the current effective period.
+  amount: positiveMoneySchema.optional(),
   subcategoryId: idSchema.optional(),
   spendType: SpendTypeEnum.optional(),
   notes: notesSchema.nullable().optional(),
@@ -111,10 +114,14 @@ export const createDiscretionaryItemSchema = z.object({
 
 export const updateDiscretionaryItemSchema = z.object({
   name: nameSchema.optional(),
+  // Amount is stored in the ItemAmountPeriod table, not on the item row. The
+  // service destructures this out and writes it to the current effective period.
+  amount: positiveMoneySchema.optional(),
   subcategoryId: idSchema.optional(),
   spendType: SpendTypeEnum.optional(),
   notes: notesSchema.nullable().optional(),
   memberId: idSchema.nullable().optional(),
+  dueDate: z.coerce.date().nullable().optional(),
   sortOrder: sortOrderSchema.optional(),
   linkedAccountId: idSchema.nullable().optional(),
 });
@@ -140,6 +147,9 @@ export const createIncomeSourceSchema = z.object({
 
 export const updateIncomeSourceSchema = z.object({
   name: nameSchema.optional(),
+  // Amount is stored in the ItemAmountPeriod table, not on the item row. The
+  // service destructures this out and writes it to the current effective period.
+  amount: positiveMoneySchema.optional(),
   frequency: IncomeFrequencyEnum.optional(),
   incomeType: IncomeTypeEnum.optional(),
   dueDate: z.coerce.date().optional(),

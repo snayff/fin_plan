@@ -301,3 +301,106 @@ describe("periodService.deletePeriod", () => {
     expect(prismaMock.itemAmountPeriod.delete).not.toHaveBeenCalled();
   });
 });
+
+describe("periodService.setCurrentAmount", () => {
+  const now = new Date("2026-06-13");
+
+  it("updates the current effective period in place", async () => {
+    const period = {
+      id: "p-cur",
+      householdId: HH,
+      itemType: "income_source",
+      itemId: "inc-1",
+      startDate: new Date("2020-01-01"),
+      endDate: null,
+      amount: 1000,
+      createdAt: new Date(),
+    };
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([period]);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({ ...period, amount: 1500 });
+
+    await periodService.setCurrentAmount(prismaMock as any, HH, "income_source", "inc-1", 1500, now);
+
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-cur" },
+      data: { amount: 1500 },
+    });
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a period starting now when none is effective", async () => {
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([]);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({} as any);
+
+    await periodService.setCurrentAmount(
+      prismaMock as any,
+      HH,
+      "committed_item",
+      "ci-1",
+      250,
+      now
+    );
+
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
+      data: {
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "ci-1",
+        startDate: now,
+        endDate: null,
+        amount: 250,
+      },
+    });
+  });
+
+  it("closes the previous period and inherits the next period's start when stitching a new one", async () => {
+    const prev = {
+      id: "p-prev",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "ci-1",
+      startDate: new Date("2020-01-01"),
+      endDate: new Date("2021-01-01"),
+      amount: 100,
+      createdAt: new Date(),
+    };
+    const next = {
+      id: "p-next",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "ci-1",
+      startDate: new Date("2030-01-01"),
+      endDate: null,
+      amount: 300,
+      createdAt: new Date(),
+    };
+    // Neither covers `now` (2026) → no effective period, must stitch a new one.
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([prev, next]);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({} as any);
+
+    await periodService.setCurrentAmount(
+      prismaMock as any,
+      HH,
+      "committed_item",
+      "ci-1",
+      200,
+      now
+    );
+
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-prev" },
+      data: { endDate: now },
+    });
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
+      data: {
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "ci-1",
+        startDate: now,
+        endDate: next.startDate,
+        amount: 200,
+      },
+    });
+  });
+});

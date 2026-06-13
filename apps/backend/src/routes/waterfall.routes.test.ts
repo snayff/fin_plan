@@ -392,6 +392,63 @@ describe("POST /api/waterfall/income", () => {
   });
 });
 
+// ─── PATCH: amount / frequency / dueDate survive schema parsing (bug #108) ──────
+
+describe("PATCH update schemas accept amount and forward it to the service", () => {
+  it("PATCH /api/waterfall/income forwards amount + frequency in data", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/income/inc-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: 1500, frequency: "annual" },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = waterfallServiceMock.updateIncome.mock.calls.at(-1)![2] as Record<string, unknown>;
+    expect(data).toMatchObject({ amount: 1500, frequency: "annual" });
+  });
+
+  it("PATCH /api/waterfall/committed forwards amount in data", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/committed/ci-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: 350 },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = waterfallServiceMock.updateCommitted.mock.calls.at(-1)![2] as Record<
+      string,
+      unknown
+    >;
+    expect(data).toMatchObject({ amount: 350 });
+  });
+
+  it("PATCH /api/waterfall/discretionary forwards amount + dueDate in data", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/discretionary/di-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: 75, dueDate: "2026-09-01" },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = waterfallServiceMock.updateDiscretionary.mock.calls.at(-1)![2] as Record<
+      string,
+      unknown
+    >;
+    expect(data).toMatchObject({ amount: 75 });
+    expect(data.dueDate).toBeInstanceOf(Date);
+  });
+
+  it("PATCH /api/waterfall/income rejects a non-positive amount", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/income/inc-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: -5 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 // ─── Committed Bills ──────────────────────────────────────────────────────────
 
 describe("POST /api/waterfall/committed", () => {

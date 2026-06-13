@@ -245,7 +245,18 @@ export function useTierUpdateItem(tier: "income" | "committed" | "discretionary"
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: Record<string, unknown>) => {
-      if (tier === "income") return waterfallService.updateIncome(id, data as any);
+      if (tier === "income") {
+        // Income is modelled with `frequency`, but the shared item form emits
+        // `spendType`. Translate it so the change is not silently dropped by the
+        // income update schema (which has no `spendType` field).
+        const { spendType, ...rest } = data;
+        return waterfallService.updateIncome(id, {
+          ...rest,
+          ...(spendType !== undefined
+            ? { frequency: spendTypeToFrequency[spendType as string] ?? "monthly" }
+            : {}),
+        } as any);
+      }
       if (tier === "committed") return waterfallService.updateCommitted(id, data as any);
       return waterfallService.updateDiscretionary(id, data as any);
     },
