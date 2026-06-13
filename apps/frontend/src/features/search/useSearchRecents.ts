@@ -11,7 +11,14 @@ export type RecentEntry = {
 };
 
 const CAP = 3;
-const key = (userId: string) => `finplan.search.recents.v1.${userId}`;
+
+/**
+ * Storage key prefix for persisted recents (per user). Exported so session
+ * cleanup can remove these entries when the user signs out.
+ */
+export const SEARCH_RECENTS_STORAGE_PREFIX = "finplan.search.recents.v1.";
+
+const key = (userId: string) => `${SEARCH_RECENTS_STORAGE_PREFIX}${userId}`;
 
 function read(userId: string): RecentEntry[] {
   try {

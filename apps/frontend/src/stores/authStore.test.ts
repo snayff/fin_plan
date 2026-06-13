@@ -2,6 +2,8 @@ import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
 import { useAuthStore } from "./authStore";
 import { setAuthenticated, mockUser } from "../test/helpers/auth";
 import { authService } from "../services/auth.service";
+import { queryClient } from "../lib/queryClient";
+import { SEARCH_RECENTS_STORAGE_PREFIX } from "../features/search/useSearchRecents";
 
 function base64url(value: string): string {
   return btoa(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -205,6 +207,88 @@ describe("useAuthStore", () => {
       expect(state.accessToken).toBeNull();
       expect(state.isAuthenticated).toBe(false);
       expect(state.authStatus).toBe("unauthenticated");
+    });
+  });
+
+  describe("client cache reset on session end", () => {
+    const recentsKey = `${SEARCH_RECENTS_STORAGE_PREFIX}${mockUser.id}`;
+
+    afterEach(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      queryClient.clear();
+    });
+
+    it("empties the query cache and removes persisted recents on logout", async () => {
+      setAuthenticated();
+      (authService.logout as any).mockResolvedValue(undefined);
+      queryClient.setQueryData(["waterfall", "summary"], { surplus: 1234 });
+      queryClient.setQueryData(["accounts"], [{ id: "ac1", name: "Current account" }]);
+      localStorage.setItem(recentsKey, JSON.stringify([{ kind: "data", id: "ac1" }]));
+
+      await useAuthStore.getState().logout();
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
+    it("empties caches on any transition to unauthenticated (e.g. session expiry)", () => {
+      setAuthenticated();
+      queryClient.setQueryData(["forecast"], { years: [] });
+      localStorage.setItem(recentsKey, "[]");
+      sessionStorage.setItem(`${SEARCH_RECENTS_STORAGE_PREFIX}other-user`, "[]");
+
+      useAuthStore.getState().setUnauthenticated();
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+      expect(sessionStorage.getItem(`${SEARCH_RECENTS_STORAGE_PREFIX}other-user`)).toBeNull();
+    });
+
+    it("clears caches even when the logout API call fails", async () => {
+      setAuthenticated();
+      (authService.logout as any).mockRejectedValue(new Error("Network error"));
+      queryClient.setQueryData(["accounts"], [{ id: "ac1", name: "Current account" }]);
+      localStorage.setItem(recentsKey, "[]");
+
+      await useAuthStore.getState().logout();
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
+    it("clears caches when session restore fails on startup", async () => {
+      (authService.refreshToken as any).mockRejectedValue({ message: "Refresh failed" });
+      queryClient.setQueryData(["accounts"], [{ id: "ac1", name: "Current account" }]);
+      localStorage.setItem(recentsKey, "[]");
+
+      await useAuthStore.getState().initializeAuth();
+
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
+    it("clears caches when a scheduled token refresh fails", async () => {
+      setAuthenticated(mockUser, tokenExpiringInMs(60 * 60 * 1000));
+      (authService.refreshToken as any).mockRejectedValue({ message: "expired" });
+      queryClient.setQueryData(["forecast"], { years: [2026] });
+      localStorage.setItem(recentsKey, "[]");
+
+      useAuthStore.getState().updateAccessToken(tokenExpiringInMs(50));
+      await wait(50);
+
+      expect(useAuthStore.getState().authStatus).toBe("unauthenticated");
+      expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+      expect(localStorage.getItem(recentsKey)).toBeNull();
+    });
+
+    it("leaves non-user-data storage keys untouched", () => {
+      setAuthenticated();
+      localStorage.setItem("finplan.theme", "dark");
+
+      useAuthStore.getState().setUnauthenticated();
+
+      expect(localStorage.getItem("finplan.theme")).toBe("dark");
     });
   });
 
