@@ -68,6 +68,12 @@ describe("env boot validation (production)", () => {
     expect(result.stderr).toContain("COOKIE_SECRET");
   });
 
+  test("refuses the unedited .env.example placeholder in production", () => {
+    const result = boot({ COOKIE_SECRET: "REPLACE_WITH_RANDOM_STRING_MINIMUM_32_CHARS" });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("COOKIE_SECRET");
+  });
+
   test("refuses a weak CSRF_SECRET in production", () => {
     const result = boot({ CSRF_SECRET: "test-value-still-32-characters-long-xxxx" });
     expect(result.code).not.toBe(0);

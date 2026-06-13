@@ -48,7 +48,7 @@ deploy:
   name: Deploy to Coolify
   runs-on: ubuntu-latest
   if: github.event_name == 'push' && github.ref == 'refs/heads/production'
-  needs: [lint-and-typecheck, test, check-compile]
+  needs: [lint-and-typecheck, test, check-compile, security-audit]
   environment: PROD
 
   steps:
@@ -63,7 +63,7 @@ deploy:
       run: ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
 ```
 
-The `needs:` list gates the deploy on the lint/type-check, test, and compile jobs — a direct push to the production branch cannot deploy unless those jobs pass on that push.
+The `needs:` list gates the deploy on the lint/type-check, test, compile, and dependency-audit jobs — a direct push to the production branch cannot deploy unless those jobs pass on that push.
 
 ## If You Need to Rotate the Key
 

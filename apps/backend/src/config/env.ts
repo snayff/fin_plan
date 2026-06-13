@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 // Example/weak values rejected in production for every secret below.
+// "replace" catches the REPLACE_WITH_… placeholders shipped in .env.example.
 const WEAK_SECRETS = [
   "your-super-secret",
   "change-this",
   "change-me",
+  "replace",
   "example",
   "test",
   "development",

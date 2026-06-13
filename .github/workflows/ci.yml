@@ -391,7 +391,7 @@ jobs:
     name: Deploy to Coolify
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/production'
-    needs: [lint-and-typecheck, test, check-compile]
+    needs: [lint-and-typecheck, test, check-compile, security-audit]
     environment: PROD
 
     steps:

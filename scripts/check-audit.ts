@@ -99,10 +99,17 @@ async function main(): Promise<void> {
     JSON.parse(readFileSync(allowlistPath, "utf8")) as { advisories: AllowlistEntry[] }
   ).advisories;
 
-  // bun audit exits non-zero whenever any advisory exists, so the exit code is
-  // not used — severity gating below decides pass/fail.
+  // bun audit exits non-zero whenever any advisory exists, so the exit code
+  // alone cannot decide pass/fail — severity gating below does. But a non-zero
+  // exit with NO report at all means the audit itself failed (e.g. registry or
+  // network error); that must fail the gate rather than pass as "no advisories".
   const proc = Bun.spawnSync(["bun", "audit", "--json"], { stdout: "pipe", stderr: "pipe" });
   const stdout = proc.stdout.toString();
+  if (!proc.success && !stdout.includes("{")) {
+    console.error("check-audit: `bun audit --json` failed without producing a report:");
+    console.error(proc.stderr.toString() || stdout || "(no output)");
+    process.exit(1);
+  }
   let report: AuditReport;
   try {
     report = parseAuditOutput(stdout);
