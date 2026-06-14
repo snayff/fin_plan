@@ -92,8 +92,17 @@ export const plannerService = {
       where: { householdId_year: { householdId, year } },
     });
     if (existing) return existing;
-    // Auto-create with defaults
-    return prisma.plannerYearBudget.create({ data: { householdId, year } });
+    // GET is read-only: never persist a row on read (#179). Return a transient
+    // default with the same shape; the row is created lazily on PUT/upsert.
+    return {
+      id: null,
+      householdId,
+      year,
+      purchaseBudget: 0,
+      giftBudget: 0,
+      createdAt: null,
+      updatedAt: null,
+    };
   },
 
   async upsertYearBudget(
