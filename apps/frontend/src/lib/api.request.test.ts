@@ -35,6 +35,18 @@ function res(data: unknown, status = 200, contentLength?: string) {
   };
 }
 
+// Response with an empty or non-JSON body: json() rejects like the browser does.
+function resBadBody(status: number) {
+  return {
+    ok: status >= 200 && status < 400,
+    status,
+    headers: { get: () => null },
+    json: async () => {
+      throw new SyntaxError("Unexpected end of JSON input");
+    },
+  };
+}
+
 let mainQueue: any[] = [];
 let csrfResponse: any;
 
@@ -146,6 +158,34 @@ describe("ApiClient error handling", () => {
     expect(out).toEqual({ value: "ok" });
     expect(authService.refreshToken).toHaveBeenCalled();
     expect(authState.updateAccessToken).toHaveBeenCalledWith("refreshed-token");
+  });
+
+  it("still refreshes on an empty-body 401 (#141)", async () => {
+    mainQueue.push(resBadBody(401));
+    mainQueue.push(res({ value: "ok" }));
+    const client = new ApiClient("");
+    const out = await client.get<{ value: string }>("/api/data");
+    expect(out).toEqual({ value: "ok" });
+    expect(authService.refreshToken).toHaveBeenCalled();
+  });
+
+  it("surfaces the real status for a non-JSON 502 body, not statusCode 0 (#141)", async () => {
+    mainQueue.push(resBadBody(502));
+    const client = new ApiClient("");
+    await expect(client.get("/api/data")).rejects.toMatchObject({
+      message: "Request failed",
+      statusCode: 502,
+    });
+    expect(authService.refreshToken).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a 429 as a 401 (no refresh) (#141)", async () => {
+    mainQueue.push(resBadBody(429));
+    const client = new ApiClient("");
+    await expect(client.get("/api/data")).rejects.toMatchObject({
+      statusCode: 429,
+    });
+    expect(authService.refreshToken).not.toHaveBeenCalled();
   });
 });
 
