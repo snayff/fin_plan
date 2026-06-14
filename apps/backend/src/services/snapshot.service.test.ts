@@ -279,4 +279,34 @@ describe("snapshotService.ensureJan1Snapshot", () => {
 
     expect(prismaMock.snapshot.create).not.toHaveBeenCalled();
   });
+
+  it("gates on UTC date, not local time (early-UTC Jan 1 still triggers)", async () => {
+    // 00:30 UTC on Jan 1 — in any negative-offset local TZ this is still
+    // Dec 31 locally, so a getMonth()/getDate() implementation would skip it.
+    // UTC accessors must classify it as Jan 1 and use the UTC year.
+    const earlyJan1 = new Date(Date.UTC(2026, 0, 1, 0, 30, 0));
+
+    prismaMock.snapshot.findUnique.mockResolvedValue(null);
+    prismaMock.snapshot.create.mockResolvedValue({ id: "snap-1" } as any);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.committedItem.findMany.mockResolvedValue([]);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
+    prismaMock.householdSettings.findUnique.mockResolvedValue(null);
+
+    await snapshotService.ensureJan1Snapshot("hh-1", earlyJan1);
+
+    expect(prismaMock.snapshot.findUnique).toHaveBeenCalledWith({
+      where: { householdId_name: { householdId: "hh-1", name: "January 2026 — Auto" } },
+    });
+  });
+
+  it("does not trigger for a late-UTC Dec 31 even if local time is Jan 1", async () => {
+    // 23:30 UTC on Dec 31 — in any positive-offset local TZ this is already
+    // Jan 1 locally, but UTC accessors must keep it gated out.
+    const lateDec31 = new Date(Date.UTC(2025, 11, 31, 23, 30, 0));
+
+    await snapshotService.ensureJan1Snapshot("hh-1", lateDec31);
+
+    expect(prismaMock.snapshot.findUnique).not.toHaveBeenCalled();
+  });
 });

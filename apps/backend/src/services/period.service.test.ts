@@ -104,6 +104,30 @@ describe("periodService.getEffectiveAmountForMonth", () => {
     );
     expect(result2).toBe(7);
   });
+
+  it("uses a UTC month boundary so periods starting on the 1st are included", async () => {
+    // Period starts exactly at the UTC start of June 2026. A non-UTC reference
+    // date (new Date(2026, 5, 1)) in a positive-offset TZ would resolve to
+    // 2026-05-31T..Z and fall short of the boundary, excluding this period.
+    const periods = [
+      {
+        id: "p1",
+        startDate: new Date(Date.UTC(2026, 5, 1)),
+        endDate: null,
+        amount: 42,
+      },
+    ];
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue(periods);
+
+    const result = await periodService.getEffectiveAmountForMonth(
+      HH,
+      "committed_item",
+      "item-1",
+      2026,
+      6
+    );
+    expect(result).toBe(42);
+  });
 });
 
 describe("periodService.getLifecycleState", () => {
@@ -319,7 +343,14 @@ describe("periodService.setCurrentAmount", () => {
     prismaMock.itemAmountPeriod.findMany.mockResolvedValue([period]);
     prismaMock.itemAmountPeriod.update.mockResolvedValue({ ...period, amount: 1500 });
 
-    await periodService.setCurrentAmount(prismaMock as any, HH, "income_source", "inc-1", 1500, now);
+    await periodService.setCurrentAmount(
+      prismaMock as any,
+      HH,
+      "income_source",
+      "inc-1",
+      1500,
+      now
+    );
 
     expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
       where: { id: "p-cur" },
@@ -332,14 +363,7 @@ describe("periodService.setCurrentAmount", () => {
     prismaMock.itemAmountPeriod.findMany.mockResolvedValue([]);
     prismaMock.itemAmountPeriod.create.mockResolvedValue({} as any);
 
-    await periodService.setCurrentAmount(
-      prismaMock as any,
-      HH,
-      "committed_item",
-      "ci-1",
-      250,
-      now
-    );
+    await periodService.setCurrentAmount(prismaMock as any, HH, "committed_item", "ci-1", 250, now);
 
     expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
       data: {
@@ -379,14 +403,7 @@ describe("periodService.setCurrentAmount", () => {
     prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
     prismaMock.itemAmountPeriod.create.mockResolvedValue({} as any);
 
-    await periodService.setCurrentAmount(
-      prismaMock as any,
-      HH,
-      "committed_item",
-      "ci-1",
-      200,
-      now
-    );
+    await periodService.setCurrentAmount(prismaMock as any, HH, "committed_item", "ci-1", 200, now);
 
     expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
       where: { id: "p-prev" },

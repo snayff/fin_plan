@@ -92,8 +92,8 @@ export const periodService = {
       where: { householdId, itemType: itemType as any, itemId },
       orderBy: { startDate: "asc" },
     });
-    // Use the 1st of the month as reference date
-    const refDate = new Date(year, month - 1, 1);
+    // Use the 1st of the month as reference date (UTC to avoid timezone drift)
+    const refDate = new Date(Date.UTC(year, month - 1, 1));
     const effective = findEffectivePeriod(periods, refDate);
     return effective?.amount ?? 0;
   },

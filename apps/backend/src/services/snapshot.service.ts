@@ -135,9 +135,9 @@ export const snapshotService = {
 
   async ensureJan1Snapshot(householdId: string, now: Date = new Date()) {
     const today = now;
-    if (today.getMonth() !== 0 || today.getDate() !== 1) return;
+    if (today.getUTCMonth() !== 0 || today.getUTCDate() !== 1) return;
 
-    const year = today.getFullYear();
+    const year = today.getUTCFullYear();
     const autoName = `January ${year} — Auto`;
     const exists = await prisma.snapshot.findUnique({
       where: { householdId_name: { householdId, name: autoName } },
