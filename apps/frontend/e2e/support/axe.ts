@@ -57,10 +57,18 @@ export async function waitForWaterfallSettled(page: Page): Promise<void> {
  *  2. Any in-flight CSS animation/transition (e.g. `animate-pulse-subtle`'s
  *     opacity cycle) can be sampled mid-frame at partial opacity. Freezing
  *     them pins every element to its resting style.
+ *  3. framer-motion entrance fades drive opacity via JS inline styles
+ *     (`style="opacity: …"`), which CSS `animation/transition: none` cannot
+ *     freeze. axe sampling such a control mid-fade reads its text at a
+ *     washed-out partial opacity and flags a false color-contrast failure.
+ *     Forcing inline-styled elements to full opacity pins them to their
+ *     settled (accessible) state. `display: none` elements stay hidden, so
+ *     this never reveals genuinely-hidden content to the scan.
  */
 const STABILIZE_CONTRAST_CSS = `
   [data-page]::before, [data-page]::after { display: none !important; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  [style*="opacity"] { opacity: 1 !important; }
 `;
 
 export interface AxeOptions {
