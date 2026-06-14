@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { toMonthlyAmount } from "@finplan/shared";
+import { toMonthlyAmount, toGBP } from "@finplan/shared";
 import SubcategoryList from "./SubcategoryList";
 import ItemArea, { type LockedManager } from "./ItemArea";
 import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
 import { PageHeader } from "@/components/common/PageHeader";
+import { PanelError } from "@/components/common/PanelError";
+import { AnimatedCurrency } from "@/components/common/AnimatedCurrency";
 import { AttentionStrip } from "@/components/common/AttentionStrip";
 import { ShortfallTooltip } from "@/components/common/ShortfallTooltip";
 import { useSubcategories, useTierItems, type TierItemRow } from "@/hooks/useWaterfall";
@@ -35,8 +37,18 @@ interface SubcategorySummary {
 export default function TierPage({ tier }: TierPageProps) {
   const config = TIER_CONFIGS[tier];
   const [searchParams] = useSearchParams();
-  const { data: subcategories, isLoading: subsLoading } = useSubcategories(tier);
-  const { data: allItems, isLoading: itemsLoading } = useTierItems(tier);
+  const {
+    data: subcategories,
+    isLoading: subsLoading,
+    isError: subsError,
+    refetch: refetchSubs,
+  } = useSubcategories(tier);
+  const {
+    data: allItems,
+    isLoading: itemsLoading,
+    isError: itemsError,
+    refetch: refetchItems,
+  } = useTierItems(tier);
   const { data: members } = useHouseholdMembers();
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
@@ -120,6 +132,12 @@ export default function TierPage({ tier }: TierPageProps) {
       ? { label: "Gift Planner", path: "/gifts" }
       : undefined;
 
+  const hasError = subsError || itemsError;
+  const retry = useCallback(() => {
+    void refetchSubs();
+    void refetchItems();
+  }, [refetchSubs, refetchItems]);
+
   return (
     <div data-page={tier} data-testid={`tier-page-${tier}`} className="h-full">
       <TwoPanelLayout
@@ -129,7 +147,7 @@ export default function TierPage({ tier }: TierPageProps) {
             <PageHeader
               title={config.label}
               colorClass={config.textClass}
-              total={tierTotal}
+              total={hasError ? null : tierTotal}
               totalColorClass={config.textClass}
             />
             {showShortfallStrip && shortfall.lowest && (
@@ -153,36 +171,58 @@ export default function TierPage({ tier }: TierPageProps) {
                 }
               />
             )}
-            <div className="flex-1 overflow-y-auto">
-              <SubcategoryList
-                tier={tier}
-                config={config}
-                subcategories={subcategories ?? []}
-                subcategoryTotals={subcategoryTotals}
-                tierTotal={tierTotal}
-                selectedId={resolvedSelectedId}
-                onSelect={setSelectedId}
-                isLoading={subsLoading}
-              />
-            </div>
+            {hasError ? (
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <PanelError variant="left" onRetry={retry} message="Couldn't load this tier." />
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <SubcategoryList
+                    tier={tier}
+                    config={config}
+                    subcategories={subcategories ?? []}
+                    subcategoryTotals={subcategoryTotals}
+                    selectedId={resolvedSelectedId}
+                    onSelect={setSelectedId}
+                    isLoading={subsLoading}
+                  />
+                </div>
+                {!subsLoading && (
+                  <div
+                    data-testid="tier-total"
+                    className="border-t border-foreground/10 px-4 py-3 flex justify-between text-sm"
+                  >
+                    <span className="text-foreground/50">Total</span>
+                    <span className={`font-numeric font-semibold ${config.textClass}`}>
+                      <AnimatedCurrency value={toGBP(tierTotal)} />
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         }
         right={
-          <ItemArea
-            key={resolvedSelectedId}
-            tier={tier}
-            config={config}
-            subcategory={selectedSubcategory}
-            subcategories={(subcategories ?? []).map((s) => ({ id: s.id, name: s.name }))}
-            members={members.map((m) => ({ id: m.id, firstName: m.firstName }))}
-            items={selectedSummary?.items ?? []}
-            isLoading={itemsLoading}
-            stalenessMonths={stalenessMonths}
-            initialIsAdding={hasAddParam}
-            onSubcategorySelect={setSelectedId}
-            lockedManager={lockedManager}
-            onBack={clearSelection}
-          />
+          hasError ? (
+            <PanelError variant="right" onRetry={retry} message="Couldn't load this tier." />
+          ) : (
+            <ItemArea
+              key={resolvedSelectedId}
+              tier={tier}
+              config={config}
+              subcategory={selectedSubcategory}
+              subcategories={(subcategories ?? []).map((s) => ({ id: s.id, name: s.name }))}
+              members={members.map((m) => ({ id: m.id, firstName: m.firstName }))}
+              items={selectedSummary?.items ?? []}
+              isLoading={itemsLoading}
+              stalenessMonths={stalenessMonths}
+              initialIsAdding={hasAddParam}
+              onSubcategorySelect={setSelectedId}
+              lockedManager={lockedManager}
+              onBack={clearSelection}
+            />
+          )
         }
       />
     </div>
