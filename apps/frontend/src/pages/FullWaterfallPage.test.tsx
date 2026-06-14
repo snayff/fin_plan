@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
+import { QueryClient } from "@tanstack/react-query";
 import { renderWithProviders } from "@/test/helpers/render";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import FullWaterfallPage from "./FullWaterfallPage";
 
 // Mutable holder so individual tests can supply a populated summary.
@@ -22,6 +23,46 @@ mock.module("@/hooks/useWaterfall", () => ({
     isError: false,
   }),
   useCreateSubcategory: () => ({ mutateAsync: async () => {} }),
+  WATERFALL_KEYS: {
+    summary: ["waterfall", "summary"],
+    financialSummary: ["waterfall", "financial-summary"],
+    subcategories: (tier: string) => ["waterfall", "subcategories", tier],
+  },
+  TIER_ITEM_KEYS: {
+    items: (tier: string) => ["waterfall", "tier-items", tier],
+  },
+}));
+
+const createPeriodMock = mock(async () => ({ ok: true }));
+mock.module("@/services/waterfall.service", () => ({
+  waterfallService: {
+    createPeriod: createPeriodMock,
+    updateIncome: async () => ({}),
+    updateCommitted: async () => ({}),
+    updateDiscretionary: async () => ({}),
+    deleteIncome: async () => ({}),
+    deleteCommitted: async () => ({}),
+    deleteDiscretionary: async () => ({}),
+  },
+}));
+
+// Render a button per tier that triggers the page's onSaveAmount callback.
+mock.module("@/components/waterfall/WaterfallTierTable", () => ({
+  WaterfallTierTable: ({
+    tier,
+    onSaveAmount,
+  }: {
+    tier: string;
+    onSaveAmount: (id: string, amount: number) => Promise<unknown>;
+  }) => (
+    <button
+      type="button"
+      data-testid={`waterfall-tier-${tier}`}
+      onClick={() => void onSaveAmount("item-1", 250)}
+    >
+      save {tier}
+    </button>
+  ),
 }));
 
 mock.module("@/hooks/useSettings", () => ({
@@ -55,6 +96,34 @@ describe("FullWaterfallPage", () => {
     renderWithProviders(<FullWaterfallPage />, { initialEntries: ["/waterfall"] });
     await waitFor(() => {
       expect(screen.getByTestId("surplus-strip")).toBeTruthy();
+    });
+  });
+
+  it("invalidates waterfall/forecast/cashflow/tier-item caches after a service-layer amount save (#118)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    });
+    const invalidateSpy = mock(qc.invalidateQueries.bind(qc));
+    qc.invalidateQueries = invalidateSpy as typeof qc.invalidateQueries;
+    createPeriodMock.mockClear();
+
+    renderWithProviders(<FullWaterfallPage />, {
+      initialEntries: ["/waterfall"],
+      queryClient: qc,
+    });
+    const committedBtn = await screen.findByTestId("waterfall-tier-committed");
+    fireEvent.click(committedBtn);
+
+    await waitFor(() => {
+      expect(createPeriodMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      const keys = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+      expect(keys).toContain(JSON.stringify(["waterfall", "summary"]));
+      expect(keys).toContain(JSON.stringify(["waterfall", "financial-summary"]));
+      expect(keys).toContain(JSON.stringify(["forecast"]));
+      expect(keys).toContain(JSON.stringify(["cashflow", "shortfall"]));
+      expect(keys).toContain(JSON.stringify(["waterfall", "tier-items", "committed"]));
     });
   });
 

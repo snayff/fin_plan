@@ -129,7 +129,7 @@ export function useUpdateItem() {
   });
 }
 
-const TIER_ITEM_KEYS = {
+export const TIER_ITEM_KEYS = {
   items: (tier: string) => ["waterfall", "tier-items", tier] as const,
 };
 
