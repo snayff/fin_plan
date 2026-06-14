@@ -725,8 +725,19 @@ export const cashflowService = {
     }
 
     const projectedEndBalance = months[months.length - 1]?.closingBalance ?? balance;
+
+    // Average monthly surplus must reflect a *typical* full month. When the
+    // window opens on the real-time current month, month[0] is only partially
+    // elapsed — including it skews the average (#117). Drop it from the average
+    // (but keep it in `months` and in projectedEndBalance). Guard against a
+    // single-month window, where there is nothing left to average over.
+    const firstIsCurrentMonth =
+      startYear === today.getUTCFullYear() && startMonth === today.getUTCMonth() + 1;
+    const averagedMonths = firstIsCurrentMonth && months.length > 1 ? months.slice(1) : months;
     const avgMonthlySurplus =
-      months.length > 0 ? months.reduce((s, m) => s + m.netChange, 0) / months.length : 0;
+      averagedMonths.length > 0
+        ? averagedMonths.reduce((s, m) => s + m.netChange, 0) / averagedMonths.length
+        : 0;
 
     return {
       startingBalance: balance,
