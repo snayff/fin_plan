@@ -3,10 +3,18 @@ import type {
   BatchSaveSubcategoriesInput,
   ResetSubcategoriesInput,
 } from "@finplan/shared";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../config/database.js";
 import { audited } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { ConflictError, ValidationError } from "../utils/errors.js";
+
+/**
+ * A Prisma client or an interactive-transaction client. `seedDefaults` accepts
+ * either so seeding can join a caller's transaction (e.g. createHousehold,
+ * acceptInvite) and commit atomically with the household creation.
+ */
+type PrismaLike = PrismaClient | Prisma.TransactionClient;
 
 const DEFAULT_SUBCATEGORIES = {
   income: [
@@ -34,7 +42,7 @@ const DEFAULT_SUBCATEGORIES = {
 } as const;
 
 export const subcategoryService = {
-  async seedDefaults(householdId: string) {
+  async seedDefaults(householdId: string, db: PrismaLike = prisma) {
     const rows: {
       householdId: string;
       tier: "income" | "committed" | "discretionary";
@@ -57,7 +65,7 @@ export const subcategoryService = {
       }
     }
 
-    await prisma.subcategory.createMany({ data: rows, skipDuplicates: true });
+    await db.subcategory.createMany({ data: rows, skipDuplicates: true });
   },
 
   async ensureSubcategories(householdId: string) {

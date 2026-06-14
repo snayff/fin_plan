@@ -128,17 +128,28 @@ export const householdService = {
       where: { id: userId },
       select: { name: true },
     });
-    const household = await prisma.household.create({
-      data: { name },
-    });
+
+    // All five writes (household → member → settings → seeded subcategories →
+    // user.activeHouseholdId) must commit together; a failure midway used to
+    // leave a half-built household behind (#135).
     try {
-      await prisma.member.create({
-        data: {
-          householdId: household.id,
-          userId,
-          name: user?.name ?? "Owner",
-          role: "owner",
-        },
+      return await prisma.$transaction(async (tx) => {
+        const household = await tx.household.create({ data: { name } });
+        await tx.member.create({
+          data: {
+            householdId: household.id,
+            userId,
+            name: user?.name ?? "Owner",
+            role: "owner",
+          },
+        });
+        await tx.householdSettings.create({ data: { householdId: household.id } });
+        await subcategoryService.seedDefaults(household.id, tx);
+        await tx.user.update({
+          where: { id: userId },
+          data: { activeHouseholdId: household.id },
+        });
+        return household;
       });
     } catch (err: any) {
       if (err?.code === "P2002") {
@@ -146,13 +157,6 @@ export const householdService = {
       }
       throw err;
     }
-    await prisma.householdSettings.create({ data: { householdId: household.id } });
-    await subcategoryService.seedDefaults(household.id);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { activeHouseholdId: household.id },
-    });
-    return household;
   },
 
   async getUserHouseholds(userId: string) {
@@ -447,7 +451,7 @@ export const householdService = {
     const passwordHash = await hashPassword(newUser.password);
 
     // Create user + personal household in a transaction
-    const { user, personalHouseholdId } = await prisma.$transaction(async (tx) => {
+    const { user } = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           email: normalizedEmail!,
@@ -484,6 +488,9 @@ export const householdService = {
         throw err;
       }
       await tx.householdSettings.create({ data: { householdId: personal.id } });
+      // Seed the personal household's subcategories inside the transaction so
+      // the whole personal household is atomic (#135).
+      await subcategoryService.seedDefaults(personal.id, tx);
 
       // Join the invited household and set it as active
       try {
@@ -527,10 +534,8 @@ export const householdService = {
         changes: [],
       });
 
-      return { user: updated, personalHouseholdId: personal.id };
+      return { user: updated };
     });
-
-    await subcategoryService.seedDefaults(personalHouseholdId);
 
     // Generate auth tokens
     const accessToken = generateAccessToken({ userId: user.id, email: user.email });
