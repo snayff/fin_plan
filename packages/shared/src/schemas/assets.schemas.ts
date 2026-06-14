@@ -162,8 +162,10 @@ export const isaAllowanceSummarySchema = z.object({
   annualLimit: z.number().min(0),
   byMember: z.array(isaMemberPositionSchema),
   // Count of active ISA accounts excluded from byMember because they have no
-  // owning member (data-quality signal; see #143).
-  memberlessIsaCount: z.number().int().min(0),
+  // owning member (data-quality signal; see #143). Defaults to 0 so existing
+  // payloads/fixtures that predate this field still parse; the backend always
+  // sends the real count.
+  memberlessIsaCount: z.number().int().min(0).default(0),
 });
 
 export type IsaMemberPosition = z.infer<typeof isaMemberPositionSchema>;
