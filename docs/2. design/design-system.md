@@ -78,6 +78,8 @@ One colour per waterfall tier, used exclusively for that tier's heading, accent 
 
 **Rule:** Tier colours are semantically protected. They must only appear in their tier context — heading text, accent bar, value text, and contextual interactive states (hover/selected backgrounds at reduced opacity). They must never be repurposed for status indicators, attention signals, buttons, or any non-tier UI element.
 
+**Sanctioned exception — celebration confetti.** Onboarding/celebration confetti (the `WelcomePage` household-created burst) may reuse all four tier colours together as a festive palette. The full waterfall palette appearing at once reads as "your whole plan is ready" rather than as a per-tier semantic signal, so this does not violate the protection rule. When reused this way the colours **must** be sourced from the canonical tier CSS custom properties (`hsl(var(--tier-income))` … `hsl(var(--tier-surplus))`) — never hardcoded hex — so the celebration always tracks the real tier palette.
+
 #### Accent & Action
 
 | Token         | Value     | Used for                                                       | Notes                                                                           |
