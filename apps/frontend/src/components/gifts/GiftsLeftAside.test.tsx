@@ -1,6 +1,11 @@
 // apps/frontend/src/components/gifts/GiftsLeftAside.test.tsx
 import { describe, it, expect, mock } from "bun:test";
 import { render, screen, fireEvent } from "@testing-library/react";
+
+mock.module("@/hooks/useSettings", () => ({
+  useSettings: () => ({ data: { showPence: false } }),
+}));
+
 import { GiftsLeftAside } from "./GiftsLeftAside";
 
 const sampleBudget = {
