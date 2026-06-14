@@ -519,6 +519,15 @@ export const assetsService = {
           | undefined;
         const incomingLimit = (data as Record<string, unknown>).monthlyContributionLimit;
         assertLimitOnlyOnSavings(effectiveType, incomingLimit);
+        // An ISA account must always have an owning member — its allowance is
+        // tracked per member. Reject clearing memberId while the account remains
+        // (or becomes) an ISA. undefined = no change; null = explicit clear.
+        const effectiveIsa = (data.isISA ?? existing?.isISA) === true;
+        const memberCleared = data.memberId === null;
+        const memberStillUnset = data.memberId === undefined && existing?.memberId == null;
+        if (effectiveIsa && (memberCleared || memberStillUnset)) {
+          throw new ValidationError("ISA accounts must have a member assigned");
+        }
         const patch: Record<string, unknown> = { ...rest, ...resolved };
         if (effectiveType !== "Savings" && existing?.monthlyContributionLimit != null) {
           patch.monthlyContributionLimit = null;
@@ -619,6 +628,7 @@ export const assetsService = {
         daysRemaining: window.daysRemaining,
         annualLimit,
         byMember: [],
+        memberlessIsaCount: 0,
       };
     }
 
@@ -647,8 +657,14 @@ export const assetsService = {
       forecastInputs: ForecastInput[];
     };
     const buckets = new Map<string, Bucket>();
+    // Data-quality signal: ISA accounts with no owning member are excluded from
+    // the per-member allowance breakdown (their allowance can't be attributed).
+    let memberlessIsaCount = 0;
     for (const a of isaAccounts) {
-      if (!a.memberId || !a.member) continue;
+      if (!a.memberId || !a.member) {
+        memberlessIsaCount += 1;
+        continue;
+      }
       const b = buckets.get(a.memberId) ?? {
         memberId: a.memberId,
         name: a.member.name,
@@ -691,6 +707,7 @@ export const assetsService = {
       daysRemaining: window.daysRemaining,
       annualLimit,
       byMember,
+      memberlessIsaCount,
     };
   },
 };

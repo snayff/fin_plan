@@ -161,6 +161,9 @@ export const isaAllowanceSummarySchema = z.object({
   daysRemaining: z.number().int().min(0),
   annualLimit: z.number().min(0),
   byMember: z.array(isaMemberPositionSchema),
+  // Count of active ISA accounts excluded from byMember because they have no
+  // owning member (data-quality signal; see #143).
+  memberlessIsaCount: z.number().int().min(0),
 });
 
 export type IsaMemberPosition = z.infer<typeof isaMemberPositionSchema>;
