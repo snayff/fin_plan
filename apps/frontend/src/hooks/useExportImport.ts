@@ -44,8 +44,13 @@ export function useImportHousehold() {
       householdService.importHousehold(data, mode),
     onSuccess: async () => {
       if (accessToken) {
-        const { user } = await authService.getCurrentUser(accessToken);
-        setUser(user, accessToken);
+        try {
+          const { user } = await authService.getCurrentUser(accessToken);
+          setUser(user, accessToken);
+        } catch {
+          // /me failed transiently — still purge caches; auth state resyncs
+          // on the next request.
+        }
       }
       // Drop all cached data that predates the import.
       purgeStaleQueries(queryClient);

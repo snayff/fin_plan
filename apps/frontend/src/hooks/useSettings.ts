@@ -195,8 +195,13 @@ export function useLeaveHousehold() {
   return useMutation({
     mutationFn: (householdId: string) => householdService.leaveHousehold(householdId),
     onSuccess: async () => {
-      const { user } = await authService.getCurrentUser(accessToken!);
-      setUser(user, accessToken!);
+      // Guard the refetch so a transient /me failure still purges stale caches.
+      try {
+        const { user } = await authService.getCurrentUser(accessToken!);
+        setUser(user, accessToken!);
+      } catch {
+        // Auth state will resync on the next request; proceed to purge regardless.
+      }
       // Drop all cached data from the household we just left.
       purgeStaleQueries(queryClient);
     },
@@ -216,10 +221,18 @@ export function useDeleteHousehold() {
     onSuccess: async () => {
       // The user's activeHouseholdId is auto-cleared by the FK ON DELETE SET NULL,
       // so re-fetching the user lets the auth state reflect the post-deletion reality.
-      const { user } = await authService.getCurrentUser(accessToken!);
-      setUser(user, accessToken!);
+      // Guard the refetch so a transient /me failure still purges stale caches.
+      try {
+        const { user } = await authService.getCurrentUser(accessToken!);
+        setUser(user, accessToken!);
+      } catch {
+        // Auth state will resync on the next request; proceed to purge regardless.
+      }
       // Drop all cached data from the deleted household.
       purgeStaleQueries(queryClient);
+    },
+    onError: (err: Error) => {
+      showError(err.message ?? "Failed to delete household");
     },
   });
 }

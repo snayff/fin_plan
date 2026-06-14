@@ -31,8 +31,13 @@ export function HouseholdSwitcher() {
     mutationFn: (id: string) => householdService.switchHousehold(id),
     onSuccess: async () => {
       if (accessToken) {
-        const { user: updatedUser } = await authService.getCurrentUser(accessToken);
-        setUser(updatedUser, accessToken);
+        try {
+          const { user: updatedUser } = await authService.getCurrentUser(accessToken);
+          setUser(updatedUser, accessToken);
+        } catch {
+          // /me failed transiently — still purge caches and navigate; auth
+          // state resyncs on the next request.
+        }
       }
       purgeStaleQueries(qc);
       navigate("/overview");
@@ -47,8 +52,13 @@ export function HouseholdSwitcher() {
     mutationFn: (name: string) => householdService.createHousehold(name),
     onSuccess: async () => {
       if (accessToken) {
-        const { user: updatedUser } = await authService.getCurrentUser(accessToken);
-        setUser(updatedUser, accessToken);
+        try {
+          const { user: updatedUser } = await authService.getCurrentUser(accessToken);
+          setUser(updatedUser, accessToken);
+        } catch {
+          // /me failed transiently — still purge caches and navigate; auth
+          // state resyncs on the next request.
+        }
       }
       purgeStaleQueries(qc);
       navigate("/overview");

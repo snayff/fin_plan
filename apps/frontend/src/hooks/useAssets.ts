@@ -49,6 +49,8 @@ export function useCreateAsset() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to create asset");
@@ -70,6 +72,8 @@ export function useUpdateAsset() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update asset");
@@ -85,6 +89,8 @@ export function useDeleteAsset() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to delete asset");
@@ -106,6 +112,8 @@ export function useRecordAssetBalance() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to record balance");
@@ -121,6 +129,8 @@ export function useCreateAccount() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ISA_ALLOWANCE_KEY });
     },
     onError: (error: unknown) => {
@@ -143,6 +153,8 @@ export function useUpdateAccount() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ISA_ALLOWANCE_KEY });
     },
     onError: (error: unknown) => {
@@ -159,6 +171,8 @@ export function useDeleteAccount() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ISA_ALLOWANCE_KEY });
     },
     onError: (error: unknown) => {
@@ -181,6 +195,8 @@ export function useRecordAccountBalance() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to record balance");
@@ -227,6 +243,8 @@ export function useConfirmAsset() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
   });
 }
@@ -266,6 +284,8 @@ export function useConfirmAccount() {
       void qc.invalidateQueries({ queryKey: ["assets"] });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
     },
   });
 }

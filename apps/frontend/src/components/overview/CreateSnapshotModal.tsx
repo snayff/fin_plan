@@ -24,7 +24,7 @@ export function CreateSnapshotModal({ onClose, onCreated }: CreateSnapshotModalP
         onClose();
       },
       onError: (err: unknown) => {
-        if ((err as any)?.status === 409) {
+        if ((err as { statusCode?: number })?.statusCode === 409) {
           setDuplicateError(true);
         }
       },
