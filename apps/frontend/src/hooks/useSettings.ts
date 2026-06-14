@@ -347,7 +347,6 @@ export function useUpdateMemberRole(householdId: string) {
       showError(error instanceof Error ? error.message : "Failed to update role");
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["household-members"] });
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
     },
   });
