@@ -1,6 +1,9 @@
 /* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState, useMemo } from "react";
 import { useConfigPeople, useCreateGiftPerson, useDeleteGiftPerson } from "@/hooks/useGifts";
+import GhostAddButton from "@/components/tier/GhostAddButton";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 
 type Filter = "all" | "household" | "non-household";
 
@@ -21,7 +24,7 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
   const [showAddInput, setShowAddInput] = useState(false);
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
-  const { data: rawData, isLoading } = useConfigPeople("all", year);
+  const { data: rawData, isLoading, isError, refetch } = useConfigPeople("all", year);
   const create = useCreateGiftPerson();
   const remove = useDeleteGiftPerson();
 
@@ -74,14 +77,7 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
           </span>
         </div>
         {!readOnly && (
-          <button
-            type="button"
-            onClick={() => setShowAddInput(true)}
-            disabled={showAddInput}
-            className="rounded-md border px-3 py-1 text-xs font-medium transition-all duration-150 border-foreground/20 text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            + Add
-          </button>
+          <GhostAddButton onClick={() => setShowAddInput(true)} disabled={showAddInput} />
         )}
       </div>
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
@@ -89,7 +85,7 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
         {!readOnly && showAddInput && (
           <div className="border-t border-foreground/5 bg-foreground/[0.02] py-3 pr-4 flex flex-col gap-3 border-l-2 border-tier-discretionary pl-[30px]">
             <div className="flex flex-col gap-1">
-              <label className="text-text-muted uppercase tracking-[0.07em] text-[10px]">
+              <label className="label-chart">
                 Name <span className="text-text-muted">*</span>
               </label>
               <input
@@ -160,8 +156,14 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
         </div>
 
         {/* Person list */}
-        {isLoading ? (
-          <div className="text-sm text-foreground/40">Loading…</div>
+        {isError ? (
+          <PanelError
+            variant="detail"
+            onRetry={() => void refetch()}
+            message="Couldn't load people."
+          />
+        ) : isLoading ? (
+          <SkeletonLoader variant="right-panel" />
         ) : filtered.length === 0 ? (
           <div className="py-8 text-center text-sm text-foreground/40">
             {filter === "all"

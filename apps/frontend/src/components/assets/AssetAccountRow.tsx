@@ -148,7 +148,7 @@ export function AssetAccountRow({
           <span className="text-sm text-text-secondary">
             {item.name}
             {item.disposedAt && (
-              <span className="ml-2 text-[10px] uppercase tracking-[0.07em] text-text-muted">
+              <span className="ml-2 label-chart">
                 {new Date(item.disposedAt) <= new Date() ? "Disposed" : "Sells"}{" "}
                 {formatReviewDate(item.disposedAt)}
               </span>
@@ -258,9 +258,7 @@ export function AssetAccountRow({
               <div className="flex flex-col gap-2.5">
                 {/* Balance history */}
                 <div>
-                  <span className="block text-text-muted uppercase tracking-[0.07em] text-[10px] mb-1">
-                    Balance History
-                  </span>
+                  <span className="block label-chart mb-1">Balance History</span>
                   {item.balances.length === 0 ? (
                     <p className="text-xs italic text-text-muted">No balances recorded yet</p>
                   ) : (
@@ -280,9 +278,7 @@ export function AssetAccountRow({
                 {/* Last reviewed — only when stale */}
                 {stale && item.lastReviewedAt && (
                   <div>
-                    <span className="block text-text-muted uppercase tracking-[0.07em] text-[10px]">
-                      Last Reviewed
-                    </span>
+                    <span className="block label-chart">Last Reviewed</span>
                     <span className="flex items-center gap-1.5 text-xs text-attention">
                       <span
                         className="h-[5px] w-[5px] rounded-full bg-attention shrink-0"
@@ -296,9 +292,7 @@ export function AssetAccountRow({
                 {/* Linked contributions — accounts only */}
                 {itemKind === "account" && (item as AccountItem).linkedItems.length > 0 && (
                   <div>
-                    <span className="block text-text-muted uppercase tracking-[0.07em] text-[10px] mb-1">
-                      Monthly Contributions
-                    </span>
+                    <span className="block label-chart mb-1">Monthly Contributions</span>
                     <div className="flex flex-col gap-1">
                       {(item as AccountItem).linkedItems.map((li) => (
                         <div key={li.id} className="flex justify-between text-xs">

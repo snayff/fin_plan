@@ -15,6 +15,14 @@ interface TwoPanelLayoutProps {
    * See docs/4. planning/mobile-accessibility/plan.md § Phase 2.
    */
   selectedKey?: string | null;
+  /**
+   * When true, the right `<main>` landmark renders without the default
+   * `overflow-y-auto p-6` so the child can manage its own scrolling and
+   * padding (e.g. the Settings scroll-spy panel with a sticky header).
+   * The skip-link target (`id="two-panel-main"`) and mobile master-detail
+   * behaviour are preserved.
+   */
+  rightFill?: boolean;
 }
 
 function PlaceholderMessage({ text }: { text: string }) {
@@ -46,6 +54,7 @@ export function TwoPanelLayout({
   right,
   rightPlaceholder = "Select any item to see its detail",
   selectedKey,
+  rightFill = false,
 }: TwoPanelLayoutProps) {
   const isMobile = useIsMobile();
   const detailActive = selectedKey != null;
@@ -55,7 +64,14 @@ export function TwoPanelLayout({
     if (detailActive) {
       return (
         <div className="flex h-full overflow-hidden">
-          <main id="two-panel-main" className="w-full flex-1 overflow-y-auto p-4">
+          <main
+            id="two-panel-main"
+            className={
+              rightFill
+                ? "flex w-full flex-1 flex-col min-h-0"
+                : "w-full flex-1 overflow-y-auto p-4"
+            }
+          >
             {right ?? <PlaceholderMessage text={rightPlaceholder} />}
           </main>
         </div>
@@ -85,7 +101,12 @@ export function TwoPanelLayout({
       >
         {left}
       </aside>
-      <main id="two-panel-main" className="flex-1 overflow-y-auto p-6">
+      <main
+        id="two-panel-main"
+        className={
+          rightFill ? "flex flex-1 flex-col min-w-0 min-h-0" : "flex-1 overflow-y-auto p-6"
+        }
+      >
         {right ?? <PlaceholderMessage text={rightPlaceholder} />}
       </main>
     </div>

@@ -34,15 +34,9 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
       <PageHeader title="Assets" total={grandTotal} />
 
       {/* List */}
-      <nav aria-label="Assets and accounts" className="flex-1 overflow-y-auto">
+      <nav aria-label="Assets and accounts" className="flex-1 min-h-0 overflow-y-auto">
         {/* Assets group */}
-        <p
-          role="group"
-          aria-label="Assets"
-          className="px-4 py-1.5 text-foreground/25 text-[10px] tracking-[0.1em] uppercase"
-        >
-          Assets
-        </p>
+        <p className="label-chart px-4 py-1.5">Assets</p>
         {ASSET_TYPES.map((type) => {
           const isSelected = selected === type;
           const total = summary?.assetTotals[type] ?? 0;
@@ -66,7 +60,7 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
               <div className="relative z-10 flex items-center gap-2">
                 <span>{TYPE_LABELS[type]}</span>
                 {staleCount > 0 && (
-                  <span className="text-[10px] text-amber-400">● {staleCount} stale</span>
+                  <span className="text-[10px] text-attention">● {staleCount} stale</span>
                 )}
               </div>
               <span className="relative z-10 font-numeric text-xs text-foreground/50">
@@ -77,13 +71,7 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
         })}
 
         {/* Accounts group */}
-        <p
-          role="group"
-          aria-label="Accounts"
-          className="px-4 pt-3.5 pb-1.5 text-foreground/25 text-[10px] tracking-[0.1em] uppercase"
-        >
-          Accounts
-        </p>
+        <p className="label-chart px-4 pt-3.5 pb-1.5">Accounts</p>
         {ACCOUNT_TYPES.map((type) => {
           const isSelected = selected === type;
           const total = summary?.accountTotals[type] ?? 0;
@@ -107,7 +95,7 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
               <div className="relative z-10 flex items-center gap-2">
                 <span>{TYPE_LABELS[type]}</span>
                 {staleCount > 0 && (
-                  <span className="text-[10px] text-amber-400">● {staleCount} stale</span>
+                  <span className="text-[10px] text-attention">● {staleCount} stale</span>
                 )}
               </div>
               <span className="relative z-10 font-numeric text-xs text-foreground/50">

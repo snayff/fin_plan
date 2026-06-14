@@ -11,7 +11,7 @@ function todayISO() {
   return new Date().toISOString().split("T")[0]!;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -64,11 +64,11 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
               setValueError(null);
             }}
             aria-label="Balance value"
-            className={[inputClass, "font-numeric", valueError ? "border-amber-400/60" : ""].join(
+            className={[inputClass, "font-numeric", valueError ? "border-attention/60" : ""].join(
               " "
             )}
           />
-          {valueError && <p className="-mt-0.5 text-xs text-amber-400">{valueError}</p>}
+          {valueError && <p className="-mt-0.5 text-xs text-attention">{valueError}</p>}
         </div>
 
         {/* Date */}
@@ -85,9 +85,9 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
               setDateError(null);
             }}
             aria-label="Balance date"
-            className={[inputClass, dateError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
           />
-          {dateError && <p className="-mt-0.5 text-xs text-amber-400">{dateError}</p>}
+          {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
         </div>
 
         {/* Note */}

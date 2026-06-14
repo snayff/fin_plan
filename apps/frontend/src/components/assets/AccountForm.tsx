@@ -59,7 +59,7 @@ interface Props {
   onConfirm?: () => void;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -226,9 +226,9 @@ export function AccountForm({
               setNameError(null);
             }}
             aria-label="Name"
-            className={[inputClass, nameError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, nameError ? "border-attention/60" : ""].join(" ")}
           />
-          {nameError && <p className="-mt-0.5 text-xs text-amber-400">{nameError}</p>}
+          {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
         {/* Current value (add mode only) */}
@@ -285,10 +285,10 @@ export function AccountForm({
               }}
               placeholder={rateLabel}
               aria-label="Growth rate override"
-              className={[inputClass, rateError ? "border-amber-400/60" : ""].join(" ")}
+              className={[inputClass, rateError ? "border-attention/60" : ""].join(" ")}
             />
             {rateError ? (
-              <p className="-mt-0.5 text-xs text-amber-400">{rateError}</p>
+              <p className="-mt-0.5 text-xs text-attention">{rateError}</p>
             ) : (
               <p className="text-[11px] text-text-muted">
                 Leave blank to use household default ({rateLabel})
@@ -316,11 +316,11 @@ export function AccountForm({
                 className={[
                   inputClass,
                   "font-numeric",
-                  limitError ? "border-amber-400/60" : "",
+                  limitError ? "border-attention/60" : "",
                 ].join(" ")}
               />
               {limitError ? (
-                <p className="-mt-0.5 text-xs text-amber-400">{limitError}</p>
+                <p className="-mt-0.5 text-xs text-attention">{limitError}</p>
               ) : (
                 <p className="text-[11px] text-text-muted">
                   The most this account lets you pay in each month. finplan uses this to flag spare
@@ -341,7 +341,7 @@ export function AccountForm({
               <label htmlFor="isISA" className="text-xs text-text-secondary">
                 Is ISA?
               </label>
-              {isaError && <span className="ml-2 text-xs text-amber-400">{isaError}</span>}
+              {isaError && <span className="ml-2 text-xs text-attention">{isaError}</span>}
             </div>
             {isISA && (
               <div className="col-span-2 flex flex-col gap-1">
@@ -423,7 +423,7 @@ export function AccountForm({
                 </select>
               </div>
               {disposalError && (
-                <p className="col-span-2 -mt-1 text-xs text-amber-400">{disposalError}</p>
+                <p className="col-span-2 -mt-1 text-xs text-attention">{disposalError}</p>
               )}
             </div>
           )}

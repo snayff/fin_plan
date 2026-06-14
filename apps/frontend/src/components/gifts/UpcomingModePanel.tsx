@@ -1,5 +1,7 @@
 import { useGiftsUpcoming } from "@/hooks/useGifts";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
 import type { GiftUpcomingResponse } from "@finplan/shared";
@@ -23,10 +25,18 @@ const MONTH_NAMES = [
 type Props = { year: number; onNavigateToGifts?: () => void };
 
 export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
-  const { data, isLoading } = useGiftsUpcoming(year);
+  const { data, isLoading, isError, refetch } = useGiftsUpcoming(year);
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
-  if (isLoading || !data) return <div className="p-6 text-sm text-foreground/40">Loading…</div>;
+  if (isError)
+    return (
+      <PanelError
+        variant="detail"
+        onRetry={() => void refetch()}
+        message="Couldn't load upcoming gifts."
+      />
+    );
+  if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
 
   const hasRows = data.groups.some((g) => g.rows.length > 0);
 
@@ -69,9 +79,7 @@ export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
           <div className="mt-6 space-y-6">
             {data.groups.map((g) => (
               <section key={g.month}>
-                <h3 className="mb-2 text-[11px] uppercase tracking-wide text-foreground/40">
-                  {MONTH_NAMES[g.month]}
-                </h3>
+                <h3 className="label-section mb-2">{MONTH_NAMES[g.month]}</h3>
                 <ul className="space-y-1">
                   {g.rows.length === 0 && (
                     <li className="text-xs text-foreground/30">Nothing scheduled.</li>
@@ -128,7 +136,7 @@ function CalloutGrid({
           data-testid={`callout-${c.id}`}
           className="rounded border border-foreground/5 bg-foreground/[0.02] p-3"
         >
-          <div className="text-[10px] uppercase tracking-wide text-foreground/40">{c.label}</div>
+          <div className="label-chart">{c.label}</div>
           <div className="font-mono text-base tabular-nums text-foreground">
             {formatCurrency(callouts[c.id].total, showPence)}
           </div>

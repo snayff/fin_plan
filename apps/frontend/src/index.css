@@ -76,6 +76,12 @@
     --tier-surplus: 175 72% 57%; /* #4adcd0 — rewarding teal-mint */
     --tier-surplus-subtle: 175 40% 18%;
 
+    /* Callout gradient cards — indigo→purple card background (design-system.md
+       §1.2 "Callout Gradient Cards"). Distinct from the blue→purple callout
+       *text* gradient below. */
+    --callout-card-from: 239 84% 67%; /* #6366f1 indigo */
+    --callout-card-to: 271 91% 65%; /* #a855f7 purple */
+
     /* Callout gradients — engagement and special highlights */
     --callout-primary-from: 199 86% 49%; /* #0ea5e9 (blue) */
     --callout-primary-to: 271 91% 65%; /* #a855f7 (purple) */
@@ -219,19 +225,19 @@
      is pinned to a single passing token instead.
      Re-audit if --card or --text-secondary changes. */
   .label-section {
-    @apply text-[11px] font-heading font-semibold uppercase tracking-wider text-secondary;
+    @apply text-[11px] font-heading font-semibold uppercase tracking-wider text-body-secondary;
   }
   .label-detail {
-    @apply text-xs font-heading font-semibold uppercase tracking-wider text-secondary;
+    @apply text-xs font-heading font-semibold uppercase tracking-wider text-body-secondary;
   }
   .label-chart {
-    @apply text-[10px] font-heading font-semibold uppercase tracking-widest text-secondary;
+    @apply text-[10px] font-heading font-semibold uppercase tracking-widest text-body-secondary;
   }
 }
 
 @layer utilities {
   /* Custom utility classes for design system */
-  .text-secondary {
+  .text-body-secondary {
     color: hsl(var(--text-secondary));
   }
 
@@ -464,6 +470,23 @@ input[type="number"] {
 /* Settings: neutral top-right only, no secondary */
 [data-page="settings"]::before {
   background: radial-gradient(ellipse at 100% 0%, rgba(238, 242, 255, 0.04) 0%, transparent 25%);
+}
+
+/* Non-tier feature pages — soft violet/indigo top-left glow, no secondary */
+[data-page="gifts"]::before,
+[data-page="goals"]::before {
+  background: radial-gradient(
+    ellipse 60% 40% at 20% 20%,
+    rgba(139, 92, 246, 0.08) 0%,
+    transparent 70%
+  );
+}
+[data-page="help"]::before {
+  background: radial-gradient(
+    ellipse 60% 40% at 20% 20%,
+    rgba(99, 102, 241, 0.06) 0%,
+    transparent 70%
+  );
 }
 
 /* Auto-save micro-reaction (settings) */

@@ -1,9 +1,10 @@
 interface Props {
   onClick: () => void;
   disabled?: boolean;
+  label?: string;
 }
 
-export default function GhostAddButton({ onClick, disabled }: Props) {
+export default function GhostAddButton({ onClick, disabled, label = "+ Add" }: Props) {
   return (
     <button
       type="button"
@@ -16,7 +17,7 @@ export default function GhostAddButton({ onClick, disabled }: Props) {
         "disabled:cursor-not-allowed disabled:opacity-40",
       ].join(" ")}
     >
-      + Add
+      {label}
     </button>
   );
 }

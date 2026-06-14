@@ -25,9 +25,7 @@ export function ConfigBudgetPanel({ year, readOnly, currentBudget }: Props) {
       <div className="flex-1 p-6">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-text-muted uppercase tracking-[0.07em] text-[10px]">
-              Annual budget
-            </label>
+            <label className="label-chart">Annual budget</label>
             <div className="flex items-center gap-2">
               <span className="text-sm text-foreground/40">£</span>
               <input

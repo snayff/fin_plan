@@ -29,7 +29,7 @@ interface Props {
   onConfirm?: () => void;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -146,9 +146,9 @@ export function AssetForm({
             }}
             aria-label="Name"
             autoFocus={mode === "add"}
-            className={[inputClass, "col-span-2", nameError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, "col-span-2", nameError ? "border-attention/60" : ""].join(" ")}
           />
-          {nameError && <p className="-mt-0.5 text-xs text-amber-400">{nameError}</p>}
+          {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
         {/* Current value (add mode only) + Growth rate — side by side */}
@@ -257,7 +257,7 @@ export function AssetForm({
                 </select>
               </div>
               {disposalError && (
-                <p className="col-span-2 -mt-1 text-xs text-amber-400">{disposalError}</p>
+                <p className="col-span-2 -mt-1 text-xs text-attention">{disposalError}</p>
               )}
             </div>
           )}

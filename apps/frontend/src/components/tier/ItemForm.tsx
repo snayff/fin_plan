@@ -15,6 +15,7 @@ import type { TierConfig, TierKey } from "./tierConfig";
 import type { SpendType } from "./formatAmount";
 import { LinkedAccountPicker } from "./LinkedAccountPicker";
 import { getItemNamePlaceholder } from "./itemNamePlaceholder";
+import GhostAddButton from "./GhostAddButton";
 
 const TIER_TO_PERIOD_ITEM_TYPE: Record<TierKey, string> = {
   income: "income_source",
@@ -195,7 +196,7 @@ export default function ItemForm({
     });
   }
 
-  const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+  const labelClass = "label-chart";
   const inputClass =
     "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -244,10 +245,10 @@ export default function ItemForm({
             className={[
               inputClass,
               "font-numeric",
-              amountError ? "border-amber-400/60 focus:border-amber-400" : "",
+              amountError ? "border-attention/60 focus:border-attention" : "",
             ].join(" ")}
           />
-          {amountError && <p className="-mt-0.5 text-xs text-amber-400">{amountError}</p>}
+          {amountError && <p className="-mt-0.5 text-xs text-attention">{amountError}</p>}
         </div>
 
         {/* Frequency */}
@@ -384,11 +385,7 @@ export default function ItemForm({
                         Current
                       </span>
                     )}
-                    {isFuture && (
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                        Scheduled
-                      </span>
-                    )}
+                    {isFuture && <span className="label-chart">Scheduled</span>}
                     <button
                       type="button"
                       disabled={deletePeriod.isPending}
@@ -458,13 +455,9 @@ export default function ItemForm({
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setIsAddingPeriod(true)}
-                className="mt-1 rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-              >
-                + Add period
-              </button>
+              <div className="mt-1">
+                <GhostAddButton onClick={() => setIsAddingPeriod(true)} label="+ Add period" />
+              </div>
             )}
           </div>
         )}

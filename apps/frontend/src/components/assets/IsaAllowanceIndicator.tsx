@@ -35,9 +35,7 @@ export function IsaAllowanceIndicator() {
       data-testid="isa-allowance-indicator"
       className="flex flex-col gap-2 px-4 pb-4 pt-2 border-t border-foreground/5"
     >
-      <div className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">
-        ISA allowance · {taxYearLabel} tax year
-      </div>
+      <div className="label-chart">ISA allowance · {taxYearLabel} tax year</div>
       <div className="divide-y divide-foreground/[0.05]">
         {byMember.map((m) => (
           <IsaMemberBar
@@ -49,9 +47,7 @@ export function IsaAllowanceIndicator() {
           />
         ))}
       </div>
-      <div className="text-center text-[10px] uppercase tracking-wider text-foreground/30">
-        Resets 6 April · {daysRemaining} days remaining
-      </div>
+      <div className="label-chart text-center">Resets 6 April · {daysRemaining} days remaining</div>
       {mostOver && (
         <NudgeCard
           message={`${mostOver.name}'s planned contributions would reach ${formatCurrency(

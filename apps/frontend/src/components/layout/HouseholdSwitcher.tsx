@@ -138,9 +138,7 @@ export function HouseholdSwitcher() {
             }
           }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/40 px-2.5 pt-1 pb-1">
-            Switch household
-          </p>
+          <p className="label-chart px-2.5 pt-1 pb-1">Switch household</p>
           {households.map(({ household }) => (
             <button
               key={household.id}

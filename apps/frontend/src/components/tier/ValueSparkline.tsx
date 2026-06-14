@@ -22,9 +22,7 @@ export default function ValueSparkline({ periods, color, now = new Date() }: Pro
 
   return (
     <div className="mt-3">
-      <span className="block text-text-muted uppercase tracking-[0.07em] text-[10px] mb-1.5">
-        Value History
-      </span>
+      <span className="block label-chart mb-1.5">Value History</span>
       <SummarySparkline data={chartData} color={color} currentValue={currentValue} />
     </div>
   );

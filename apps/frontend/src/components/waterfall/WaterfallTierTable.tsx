@@ -122,7 +122,7 @@ export function WaterfallTierTable({
         </div>
       ) : (
         <table className="w-full text-sm">
-          <thead className="text-[10px] uppercase tracking-wider text-text-tertiary">
+          <thead className="label-chart">
             <tr className="border-b border-foreground/5">
               <th className="px-3 py-2 text-left font-heading font-semibold">Name</th>
               {tier === "income" && (

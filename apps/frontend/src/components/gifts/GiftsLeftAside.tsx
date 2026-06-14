@@ -21,7 +21,7 @@ export function GiftsLeftAside({ mode, onModeChange, budget, readOnly }: Props) 
   return (
     <div className="flex h-full flex-col">
       <PageHeader title="Gifts" />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <GiftsBudgetSummary budget={budget} readOnly={readOnly} />
         <nav aria-label="Gift modes" className="mt-2 flex flex-col">
           {TABS.map((tab) => {
@@ -31,6 +31,7 @@ export function GiftsLeftAside({ mode, onModeChange, budget, readOnly }: Props) 
                 key={tab.id}
                 type="button"
                 data-active={isActive}
+                aria-current={isActive || undefined}
                 onClick={() => onModeChange(tab.id)}
                 className={[
                   "relative flex w-full items-center px-4 py-2.5 text-left text-sm transition-colors",

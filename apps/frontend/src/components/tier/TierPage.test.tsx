@@ -84,13 +84,13 @@ describe("TierPage", () => {
   it("selects the first subcategory by default", () => {
     renderTierPage();
     const housing = screen.getByTestId("subcategory-row-sub-housing");
-    expect(housing.getAttribute("aria-selected")).toBe("true");
+    expect(housing.getAttribute("aria-current")).toBe("true");
   });
 
   it("selects a subcategory from the URL ?subcategory= param", () => {
     renderTierPage(new URLSearchParams("subcategory=sub-utilities"));
     const utilities = screen.getByTestId("subcategory-row-sub-utilities");
-    expect(utilities.getAttribute("aria-selected")).toBe("true");
+    expect(utilities.getAttribute("aria-current")).toBe("true");
   });
 
   it("keeps a deep-linked ?subcategory= while subcategories are still loading (#140)", async () => {
@@ -120,7 +120,7 @@ describe("TierPage", () => {
     renderTierPage();
     const aside = document.querySelector("aside");
     expect(aside).toBeTruthy();
-    expect(aside!.querySelector("[role='tablist']")).toBeTruthy();
+    expect(aside!.querySelector("nav[aria-label='Subcategories']")).toBeTruthy();
   });
 
   it("renders the AttentionStrip on the Committed tier when shortfall items exist", async () => {
