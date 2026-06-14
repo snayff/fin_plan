@@ -146,9 +146,9 @@ export function AssetForm({
             }}
             aria-label="Name"
             autoFocus={mode === "add"}
-            className={[inputClass, "col-span-2", nameError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, "col-span-2", nameError ? "border-attention/60" : ""].join(" ")}
           />
-          {nameError && <p className="-mt-0.5 text-xs text-amber-400">{nameError}</p>}
+          {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
         {/* Current value (add mode only) + Growth rate — side by side */}
@@ -257,7 +257,7 @@ export function AssetForm({
                 </select>
               </div>
               {disposalError && (
-                <p className="col-span-2 -mt-1 text-xs text-amber-400">{disposalError}</p>
+                <p className="col-span-2 -mt-1 text-xs text-attention">{disposalError}</p>
               )}
             </div>
           )}

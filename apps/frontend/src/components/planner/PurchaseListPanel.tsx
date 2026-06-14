@@ -37,7 +37,7 @@ export { PRIORITY_LABELS, STATUS_LABELS, FUNDING_SOURCE_LABELS };
 
 function PriorityBadge({ priority }: { priority: string }) {
   if (priority === "high") {
-    return <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />;
+    return <span className="h-2 w-2 rounded-full bg-attention shrink-0" />;
   }
   if (priority === "medium") {
     return <span className="h-2 w-2 rounded-full bg-muted-foreground/40 shrink-0" />;

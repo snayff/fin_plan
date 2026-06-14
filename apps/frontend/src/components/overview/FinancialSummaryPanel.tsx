@@ -40,10 +40,7 @@ const cardVariantsReduced = {
 
 function SkeletonCard({ large = false }: { large?: boolean }) {
   return (
-    <div
-      className="rounded-xl p-6 animate-pulse"
-      style={{ background: "#0d1120", border: "1px solid #1a1f35" }}
-    >
+    <div className="rounded-xl p-6 animate-pulse bg-card border border-border">
       <div className="h-3 w-20 rounded bg-white/10 mx-auto mb-3" />
       <div className={`${large ? "h-9 w-32" : "h-5 w-24"} rounded bg-white/10 mx-auto mb-3`} />
       <div className="h-10 w-full rounded bg-white/10" />

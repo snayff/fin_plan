@@ -43,8 +43,8 @@ export function PlannerLeftPanel({
 
         {purchasesOverBudget && (
           <div className="flex items-center gap-1.5 px-2 py-0.5 text-sm">
-            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-            <span className="text-amber-600 dark:text-amber-400">over budget</span>
+            <span className="h-2 w-2 rounded-full bg-attention shrink-0" />
+            <span className="text-attention">over budget</span>
           </div>
         )}
 

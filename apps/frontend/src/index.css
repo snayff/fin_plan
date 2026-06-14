@@ -76,6 +76,12 @@
     --tier-surplus: 175 72% 57%; /* #4adcd0 — rewarding teal-mint */
     --tier-surplus-subtle: 175 40% 18%;
 
+    /* Callout gradient cards — indigo→purple card background (design-system.md
+       §1.2 "Callout Gradient Cards"). Distinct from the blue→purple callout
+       *text* gradient below. */
+    --callout-card-from: 239 84% 67%; /* #6366f1 indigo */
+    --callout-card-to: 271 91% 65%; /* #a855f7 purple */
+
     /* Callout gradients — engagement and special highlights */
     --callout-primary-from: 199 86% 49%; /* #0ea5e9 (blue) */
     --callout-primary-to: 271 91% 65%; /* #a855f7 (purple) */

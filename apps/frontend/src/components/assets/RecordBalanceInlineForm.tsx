@@ -64,11 +64,11 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
               setValueError(null);
             }}
             aria-label="Balance value"
-            className={[inputClass, "font-numeric", valueError ? "border-amber-400/60" : ""].join(
+            className={[inputClass, "font-numeric", valueError ? "border-attention/60" : ""].join(
               " "
             )}
           />
-          {valueError && <p className="-mt-0.5 text-xs text-amber-400">{valueError}</p>}
+          {valueError && <p className="-mt-0.5 text-xs text-attention">{valueError}</p>}
         </div>
 
         {/* Date */}
@@ -85,9 +85,9 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
               setDateError(null);
             }}
             aria-label="Balance date"
-            className={[inputClass, dateError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
           />
-          {dateError && <p className="-mt-0.5 text-xs text-amber-400">{dateError}</p>}
+          {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
         </div>
 
         {/* Note */}
