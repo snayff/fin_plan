@@ -7,15 +7,7 @@ export default function GoalsPage() {
   const isMobile = useIsMobile();
   if (isMobile) return <MobileUnsupportedNotice pageName="Goals" />;
   return (
-    <div data-testid="goals-page" className="relative h-full">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 40% at 20% 20%, rgba(139,92,246,0.08) 0%, transparent 70%)",
-        }}
-      />
+    <div data-page="goals" data-testid="goals-page" className="relative h-full">
       <TwoPanelLayout
         left={
           <div className="flex flex-col h-full">

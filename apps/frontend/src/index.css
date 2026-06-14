@@ -466,6 +466,23 @@ input[type="number"] {
   background: radial-gradient(ellipse at 100% 0%, rgba(238, 242, 255, 0.04) 0%, transparent 25%);
 }
 
+/* Non-tier feature pages — soft violet/indigo top-left glow, no secondary */
+[data-page="gifts"]::before,
+[data-page="goals"]::before {
+  background: radial-gradient(
+    ellipse 60% 40% at 20% 20%,
+    rgba(139, 92, 246, 0.08) 0%,
+    transparent 70%
+  );
+}
+[data-page="help"]::before {
+  background: radial-gradient(
+    ellipse 60% 40% at 20% 20%,
+    rgba(99, 102, 241, 0.06) 0%,
+    transparent 70%
+  );
+}
+
 /* Auto-save micro-reaction (settings) */
 @keyframes autosave-border-pulse {
   0% {

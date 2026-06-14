@@ -15,6 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import GhostAddButton from "@/components/tier/GhostAddButton";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
 import type { GiftDateType } from "@finplan/shared";
@@ -250,8 +253,18 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
   const selectTriggerClass =
     "h-auto rounded-md border-foreground/10 bg-foreground/[0.04] py-1.5 text-sm focus:ring-page-accent/40";
 
+  if (matrix.isError) {
+    return (
+      <PanelError
+        variant="detail"
+        onRetry={() => void matrix.refetch()}
+        message="Couldn't load the gift matrix."
+      />
+    );
+  }
+
   if (matrix.isLoading || !matrix.data) {
-    return <div className="p-6 text-sm text-foreground/40">Loading…</div>;
+    return <SkeletonLoader variant="right-panel" />;
   }
 
   return (
@@ -277,20 +290,8 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
             {/* Ghost buttons row */}
             {addForm === null && (
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAddForm("person")}
-                  className="rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-                >
-                  + Add person
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAddForm("event")}
-                  className="rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-                >
-                  + Add event
-                </button>
+                <GhostAddButton onClick={() => setAddForm("person")} label="+ Add person" />
+                <GhostAddButton onClick={() => setAddForm("event")} label="+ Add event" />
               </div>
             )}
 

@@ -1,14 +1,24 @@
 import { useState } from "react";
 import { useGiftPerson, useUpsertAllocation } from "@/hooks/useGifts";
 import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import type { GiftAllocationRow } from "@finplan/shared";
 
 type Props = { personId: string; year: number; onBack: () => void; readOnly: boolean };
 
 export function GiftPersonDetail({ personId, year, onBack, readOnly }: Props) {
-  const { data, isLoading } = useGiftPerson(personId, year);
+  const { data, isLoading, isError, refetch } = useGiftPerson(personId, year);
   const upsert = useUpsertAllocation();
-  if (isLoading || !data) return <div className="p-6 text-sm text-foreground/40">Loading…</div>;
+  if (isError)
+    return (
+      <PanelError
+        variant="detail"
+        onRetry={() => void refetch()}
+        message="Couldn't load this person."
+      />
+    );
+  if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
 
   return (
     <div className="flex h-full flex-col">

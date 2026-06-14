@@ -6,6 +6,8 @@ import { GiftsModePanel } from "@/components/gifts/GiftsModePanel";
 import { UpcomingModePanel } from "@/components/gifts/UpcomingModePanel";
 import { ConfigModePanel } from "@/components/gifts/ConfigModePanel";
 import { YearRolloverBanner } from "@/components/gifts/YearRolloverBanner";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useGiftsState } from "@/hooks/useGifts";
 import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
@@ -42,13 +44,30 @@ function GiftsPageBody() {
 
   const stateQuery = useGiftsState(year);
 
+  if (stateQuery.isError) {
+    return (
+      <div data-page="gifts" data-testid="gifts-page" className="relative h-full">
+        <TwoPanelLayout
+          left={<SkeletonLoader variant="left-panel" />}
+          right={
+            <PanelError
+              variant="right"
+              onRetry={() => void stateQuery.refetch()}
+              message="Couldn't load your gift plan."
+            />
+          }
+        />
+      </div>
+    );
+  }
+
   if (stateQuery.isLoading || !stateQuery.data) {
     return (
-      <div
-        data-testid="gifts-page"
-        className="flex h-screen items-center justify-center text-sm text-foreground/40"
-      >
-        Loading…
+      <div data-page="gifts" data-testid="gifts-page" className="relative h-full">
+        <TwoPanelLayout
+          left={<SkeletonLoader variant="left-panel" />}
+          right={<SkeletonLoader variant="right-panel" />}
+        />
       </div>
     );
   }
@@ -56,15 +75,7 @@ function GiftsPageBody() {
   const state = stateQuery.data;
 
   return (
-    <div data-testid="gifts-page" className="relative h-full">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 40% at 20% 20%, rgba(139,92,246,0.08) 0%, transparent 70%)",
-        }}
-      />
+    <div data-page="gifts" data-testid="gifts-page" className="relative h-full">
       <YearRolloverBanner year={year} pending={state.rolloverPending} />
       <TwoPanelLayout
         left={

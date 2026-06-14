@@ -1,5 +1,7 @@
 import { useGiftsUpcoming } from "@/hooks/useGifts";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
 import type { GiftUpcomingResponse } from "@finplan/shared";
@@ -23,10 +25,18 @@ const MONTH_NAMES = [
 type Props = { year: number; onNavigateToGifts?: () => void };
 
 export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
-  const { data, isLoading } = useGiftsUpcoming(year);
+  const { data, isLoading, isError, refetch } = useGiftsUpcoming(year);
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
-  if (isLoading || !data) return <div className="p-6 text-sm text-foreground/40">Loading…</div>;
+  if (isError)
+    return (
+      <PanelError
+        variant="detail"
+        onRetry={() => void refetch()}
+        message="Couldn't load upcoming gifts."
+      />
+    );
+  if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
 
   const hasRows = data.groups.some((g) => g.rows.length > 0);
 

@@ -1,6 +1,9 @@
 /* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState } from "react";
 import { useConfigEvents, useCreateGiftEvent, useDeleteGiftEvent } from "@/hooks/useGifts";
+import GhostAddButton from "@/components/tier/GhostAddButton";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import {
   Select,
   SelectContent,
@@ -37,7 +40,7 @@ function daysForMonth(month: number): { value: string; label: string }[] {
 }
 
 export function ConfigEventsPanel({ readOnly }: Props) {
-  const { data, isLoading } = useConfigEvents();
+  const { data, isLoading, isError, refetch } = useConfigEvents();
   const create = useCreateGiftEvent();
   const remove = useDeleteGiftEvent();
   const [name, setName] = useState("");
@@ -68,7 +71,11 @@ export function ConfigEventsPanel({ readOnly }: Props) {
     setShowForm(false);
   };
 
-  if (isLoading || !data) return <div className="p-6 text-sm text-text-muted">Loading…</div>;
+  if (isError)
+    return (
+      <PanelError variant="detail" onRetry={() => void refetch()} message="Couldn't load events." />
+    );
+  if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
   const locked = data.filter((e: any) => e.isLocked);
   const custom = data.filter((e: any) => !e.isLocked);
 
@@ -146,13 +153,9 @@ export function ConfigEventsPanel({ readOnly }: Props) {
 
           {/* Add event form */}
           {!readOnly && !showForm && (
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="mt-3 rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-            >
-              + Add event
-            </button>
+            <div className="mt-3">
+              <GhostAddButton onClick={() => setShowForm(true)} label="+ Add event" />
+            </div>
           )}
 
           {!readOnly && showForm && (
