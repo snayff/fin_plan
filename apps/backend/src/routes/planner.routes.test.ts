@@ -183,6 +183,26 @@ describe("GET /api/planner/budget/:year", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().year).toBe(2026);
   });
+
+  it("returns 400 for a non-numeric year (#134)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/planner/budget/NaN",
+      headers: { authorization: "Bearer valid-token" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(plannerServiceMock.getYearBudget).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an out-of-range year (#134)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/planner/budget/999999999",
+      headers: { authorization: "Bearer valid-token" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(plannerServiceMock.getYearBudget).not.toHaveBeenCalled();
+  });
 });
 
 describe("PUT /api/planner/budget/:year", () => {

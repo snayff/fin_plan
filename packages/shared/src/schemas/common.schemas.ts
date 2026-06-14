@@ -44,6 +44,22 @@ export const sortOrderSchema = z.number().int().min(0).max(SORT_ORDER_MAX);
 /** Calendar year field. */
 export const yearSchema = z.number().int().min(YEAR_MIN).max(YEAR_MAX);
 
+// ─── Date limits ─────────────────────────────────────────────────────────────
+
+/** Lower/upper calendar-year bounds for any coerced date input. */
+export const DATE_YEAR_MIN = 1900;
+export const DATE_YEAR_MAX = 2200;
+
+/**
+ * Coerced date constrained to a sane calendar range. Bare `z.coerce.date()`
+ * accepts year 99999 (and Infinity-derived dates), which poisons forecasts and
+ * date arithmetic. Use this anywhere a date arrives from user input.
+ */
+export const boundedDate = z.coerce.date().refine((d) => {
+  const y = d.getUTCFullYear();
+  return y >= DATE_YEAR_MIN && y <= DATE_YEAR_MAX;
+}, "date out of range");
+
 // ─── String limits ───────────────────────────────────────────────────────────
 
 /** Short user-facing names (items, people, households, accounts…). */
@@ -64,8 +80,16 @@ export const ID_MAX = 64;
 /** Required short name, trimmed. */
 export const nameSchema = z.string().trim().min(1).max(NAME_MAX);
 
+/**
+ * Subcategory display name. Capped at 24 chars — the narrowest waterfall
+ * column tolerates roughly this many characters before truncating, so both
+ * the create and batch-save paths standardise on this limit (#119).
+ */
+export const SUBCATEGORY_NAME_MAX = 24;
+export const subcategoryNameSchema = z.string().trim().min(1).max(SUBCATEGORY_NAME_MAX);
+
 /** Free-text notes field. */
-export const notesSchema = z.string().max(NOTES_MAX);
+export const notesSchema = z.string().trim().max(NOTES_MAX);
 
 /** Entity identifier (cuid/uuid, optionally prefixed). */
 export const idSchema = z.string().min(1).max(ID_MAX);

@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { idSchema, signedMoneySchema } from "./common.schemas";
 
-export const confirmedItemsSchema = z.record(z.array(idSchema).max(500));
+// Keys are entity identifiers (subcategory / item ids); bound them with idSchema
+// so the record key can't carry an unbounded string payload.
+export const confirmedItemsSchema = z.record(idSchema, z.array(idSchema).max(500));
 
 export const updatedItemsSchema = z.record(
+  idSchema,
   z.object({ from: signedMoneySchema, to: signedMoneySchema })
 );
 

@@ -5,7 +5,10 @@ import {
   createDiscretionaryItemSchema,
   createPeriodSchema,
   updatePeriodSchema,
+  createSubcategorySchema,
+  batchSaveSubcategoriesSchema,
 } from "../waterfall.schemas";
+import { createSnapshotSchema } from "../snapshot.schemas";
 import { recordAccountBalanceSchema, recordAssetBalanceSchema } from "../assets.schemas";
 import {
   upsertGiftAllocationSchema,
@@ -173,5 +176,85 @@ describe("string length bounds", () => {
       }).success
     ).toBe(true);
     expect(createHouseholdSchema.safeParse({ name: "Smith Household" }).success).toBe(true);
+  });
+});
+
+// ─── #137: name field ordering/trim ───────────────────────────────────────────
+describe("name schemas reject whitespace-only input", () => {
+  it("rejects whitespace-only snapshot names (trim runs before min(1))", () => {
+    expect(createSnapshotSchema.safeParse({ name: "   " }).success).toBe(false);
+    expect(createSnapshotSchema.safeParse({ name: "Q1 snapshot" }).success).toBe(true);
+  });
+
+  it("rejects whitespace-only income source names", () => {
+    const base = { amount: 1, frequency: "monthly", dueDate: "2026-01-01" };
+    expect(createIncomeSourceSchema.safeParse({ ...base, name: "  " }).success).toBe(false);
+  });
+});
+
+// ─── #119: subcategory name standardised on 24 chars (both paths) ──────────────
+describe("subcategory name limit (24)", () => {
+  const len24 = "x".repeat(24);
+  const len25 = "x".repeat(25);
+
+  it("rejects 25-char names on the quick-add path", () => {
+    expect(createSubcategorySchema.safeParse({ name: len25 }).success).toBe(false);
+    expect(createSubcategorySchema.safeParse({ name: len24 }).success).toBe(true);
+  });
+
+  it("rejects 25-char names on the batch-save path", () => {
+    const make = (name: string) => ({
+      subcategories: [{ name, sortOrder: 0 }],
+      reassignments: [],
+    });
+    expect(batchSaveSubcategoriesSchema.safeParse(make(len25)).success).toBe(false);
+    expect(batchSaveSubcategoriesSchema.safeParse(make(len24)).success).toBe(true);
+  });
+});
+
+// ─── #138: bounded dates + end-after-start refinement ─────────────────────────
+describe("bounded dates", () => {
+  it("rejects out-of-range years (e.g. 99999)", () => {
+    const base = { amount: 1, frequency: "monthly" };
+    expect(
+      createIncomeSourceSchema.safeParse({ ...base, name: "Salary", dueDate: "99999-01-01" })
+        .success
+    ).toBe(false);
+    expect(
+      createIncomeSourceSchema.safeParse({ ...base, name: "Salary", dueDate: "2026-01-01" }).success
+    ).toBe(true);
+  });
+
+  it("rejects endDate before startDate", () => {
+    expect(
+      createPeriodSchema.safeParse({
+        itemType: "income_source",
+        itemId: "item1",
+        startDate: "2026-06-01",
+        endDate: "2026-01-01",
+        amount: 100,
+      }).success
+    ).toBe(false);
+    expect(
+      createPeriodSchema.safeParse({
+        itemType: "income_source",
+        itemId: "item1",
+        startDate: "2026-01-01",
+        endDate: "2026-06-01",
+        amount: 100,
+      }).success
+    ).toBe(true);
+  });
+
+  it("allows open-ended ranges (no endDate)", () => {
+    expect(
+      createCommittedItemSchema.safeParse({
+        name: "Rent",
+        amount: 1,
+        subcategoryId: "sub1",
+        dueDate: "2026-01-01",
+        startDate: "2026-01-01",
+      }).success
+    ).toBe(true);
   });
 });

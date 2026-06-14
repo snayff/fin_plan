@@ -2,11 +2,26 @@ import type { FastifyInstance } from "fastify";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { plannerService } from "../services/planner.service.js";
 import { actorCtx } from "../lib/actor-ctx.js";
+import { ValidationError } from "../utils/errors.js";
 import {
   createPurchaseSchema,
   updatePurchaseSchema,
   upsertYearBudgetSchema,
+  yearSchema,
 } from "@finplan/shared";
+
+/**
+ * Parse and validate a calendar-year input (query string or route param).
+ * Rejects NaN / non-integer / out-of-range values with a 400 rather than
+ * letting an unbounded year reach the database (#134).
+ */
+function parseYear(raw: string | undefined): number {
+  const parsed = yearSchema.safeParse(raw === undefined ? undefined : Number(raw));
+  if (!parsed.success) {
+    throw new ValidationError("year must be a valid calendar year");
+  }
+  return parsed.data;
+}
 
 export async function plannerRoutes(fastify: FastifyInstance) {
   const pre = { preHandler: [authMiddleware] };
@@ -15,7 +30,7 @@ export async function plannerRoutes(fastify: FastifyInstance) {
 
   fastify.get("/purchases", pre, async (req, reply) => {
     const { year } = req.query as { year?: string };
-    const y = year ? parseInt(year, 10) : new Date().getFullYear();
+    const y = year ? parseYear(year) : new Date().getFullYear();
     const purchases = await plannerService.listPurchases(req.householdId!, y);
     return reply.send(purchases);
   });
@@ -43,7 +58,7 @@ export async function plannerRoutes(fastify: FastifyInstance) {
 
   fastify.get("/budget/:year", pre, async (req, reply) => {
     const { year } = req.params as { year: string };
-    const budget = await plannerService.getYearBudget(req.householdId!, parseInt(year, 10));
+    const budget = await plannerService.getYearBudget(req.householdId!, parseYear(year));
     return reply.send(budget);
   });
 
@@ -52,7 +67,7 @@ export async function plannerRoutes(fastify: FastifyInstance) {
     const data = upsertYearBudgetSchema.parse(req.body);
     const budget = await plannerService.upsertYearBudget(
       req.householdId!,
-      parseInt(year, 10),
+      parseYear(year),
       data,
       actorCtx(req)
     );

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IncomeFrequencyEnum, SpendTypeEnum } from "./waterfall.schemas";
-import { MONEY_MAX } from "./common.schemas";
+import { MONEY_MAX, boundedDate } from "./common.schemas";
 
 const CURRENT_SCHEMA_VERSION = 2;
 
@@ -34,7 +34,7 @@ const exportIncomeSourceSchema = z.object({
   name: importName,
   frequency: IncomeFrequencyEnum,
   incomeType: z.enum(["salary", "dividends", "freelance", "rental", "benefits", "other"]),
-  dueDate: z.coerce.date(),
+  dueDate: boundedDate,
   ownerName: importName.nullable().optional(),
   sortOrder: importSortOrder,
   lastReviewedAt: z.string().datetime(),
@@ -54,7 +54,7 @@ const exportCommittedItemSchema = z.object({
   spendType: SpendTypeEnum,
   notes: importNotes.nullable().optional(),
   ownerName: importName.nullable().optional(),
-  dueDate: z.coerce.date(),
+  dueDate: boundedDate,
   sortOrder: importSortOrder,
   lastReviewedAt: z.string().datetime(),
   periods: z.array(
@@ -72,7 +72,7 @@ const exportDiscretionaryItemSchema = z.object({
   spendType: SpendTypeEnum,
   notes: importNotes.nullable().optional(),
   ownerName: importName.nullable().optional(),
-  dueDate: z.coerce.date().nullable(),
+  dueDate: boundedDate.nullable(),
   sortOrder: importSortOrder,
   lastReviewedAt: z.string().datetime(),
   periods: z.array(

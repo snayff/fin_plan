@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { idSchema, nonNegativeMoneySchema, notesSchema, positiveMoneySchema } from "./common.schemas";
+import {
+  idSchema,
+  nameSchema,
+  nonNegativeMoneySchema,
+  notesSchema,
+  positiveMoneySchema,
+} from "./common.schemas";
 
 export const assetTypeSchema = z.enum(["Property", "Vehicle", "Other"]);
 export const accountTypeSchema = z.enum([
@@ -41,7 +47,7 @@ const disposalRefineMessage: { message: string; path: (string | number)[] } = {
 // Asset CRUD
 export const createAssetSchema = z
   .object({
-    name: z.string().min(1).max(100).trim(),
+    name: nameSchema,
     type: assetTypeSchema,
     memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
@@ -52,7 +58,7 @@ export const createAssetSchema = z
 
 export const updateAssetSchema = z
   .object({
-    name: z.string().min(1).max(100).trim().optional(),
+    name: nameSchema.optional(),
     memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
     ...disposalPair,
@@ -88,7 +94,7 @@ const isaRefineMessage: { message: string; path: (string | number)[] } = {
 // Account CRUD
 export const createAccountSchema = z
   .object({
-    name: z.string().min(1).max(100).trim(),
+    name: nameSchema,
     type: accountTypeSchema,
     memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(0).max(100).nullable().optional(),
@@ -104,7 +110,7 @@ export const createAccountSchema = z
 
 export const updateAccountSchema = z
   .object({
-    name: z.string().min(1).max(100).trim().optional(),
+    name: nameSchema.optional(),
     memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(0).max(100).nullable().optional(),
     monthlyContributionLimit: nonNegativeMoneySchema.nullable().optional(),
@@ -155,6 +161,11 @@ export const isaAllowanceSummarySchema = z.object({
   daysRemaining: z.number().int().min(0),
   annualLimit: z.number().min(0),
   byMember: z.array(isaMemberPositionSchema),
+  // Count of active ISA accounts excluded from byMember because they have no
+  // owning member (data-quality signal; see #143). Defaults to 0 so existing
+  // payloads/fixtures that predate this field still parse; the backend always
+  // sends the real count.
+  memberlessIsaCount: z.number().int().min(0).default(0),
 });
 
 export type IsaMemberPosition = z.infer<typeof isaMemberPositionSchema>;

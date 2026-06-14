@@ -140,17 +140,19 @@ describe("plannerService.getYearBudget", () => {
     expect(prismaMock.plannerYearBudget.create).not.toHaveBeenCalled();
   });
 
-  it("auto-creates with defaults when not found", async () => {
+  it("returns transient defaults without creating a row when not found (#179)", async () => {
     prismaMock.plannerYearBudget.findUnique.mockResolvedValue(null);
-    prismaMock.plannerYearBudget.create.mockResolvedValue({
+
+    const result = await plannerService.getYearBudget("hh-1", 2025);
+
+    // GET must be side-effect free: no row created on read.
+    expect(prismaMock.plannerYearBudget.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      id: null,
       householdId: "hh-1",
       year: 2025,
-    } as any);
-
-    await plannerService.getYearBudget("hh-1", 2025);
-
-    expect(prismaMock.plannerYearBudget.create).toHaveBeenCalledWith({
-      data: { householdId: "hh-1", year: 2025 },
+      purchaseBudget: 0,
+      giftBudget: 0,
     });
   });
 });
