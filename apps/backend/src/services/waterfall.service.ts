@@ -166,7 +166,11 @@ function buildSubcategoryTotals(
     const entry = map.get(subId)!;
 
     const freq = item.spendType ?? item.frequency;
-    const monthlyAmount = freq ? toMonthlyAmount(item.amount, freq) : item.amount;
+    const rawMonthly = freq ? toMonthlyAmount(item.amount, freq) : item.amount;
+    // ONE rounding convention everywhere: round-then-sum (#120). Each line item
+    // is displayed at its rounded monthly value, so summing the rounded values
+    // guarantees the subcategory/tier totals equal the sum of the displayed parts.
+    const monthlyAmount = toGBP(rawMonthly);
 
     entry.total += monthlyAmount;
     entry.count += 1;
@@ -188,6 +192,22 @@ function buildSubcategoryTotals(
       itemCount: entry.count,
     };
   });
+}
+
+/**
+ * Round-then-sum a set of items' monthly-equivalent amounts (#120).
+ *
+ * The waterfall rounds at the final-assembly stage only and uses ONE convention
+ * everywhere: each item is rounded to GBP precision and the rounded values are
+ * summed. Because every displayed line item shows its rounded monthly value,
+ * summing those same rounded values keeps tier totals equal to the sum of the
+ * visible parts (no penny drift between stages).
+ */
+function sumRoundedMonthly<T extends { amount: number }>(
+  items: T[],
+  freqOf: (item: T) => SpendType | IncomeFrequency
+): number {
+  return toGBP(items.reduce((s, i) => s + toGBP(toMonthlyAmount(i.amount, freqOf(i))), 0));
 }
 
 // ─── Initial-period helper ───────────────────────────────────────────────────
@@ -318,11 +338,9 @@ export const waterfallService = {
     );
     const oneOffIncome = activeIncome.filter((s) => s.frequency === "one_off");
 
-    const incomeTotal = toGBP(
-      [...monthlyLikeIncome, ...nonMonthlyIncome].reduce(
-        (s, i) => s + toMonthlyAmount(i.amount, i.frequency),
-        0
-      )
+    const incomeTotal = sumRoundedMonthly(
+      [...monthlyLikeIncome, ...nonMonthlyIncome],
+      (i) => i.frequency
     );
 
     // Group active non-oneOff sources by incomeType for left panel navigation
@@ -346,10 +364,7 @@ export const waterfallService = {
     const byType: IncomeByType[] = Array.from(typeMap.entries()).map(([type, sources]) => ({
       type,
       label: INCOME_TYPE_LABELS[type],
-      monthlyTotal: sources.reduce(
-        (sum, src) => sum + toMonthlyAmount(src.amount, src.frequency),
-        0
-      ),
+      monthlyTotal: sumRoundedMonthly(sources, (src) => src.frequency),
       sources,
     }));
 
@@ -361,13 +376,8 @@ export const waterfallService = {
     const nonMonthlyCommitted = activeCommitted.filter(
       (i) => i.spendType === "yearly" || i.spendType === "quarterly"
     );
-    const committedMonthlyTotal = monthlyLikeCommitted.reduce(
-      (s, b) => s + toMonthlyAmount(b.amount, b.spendType),
-      0
-    );
-    const nonMonthlyMonthlyAvg = toGBP(
-      nonMonthlyCommitted.reduce((s, b) => s + toMonthlyAmount(b.amount, b.spendType), 0)
-    );
+    const committedMonthlyTotal = sumRoundedMonthly(monthlyLikeCommitted, (b) => b.spendType);
+    const nonMonthlyMonthlyAvg = sumRoundedMonthly(nonMonthlyCommitted, (b) => b.spendType);
 
     // Detect savings subcategory to split discretionary items
     const savingsSubcategory =
@@ -381,15 +391,11 @@ export const waterfallService = {
       : activeDiscretionary;
 
     // Discretionary: all items summed for waterfall total
-    const discretionaryTotal = activeDiscretionary.reduce(
-      (s, c) => s + toMonthlyAmount(c.amount, c.spendType),
-      0
-    );
-    const savingsTotal = savingsItems.reduce(
-      (s, a) => s + toMonthlyAmount(a.amount, a.spendType),
-      0
-    );
+    const discretionaryTotal = sumRoundedMonthly(activeDiscretionary, (c) => c.spendType);
+    const savingsTotal = sumRoundedMonthly(savingsItems, (a) => a.spendType);
 
+    // Derive surplus from the ALREADY-ROUNDED tier totals so the displayed parts
+    // always add up to the displayed total — no penny drift between stages (#120).
     const surplusAmount = toGBP(
       incomeTotal - committedMonthlyTotal - nonMonthlyMonthlyAvg - discretionaryTotal
     );
@@ -444,13 +450,13 @@ export const waterfallService = {
         bySubcategory: discretionaryBySubcategory,
         categories: categoryItems.map((c) => ({
           ...c,
-          monthlyBudget: toMonthlyAmount(c.amount, c.spendType ?? "monthly"),
+          monthlyBudget: toGBP(toMonthlyAmount(c.amount, c.spendType ?? "monthly")),
         })),
         savings: {
           total: savingsTotal,
           allocations: savingsItems.map((a) => ({
             ...a,
-            monthlyAmount: toMonthlyAmount(a.amount, a.spendType ?? "monthly"),
+            monthlyAmount: toGBP(toMonthlyAmount(a.amount, a.spendType ?? "monthly")),
           })),
         },
       },

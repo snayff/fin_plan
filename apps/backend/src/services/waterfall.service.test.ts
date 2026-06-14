@@ -746,6 +746,68 @@ describe("waterfallService.getWaterfallSummary — consolidated models", () => {
   });
 });
 
+describe("waterfallService.getWaterfallSummary — rounding consistency (#120)", () => {
+  it("subcategory total and tier total equal the sum of the rounded displayed parts", async () => {
+    // Three items of £33.333… each. With round-then-sum the displayed parts
+    // (33.33 each) sum to 99.99 and BOTH the subcategory total and the tier
+    // total must equal exactly that — never 100.00 from sum-then-round drift.
+    const third = 100 / 3; // 33.3333…
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.committedItem.findMany.mockResolvedValue([]);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([
+      {
+        id: "d1",
+        householdId: "hh-1",
+        name: "A",
+        spendType: "monthly",
+        subcategoryId: "sub-food",
+        sortOrder: 0,
+        lastReviewedAt: new Date(),
+      },
+      {
+        id: "d2",
+        householdId: "hh-1",
+        name: "B",
+        spendType: "monthly",
+        subcategoryId: "sub-food",
+        sortOrder: 1,
+        lastReviewedAt: new Date(),
+      },
+      {
+        id: "d3",
+        householdId: "hh-1",
+        name: "C",
+        spendType: "monthly",
+        subcategoryId: "sub-food",
+        sortOrder: 2,
+        lastReviewedAt: new Date(),
+      },
+    ] as any);
+    prismaMock.subcategory.findMany.mockResolvedValue([
+      { id: "sub-food", name: "Food", tier: "discretionary", sortOrder: 0 },
+    ] as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      makePeriod("discretionary_item", "d1", third),
+      makePeriod("discretionary_item", "d2", third),
+      makePeriod("discretionary_item", "d3", third),
+    ]);
+
+    const summary = await waterfallService.getWaterfallSummary("hh-1");
+
+    const parts = summary.discretionary.categories.map((c) => c.monthlyBudget);
+    const partsSum = parts.reduce((s, v) => s + v, 0);
+
+    // Each displayed part is rounded to 33.33; three of them sum to 99.99.
+    expect(parts).toEqual([33.33, 33.33, 33.33]);
+    expect(partsSum).toBe(99.99);
+    // Tier total equals the sum of the displayed parts (no penny drift).
+    expect(summary.discretionary.total).toBe(99.99);
+    // Subcategory total likewise equals the displayed parts' sum.
+    const foodSub = summary.discretionary.bySubcategory.find((s) => s.name === "Food")!;
+    expect(foodSub.monthlyTotal).toBe(99.99);
+  });
+});
+
 describe("waterfallService.deleteAll — with subcategories", () => {
   it("deletes all items, periods, and subcategories", async () => {
     prismaMock.incomeSource.findMany.mockResolvedValue([]);
