@@ -2,8 +2,28 @@ import { describe, it, expect, mock } from "bun:test";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { CommittedBillRow } from "@finplan/shared";
 
+// Mutable settings so individual tests can vary the committed_item threshold.
+let _settings: { showPence: boolean; stalenessThresholds?: Record<string, number> } = {
+  showPence: false,
+  stalenessThresholds: { committed_item: 6 },
+};
+
 mock.module("@/hooks/useSettings", () => ({
-  useSettings: () => ({ data: { showPence: false, stalenessThresholds: { committed_bill: 6 } } }),
+  useSettings: () => ({ data: _settings }),
+  // Real resolution logic so a custom threshold actually takes effect.
+  getStalenessMonths: (
+    settings: { stalenessThresholds?: Record<string, number> } | null | undefined,
+    itemType: string
+  ) => {
+    const defaults: Record<string, number> = {
+      income_source: 12,
+      committed_item: 6,
+      discretionary_item: 12,
+      asset_item: 12,
+      account_item: 3,
+    };
+    return settings?.stalenessThresholds?.[itemType] ?? defaults[itemType] ?? 12;
+  },
 }));
 
 import { CommittedBillsPanel } from "./CommittedBillsPanel";
@@ -63,6 +83,39 @@ describe("CommittedBillsPanel", () => {
     expect(onSelectBill).toHaveBeenCalledWith(
       expect.objectContaining({ id: "bill-1", type: "committed_bill", amount: 1200 })
     );
+  });
+
+  it("shows/hides the stale badge based on the custom committed_item threshold (#112)", () => {
+    // Reviewed ~9 months before the test 'now'.
+    const bill = buildBill({ lastReviewedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 280) });
+
+    // Threshold 6 months -> stale -> badge visible.
+    _settings = { showPence: false, stalenessThresholds: { committed_item: 6 } };
+    const { unmount } = render(
+      <CommittedBillsPanel
+        bills={[bill]}
+        onSelectBill={() => {}}
+        onBack={() => {}}
+        selectedItemId={null}
+      />
+    );
+    expect(screen.getByText(/mo ago/)).toBeTruthy();
+    unmount();
+
+    // Threshold 24 months -> not stale -> no badge.
+    _settings = { showPence: false, stalenessThresholds: { committed_item: 24 } };
+    render(
+      <CommittedBillsPanel
+        bills={[bill]}
+        onSelectBill={() => {}}
+        onBack={() => {}}
+        selectedItemId={null}
+      />
+    );
+    expect(screen.queryByText(/mo ago/)).toBeNull();
+
+    // Reset for any later tests.
+    _settings = { showPence: false, stalenessThresholds: { committed_item: 6 } };
   });
 
   it("fires onBack from the breadcrumb button", () => {

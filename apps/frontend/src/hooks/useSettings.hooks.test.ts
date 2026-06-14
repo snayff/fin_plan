@@ -236,6 +236,21 @@ describe("useSettings mutation hooks", () => {
     expect(qc.getQueryData(["gifts", "state"])).toBeUndefined();
   });
 
+  it("still purges caches when the post-delete getCurrentUser fails (#146g)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["forecast"], { years: [2026] });
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    authService.getCurrentUser.mockRejectedValueOnce(new Error("me failed"));
+
+    await run(renderHook(() => hooks.useDeleteHousehold(), { wrapper }).result, "h1");
+
+    // The /me failure must not abort the cache purge.
+    expect(qc.getQueryData(["forecast"])).toBeUndefined();
+  });
+
   it("useUpdateMemberRole optimistically updates the cached role", async () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

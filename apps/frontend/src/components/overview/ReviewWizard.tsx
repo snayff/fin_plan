@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/utils/format";
 import { isStale } from "@/utils/staleness";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths, type StalenessItemType } from "@/hooks/useSettings";
 import { useCreateSnapshot } from "@/hooks/useSettings";
 import { waterfallService } from "@/services/waterfall.service";
 import type { WaterfallItemType } from "@finplan/shared";
@@ -223,13 +223,6 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
   }, [session, sessionLoading, initialized]);
 
   const items = useStepItems(currentStep);
-  const thresholds = settings?.stalenessThresholds ?? {
-    income_source: 12,
-    committed_bill: 6,
-    yearly_bill: 12,
-    discretionary_category: 12,
-    savings_allocation: 12,
-  };
 
   const TYPE_MAP: Record<number, WaterfallItemType> = {
     0: "income_source",
@@ -245,15 +238,16 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
     3: "discretionary",
   };
 
-  function getThreshold(step: number, item: ReviewItem): number {
-    if (step === 3) {
-      return item.monthlyBudget !== undefined
-        ? ((thresholds as Record<string, number | undefined>)["discretionary_category"] ?? 12)
-        : ((thresholds as Record<string, number | undefined>)["savings_allocation"] ?? 12);
-    }
-    const key = TYPE_MAP[step];
-    if (!key) return 12;
-    return (thresholds as Record<string, number | undefined>)[key] ?? 12;
+  // Steps map onto canonical staleness keys so custom thresholds are honoured.
+  const STEP_STALENESS: Record<number, StalenessItemType> = {
+    0: "income_source",
+    1: "committed_item",
+    2: "committed_item",
+    3: "discretionary_item",
+  };
+
+  function getThreshold(step: number, _item: ReviewItem): number {
+    return getStalenessMonths(settings, STEP_STALENESS[step] ?? "discretionary_item");
   }
 
   function getItemAmount(item: ReviewItem): number {

@@ -66,7 +66,23 @@ mock.module("@/lib/toast", () => ({
   showSuccess: mock(() => {}),
 }));
 
-const { useUpdateSettings } = await import("./useSettings");
+const { useUpdateSettings, getStalenessMonths, STALENESS_DEFAULTS } = await import("./useSettings");
+
+describe("getStalenessMonths", () => {
+  it("returns canonical defaults when no custom thresholds are set", () => {
+    expect(getStalenessMonths(null, "income_source")).toBe(STALENESS_DEFAULTS.income_source);
+    expect(getStalenessMonths(undefined, "committed_item")).toBe(STALENESS_DEFAULTS.committed_item);
+    expect(getStalenessMonths({}, "account_item")).toBe(3);
+  });
+
+  it("honours a custom threshold for the requested item type", () => {
+    const settings = { stalenessThresholds: { committed_item: 1, account_item: 24 } };
+    expect(getStalenessMonths(settings, "committed_item")).toBe(1);
+    expect(getStalenessMonths(settings, "account_item")).toBe(24);
+    // Unset keys still fall back to defaults.
+    expect(getStalenessMonths(settings, "income_source")).toBe(STALENESS_DEFAULTS.income_source);
+  });
+});
 
 function wrapper({ children }: { children: any }) {
   const qc = new QueryClient({

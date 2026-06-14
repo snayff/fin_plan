@@ -25,6 +25,7 @@ interface Props {
   items: TierItemRow[];
   members: Member[];
   total: number;
+  showPence: boolean;
   onCreateSubcategory: (name: string) => Promise<unknown>;
   onSaveName: (id: string, name: string) => Promise<unknown>;
   onSaveAmount: (id: string, amount: number) => Promise<unknown>;
@@ -46,6 +47,7 @@ export function WaterfallTierTable({
   items,
   members,
   total,
+  showPence,
   onCreateSubcategory,
   onSaveName,
   onSaveAmount,
@@ -103,7 +105,7 @@ export function WaterfallTierTable({
           </h3>
         </div>
         <span className="font-numeric tabular-nums text-sm text-text-secondary">
-          {formatCurrency(total)}/mo
+          {formatCurrency(total, showPence)}/mo
         </span>
       </div>
 
@@ -151,6 +153,7 @@ export function WaterfallTierTable({
                 subcategory={subcategory}
                 items={groupItems}
                 members={members}
+                showPence={showPence}
                 onAddDraft={handleAddDraft}
                 onDeleteItem={onDeleteItem}
                 onSaveName={onSaveName}
@@ -167,6 +170,7 @@ export function WaterfallTierTable({
                 }}
                 items={orphanItems}
                 members={members}
+                showPence={showPence}
                 onAddDraft={handleAddDraft}
                 onDeleteItem={onDeleteItem}
                 onSaveName={onSaveName}

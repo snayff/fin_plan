@@ -18,5 +18,5 @@ export function useStaleDataBanner() {
     return unsub;
   }, [cache]);
 
-  return { showBanner: erroredAt !== null, lastSyncedAt: erroredAt };
+  return { showBanner: erroredAt !== null, erroredAt };
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "bun:test";
+import { toMonthlyAmount } from "@finplan/shared";
 import { extractDrillItems } from "./doughnutData";
 import type { WaterfallSummary } from "@finplan/shared";
 
@@ -74,6 +75,37 @@ describe("extractDrillItems", () => {
 
     const insurance = items.find((i) => i.name === "Home Insurance");
     expect(insurance?.amount).toBe(300); // 3600 / 12
+  });
+
+  it("converts a weekly committed bill to its monthly equivalent", () => {
+    const summary = {
+      ...baseSummary,
+      committed: {
+        ...baseSummary.committed,
+        bills: [
+          {
+            id: "bw",
+            householdId: "h1",
+            name: "Cleaner",
+            amount: 50,
+            memberId: null,
+            sortOrder: 0,
+            lastReviewedAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            subcategoryId: "s1",
+            spendType: "weekly" as const,
+          },
+        ],
+        nonMonthlyBills: [],
+      },
+    };
+    const items = extractDrillItems("committed", summary);
+    const cleaner = items.find((i) => i.name === "Cleaner");
+    expect(cleaner?.amount).toBe(toMonthlyAmount(50, "weekly"));
+    // Single segment sums to the tier total of all segments.
+    const segmentTotal = items.reduce((sum, i) => sum + i.amount, 0);
+    expect(segmentTotal).toBe(toMonthlyAmount(50, "weekly"));
   });
 
   it("combines discretionary categories and savings for discretionary tier", () => {

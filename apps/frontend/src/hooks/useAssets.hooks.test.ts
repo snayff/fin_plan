@@ -133,6 +133,21 @@ describe("useAssets mutation hooks", () => {
     expect(svc.confirmAccount.mock.calls[0]?.[0]).toBe("ac1");
   });
 
+  it("invalidates cashflow projection and month on an asset mutation (#146d)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const spy = mock(qc.invalidateQueries.bind(qc));
+    qc.invalidateQueries = spy as typeof qc.invalidateQueries;
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => hooks.useCreateAsset(), { wrapper });
+    await run(result, { name: "x" });
+    const keys = spy.mock.calls.map((c: any) => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toContain(JSON.stringify(["cashflow", "projection"]));
+    expect(keys).toContain(JSON.stringify(["cashflow", "month"]));
+  });
+
   it("surfaces a toast when an asset mutation fails", async () => {
     svc.createAsset.mockRejectedValueOnce(new Error("boom"));
     const { result } = renderHook(() => hooks.useCreateAsset(), { wrapper: makeWrapper() });

@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { toMonthlyAmount } from "@finplan/shared";
 import SubcategoryList from "./SubcategoryList";
 import ItemArea, { type LockedManager } from "./ItemArea";
 import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
@@ -7,7 +8,12 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { AttentionStrip } from "@/components/common/AttentionStrip";
 import { ShortfallTooltip } from "@/components/common/ShortfallTooltip";
 import { useSubcategories, useTierItems, type TierItemRow } from "@/hooks/useWaterfall";
-import { useHouseholdMembers, useSettings } from "@/hooks/useSettings";
+import {
+  useHouseholdMembers,
+  useSettings,
+  getStalenessMonths,
+  type StalenessItemType,
+} from "@/hooks/useSettings";
 import { useGiftPlannerSettings } from "@/hooks/useGifts";
 import { useTierShortfall } from "@/hooks/useShortfall";
 import { useUrlSelection } from "@/hooks/useUrlSelection";
@@ -34,6 +40,12 @@ export default function TierPage({ tier }: TierPageProps) {
   const { data: members } = useHouseholdMembers();
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
+  const TIER_STALENESS: Record<TierKey, StalenessItemType> = {
+    income: "income_source",
+    committed: "committed_item",
+    discretionary: "discretionary_item",
+  };
+  const stalenessMonths = getStalenessMonths(settings, TIER_STALENESS[tier]);
 
   const hasAddParam = searchParams.get("add") === "1";
   useAddParam((_kind) => {
@@ -63,7 +75,7 @@ export default function TierPage({ tier }: TierPageProps) {
           items: [],
         };
       }
-      const monthly = item.spendType === "monthly" ? item.amount : Math.round(item.amount / 12);
+      const monthly = toMonthlyAmount(item.amount, item.spendType);
       groups[sid].total += monthly;
       groups[sid].items.push(item);
     }
@@ -77,7 +89,9 @@ export default function TierPage({ tier }: TierPageProps) {
   // Defaults to the first subcategory when nothing is selected (desktop) but
   // stays `null` on mobile to render the left panel (list view) on load.
   const validateSubcategory = useCallback(
-    (v: string) => !!subcategories?.some((s) => s.id === v),
+    // Until subcategories load, treat any id as valid so a deep-linked
+    // ?subcategory= survives the first render instead of being stripped.
+    (v: string) => (subcategories ? subcategories.some((s) => s.id === v) : true),
     [subcategories]
   );
   const [urlSelectedId, setSelectedId, clearSelection] = useUrlSelection({
@@ -163,6 +177,7 @@ export default function TierPage({ tier }: TierPageProps) {
             members={members.map((m) => ({ id: m.id, firstName: m.firstName }))}
             items={selectedSummary?.items ?? []}
             isLoading={itemsLoading}
+            stalenessMonths={stalenessMonths}
             initialIsAdding={hasAddParam}
             onSubcategorySelect={setSelectedId}
             lockedManager={lockedManager}

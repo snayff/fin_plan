@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 
 interface StaleDataBannerProps {
-  lastSyncedAt: Date | null;
+  erroredAt: Date | null;
   onRetry: () => void;
 }
 
-export function StaleDataBanner({ lastSyncedAt, onRetry }: StaleDataBannerProps) {
+export function StaleDataBanner({ erroredAt, onRetry }: StaleDataBannerProps) {
   const [, forceRender] = useState(0);
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export function StaleDataBanner({ lastSyncedAt, onRetry }: StaleDataBannerProps)
     return () => clearInterval(interval);
   }, []);
 
-  const timeAgo = lastSyncedAt ? formatDistanceToNow(lastSyncedAt, { addSuffix: true }) : "unknown";
+  const timeAgo = erroredAt ? formatDistanceToNow(erroredAt, { addSuffix: true }) : "unknown";
 
   return (
     <div

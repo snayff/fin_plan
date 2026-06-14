@@ -5,9 +5,10 @@ interface Props {
   income: number;
   committed: number;
   discretionary: number;
+  showPence: boolean;
 }
 
-export function SurplusStrip({ income, committed, discretionary }: Props) {
+export function SurplusStrip({ income, committed, discretionary, showPence }: Props) {
   const surplus = toGBP(income - committed - discretionary);
   const pct = income > 0 ? (surplus / income) * 100 : null;
 
@@ -18,7 +19,7 @@ export function SurplusStrip({ income, committed, discretionary }: Props) {
     >
       <span className="font-heading text-xs font-bold uppercase tracking-widest">= SURPLUS</span>
       <span className="font-numeric text-base font-semibold tabular-nums">
-        {formatCurrency(surplus)}
+        {formatCurrency(surplus, showPence)}
         {pct !== null && (
           <span className="ml-2 text-xs text-tier-surplus/70">· {pct.toFixed(1)}%</span>
         )}

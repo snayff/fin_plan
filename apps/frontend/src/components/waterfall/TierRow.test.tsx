@@ -25,6 +25,7 @@ describe("TierRow (income)", () => {
             tier="income"
             item={mockItem as any}
             members={[]}
+            showPence={false}
             onSaveName={mock(() => Promise.resolve())}
             onSaveAmount={mock(() => Promise.resolve())}
             onDelete={mock(() => Promise.resolve())}
@@ -44,6 +45,7 @@ describe("TierRow (income)", () => {
             tier="income"
             item={{ ...mockItem, memberId: null } as any}
             members={[]}
+            showPence={false}
             onSaveName={mock(() => Promise.resolve())}
             onSaveAmount={mock(() => Promise.resolve())}
             onDelete={mock(() => Promise.resolve())}
@@ -62,6 +64,7 @@ describe("TierRow (income)", () => {
             tier="committed"
             item={{ ...mockItem, memberId: "m1" } as any}
             members={[{ id: "m1", firstName: "Alice", name: "Alice Smith" }]}
+            showPence={false}
             onSaveName={mock(() => Promise.resolve())}
             onSaveAmount={mock(() => Promise.resolve())}
             onDelete={mock(() => Promise.resolve())}
@@ -80,6 +83,7 @@ describe("TierRow (income)", () => {
             tier="income"
             item={mockItem as any}
             members={[]}
+            showPence={false}
             onSaveName={mock(() => Promise.resolve())}
             onSaveAmount={mock(() => Promise.resolve())}
             onDelete={mock(() => Promise.resolve())}
@@ -99,6 +103,7 @@ describe("TierRow (income)", () => {
             tier="committed"
             item={{ ...mockItem, spendType: "monthly" } as any}
             members={[]}
+            showPence={false}
             onSaveName={mock(() => Promise.resolve())}
             onSaveAmount={mock(() => Promise.resolve())}
             onDelete={mock(() => Promise.resolve())}

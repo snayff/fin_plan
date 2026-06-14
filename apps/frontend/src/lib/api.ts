@@ -13,6 +13,12 @@ export interface ApiError {
   statusCode: number;
 }
 
+/** Shape of a parsed response body we care about for error extraction. */
+interface ResponseEnvelope {
+  error?: { message?: string; code?: string };
+  [key: string]: unknown;
+}
+
 export class ApiClient {
   private baseUrl: string;
   private isRefreshing = false;
@@ -117,15 +123,17 @@ export class ApiClient {
       };
 
       const response = await fetch(url, config);
-      const data =
+      // Tolerate empty and non-JSON bodies (e.g. 204, empty 401, 502 HTML).
+      // `response.status` stays authoritative for the control-flow branches below.
+      const data: ResponseEnvelope | undefined =
         response.status === 204 || response.headers.get("content-length") === "0"
           ? undefined
-          : await response.json();
+          : ((await response.json().catch(() => undefined)) as ResponseEnvelope | undefined);
 
       if (!response.ok) {
         const apiError: ApiError = {
-          message: data.error?.message || "Request failed",
-          code: data.error?.code,
+          message: data?.error?.message || "Request failed",
+          code: data?.error?.code,
           statusCode: response.status,
         };
 
@@ -152,7 +160,7 @@ export class ApiClient {
         }
 
         // Handle CSRF token errors
-        if (response.status === 403 && data.error?.code === "FST_CSRF_INVALID_TOKEN") {
+        if (response.status === 403 && data?.error?.code === "FST_CSRF_INVALID_TOKEN") {
           // Clear cached CSRF token and retry
           this.csrfToken = null;
           if (!isRetry) {

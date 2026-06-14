@@ -101,7 +101,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     navigate("/login");
   }, [logout, navigate]);
 
-  const { showBanner, lastSyncedAt } = useStaleDataBanner();
+  const { showBanner, erroredAt } = useStaleDataBanner();
   const qc = useQueryClient();
 
   const handleBannerRetry = useCallback(() => {
@@ -223,7 +223,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      {showBanner && <StaleDataBanner lastSyncedAt={lastSyncedAt} onRetry={handleBannerRetry} />}
+      {showBanner && <StaleDataBanner erroredAt={erroredAt} onRetry={handleBannerRetry} />}
 
       {/* Page content */}
       <main id="main-content" className="flex-1 min-h-0 overflow-hidden">

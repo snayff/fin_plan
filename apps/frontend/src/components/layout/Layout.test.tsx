@@ -6,7 +6,7 @@ import Layout from "./Layout";
 import { useAuthStore } from "@/stores/authStore";
 
 mock.module("@/hooks/useStaleDataBanner", () => ({
-  useStaleDataBanner: () => ({ showBanner: false, lastSyncedAt: null }),
+  useStaleDataBanner: () => ({ showBanner: false, erroredAt: null }),
 }));
 
 function renderLayout(path = "/overview") {
@@ -57,7 +57,7 @@ describe("TopNav", () => {
 
   it("shows StaleDataBanner when showBanner is true", () => {
     mock.module("@/hooks/useStaleDataBanner", () => ({
-      useStaleDataBanner: () => ({ showBanner: true, lastSyncedAt: new Date() }),
+      useStaleDataBanner: () => ({ showBanner: true, erroredAt: new Date() }),
     }));
     renderLayout();
     expect(screen.getByText(/couldn't sync/i)).toBeTruthy();

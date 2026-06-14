@@ -16,6 +16,7 @@ interface Props {
   tier: "income" | "committed" | "discretionary";
   item: TierItemRowWithDraft;
   members: Member[];
+  showPence: boolean;
   onSaveName: (name: string) => Promise<unknown>;
   onSaveAmount: (amount: number) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
@@ -49,7 +50,15 @@ function formatDueDate(item: TierItemRowWithDraft): string {
   return "—";
 }
 
-export function TierRow({ tier, item, members, onSaveName, onSaveAmount, onDelete }: Props) {
+export function TierRow({
+  tier,
+  item,
+  members,
+  showPence,
+  onSaveName,
+  onSaveAmount,
+  onDelete,
+}: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -157,8 +166,8 @@ export function TierRow({ tier, item, members, onSaveName, onSaveAmount, onDelet
         {/* /month equivalent */}
         <td className="px-2 py-1.5 text-right font-numeric tabular-nums text-sm text-text-tertiary">
           {tier === "income"
-            ? formatCurrency(item.amount)
-            : formatCurrency(Math.round(item.amount / 12))}
+            ? formatCurrency(item.amount, showPence)
+            : formatCurrency(Math.round(item.amount / 12), showPence)}
         </td>
 
         {/* Delete button */}

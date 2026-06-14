@@ -7,7 +7,7 @@ import { ButtonPair } from "@/components/common/ButtonPair";
 import { HistoryChart } from "./HistoryChart";
 import { useItemHistory, useConfirmItem, useUpdateItem } from "@/hooks/useWaterfall";
 import { isStale, stalenessLabel } from "@/utils/staleness";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths, type StalenessItemType } from "@/hooks/useSettings";
 import { CreateSnapshotModal } from "./CreateSnapshotModal";
 import { NudgeCard } from "@/components/common/NudgeCard";
 import { SkeletonLoader } from "@/components/common/SkeletonLoader";
@@ -70,12 +70,19 @@ export function ItemDetailPanel({
     })
   );
 
-  const thresholdMonths = (() => {
-    const t = settings?.stalenessThresholds;
-    if (!t) return 12;
-    const map: Record<string, number | undefined> = t as Record<string, number | undefined>;
-    return map[item.type] ?? 12;
-  })();
+  // Map the detail-panel item type onto a canonical staleness key so custom
+  // thresholds set in settings are honoured.
+  const stalenessTypeMap: Record<string, StalenessItemType> = {
+    income_source: "income_source",
+    committed_bill: "committed_item",
+    yearly_bill: "committed_item",
+    discretionary_category: "discretionary_item",
+    savings_allocation: "discretionary_item",
+  };
+  const thresholdMonths = getStalenessMonths(
+    settings,
+    stalenessTypeMap[item.type] ?? "discretionary_item"
+  );
   const itemIsStale = isStale(item.lastReviewedAt, thresholdMonths);
 
   const breadcrumbLabel = (() => {

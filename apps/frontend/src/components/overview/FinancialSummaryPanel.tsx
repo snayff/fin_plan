@@ -145,7 +145,10 @@ export function FinancialSummaryPanel({
                 <p className="label-detail mb-2 text-tier-committed">Committed</p>
                 <TierDoughnut
                   tier="committed"
-                  tierTotal={waterfallSummary.committed.monthlyTotal}
+                  tierTotal={
+                    waterfallSummary.committed.monthlyTotal +
+                    waterfallSummary.committed.monthlyAvg12
+                  }
                   subcategories={waterfallSummary.committed.bySubcategory}
                   items={committedItems}
                   isSnapshot={isSnapshot}

@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useFullWaterfall, useCreateSubcategory } from "@/hooks/useWaterfall";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useFullWaterfall,
+  useCreateSubcategory,
+  WATERFALL_KEYS,
+  TIER_ITEM_KEYS,
+} from "@/hooks/useWaterfall";
 import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useSettings, useDismissWaterfallTip, useHouseholdMembers } from "@/hooks/useSettings";
@@ -31,8 +37,10 @@ export default function FullWaterfallPage() {
 
 function FullWaterfallPageBody() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const waterfall = useFullWaterfall();
   const settings = useSettings();
+  const showPence = settings.data?.showPence ?? false;
   const dismissTip = useDismissWaterfallTip();
   const members = useHouseholdMembers();
 
@@ -46,10 +54,15 @@ function FullWaterfallPageBody() {
   useEffect(() => {
     const handleFocus = () => {
       void waterfall.summary.refetch();
+      // Tier-item lists are read from a separate cache; refresh them too so the
+      // tables don't show stale amounts after returning to the tab.
+      void queryClient.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items("income") });
+      void queryClient.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items("committed") });
+      void queryClient.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items("discretionary") });
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [waterfall.summary]);
+  }, [waterfall.summary, queryClient]);
 
   // ── Hash-scroll on mount ──────────────────────────────────────────────────
   useEffect(() => {
@@ -90,12 +103,20 @@ function FullWaterfallPageBody() {
     async (id: string, amount: number): Promise<unknown> => {
       try {
         const itemType = tierToItemType(tier);
-        return await waterfallService.createPeriod({
+        const result = await waterfallService.createPeriod({
           itemType,
           itemId: id,
           amount,
           startDate: new Date(),
         });
+        // Service-layer writes bypass the mutation hooks, so invalidate the
+        // caches those hooks normally refresh to keep totals/forecasts current.
+        void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
+        void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
+        void queryClient.invalidateQueries({ queryKey: ["forecast"] });
+        void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+        void queryClient.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
+        return result;
       } catch (err) {
         setHasSaveFailures(true);
         throw err;
@@ -120,7 +141,10 @@ function FullWaterfallPageBody() {
 
   const summaryData = waterfall.summary.data;
   const incomeTotal = summaryData?.income.total ?? 0;
-  const committedTotal = summaryData?.committed.monthlyTotal ?? 0;
+  // Committed monthly-equivalent includes the amortised average of non-monthly
+  // bills (monthlyAvg12) so the deduction and surplus reflect all committed spend.
+  const committedTotal =
+    (summaryData?.committed.monthlyTotal ?? 0) + (summaryData?.committed.monthlyAvg12 ?? 0);
   const discretionaryTotal = summaryData?.discretionary.total ?? 0;
 
   const allItems = [
@@ -165,13 +189,14 @@ function FullWaterfallPageBody() {
             items={waterfall.items.income}
             members={memberList}
             total={incomeTotal}
+            showPence={showPence}
             onCreateSubcategory={(name) => createIncomeSub.mutateAsync(name)}
             onSaveName={makeSaveName("income")}
             onSaveAmount={makeSaveAmount("income")}
             onDeleteItem={makeDeleteItem("income")}
           />
 
-          <WaterfallConnector text={`−  ${formatCurrency(committedTotal)}  committed`} />
+          <WaterfallConnector text={`−  ${formatCurrency(committedTotal, showPence)}  committed`} />
 
           {/* Committed tier */}
           <WaterfallTierTable
@@ -180,13 +205,16 @@ function FullWaterfallPageBody() {
             items={waterfall.items.committed}
             members={memberList}
             total={committedTotal}
+            showPence={showPence}
             onCreateSubcategory={(name) => createCommittedSub.mutateAsync(name)}
             onSaveName={makeSaveName("committed")}
             onSaveAmount={makeSaveAmount("committed")}
             onDeleteItem={makeDeleteItem("committed")}
           />
 
-          <WaterfallConnector text={`−  ${formatCurrency(discretionaryTotal)}  discretionary`} />
+          <WaterfallConnector
+            text={`−  ${formatCurrency(discretionaryTotal, showPence)}  discretionary`}
+          />
 
           {/* Discretionary tier */}
           <WaterfallTierTable
@@ -195,6 +223,7 @@ function FullWaterfallPageBody() {
             items={waterfall.items.discretionary}
             members={memberList}
             total={discretionaryTotal}
+            showPence={showPence}
             onCreateSubcategory={(name) => createDiscretionarySub.mutateAsync(name)}
             onSaveName={makeSaveName("discretionary")}
             onSaveAmount={makeSaveAmount("discretionary")}
@@ -206,6 +235,7 @@ function FullWaterfallPageBody() {
             income={incomeTotal}
             committed={committedTotal}
             discretionary={discretionaryTotal}
+            showPence={showPence}
           />
         </div>
       </div>

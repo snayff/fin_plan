@@ -1,5 +1,10 @@
 import { describe, it, expect, mock } from "bun:test";
 import { render, screen, fireEvent } from "@testing-library/react";
+
+mock.module("@/hooks/useSettings", () => ({
+  useSettings: () => ({ data: { showPence: false } }),
+}));
+
 import { GiftPersonList } from "./GiftPersonList";
 
 const sample = [
