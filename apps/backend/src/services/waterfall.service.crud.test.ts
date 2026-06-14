@@ -684,3 +684,62 @@ describe("waterfallService.deleteAll", () => {
     });
   });
 });
+
+// ─── #130: item + initial period created atomically ────────────────────────────
+
+describe("waterfallService create methods create the opening period atomically", () => {
+  it("createIncome writes the initial period inside the same transaction", async () => {
+    prismaMock.subcategory.findFirst.mockResolvedValue({ id: "sub-income" } as any);
+    prismaMock.incomeSource.create.mockResolvedValue({ id: "inc-new" } as any);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({ id: "p-new" } as any);
+
+    await waterfallService.createIncome(
+      "hh-1",
+      { name: "Salary", amount: 1000, frequency: "monthly", subcategoryId: "sub-income" } as any,
+      ctx,
+      { startDate: new Date("2026-01-01"), amount: 1000 }
+    );
+
+    expect(prismaMock.incomeSource.create).toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
+      data: {
+        householdId: "hh-1",
+        itemType: "income_source",
+        itemId: "inc-new",
+        startDate: new Date("2026-01-01"),
+        endDate: null,
+        amount: 1000,
+      },
+    });
+  });
+
+  it("rolls the item back when the initial period fails (error propagates)", async () => {
+    // $transaction runs the callback against the same mock; a rejected period
+    // create rejects the whole audited transaction, so the item never commits.
+    prismaMock.subcategory.findFirst.mockResolvedValue({ id: "sub-income" } as any);
+    prismaMock.incomeSource.create.mockResolvedValue({ id: "inc-new" } as any);
+    prismaMock.itemAmountPeriod.create.mockRejectedValue(new Error("period insert failed"));
+
+    await expect(
+      waterfallService.createIncome(
+        "hh-1",
+        { name: "Salary", amount: 1000, frequency: "monthly", subcategoryId: "sub-income" } as any,
+        ctx,
+        { startDate: new Date("2026-01-01"), amount: 1000 }
+      )
+    ).rejects.toThrow("period insert failed");
+  });
+
+  it("does not create any period when no initialPeriod is supplied", async () => {
+    prismaMock.committedItem.create.mockResolvedValue({ id: "ci-new" } as any);
+    prismaMock.subcategory.findFirst.mockResolvedValue({ id: "sub-1" } as any);
+
+    await waterfallService.createCommitted(
+      "hh-1",
+      { name: "Rent", amount: 500, subcategoryId: "sub-1", spendType: "monthly" } as any,
+      ctx
+    );
+
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
+  });
+});

@@ -75,10 +75,8 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/income", preMutation, async (req, reply) => {
     const data = createIncomeSourceSchema.parse(req.body);
-    const source = await waterfallService.createIncome(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod(req.householdId!, {
-      itemType: "income_source",
-      itemId: source.id,
+    // The item and its opening period are created atomically (#130).
+    const source = await waterfallService.createIncome(req.householdId!, data, actorCtx(req), {
       startDate: data.startDate ?? new Date(),
       endDate: data.endDate,
       amount: data.amount,
@@ -114,10 +112,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/committed", preMutation, async (req, reply) => {
     const data = createCommittedItemSchema.parse(req.body);
-    const bill = await waterfallService.createCommitted(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod(req.householdId!, {
-      itemType: "committed_item",
-      itemId: bill.id,
+    const bill = await waterfallService.createCommitted(req.householdId!, data, actorCtx(req), {
       startDate: data.startDate ?? new Date(),
       endDate: data.endDate,
       amount: data.amount,
@@ -153,10 +148,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/yearly", preMutation, async (req, reply) => {
     const data = createCommittedItemSchema.parse(req.body);
-    const bill = await waterfallService.createYearly(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod(req.householdId!, {
-      itemType: "committed_item",
-      itemId: bill.id,
+    const bill = await waterfallService.createYearly(req.householdId!, data, actorCtx(req), {
       startDate: data.startDate ?? new Date(),
       endDate: data.endDate,
       amount: data.amount,
@@ -192,10 +184,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/discretionary", preMutation, async (req, reply) => {
     const data = createDiscretionaryItemSchema.parse(req.body);
-    const cat = await waterfallService.createDiscretionary(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod(req.householdId!, {
-      itemType: "discretionary_item",
-      itemId: cat.id,
+    const cat = await waterfallService.createDiscretionary(req.householdId!, data, actorCtx(req), {
       startDate: data.startDate ?? new Date(),
       endDate: data.endDate,
       amount: data.amount,
@@ -236,10 +225,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/savings", preMutation, async (req, reply) => {
     const data = createDiscretionaryItemSchema.parse(req.body);
-    const alloc = await waterfallService.createSavings(req.householdId!, data, actorCtx(req));
-    await periodService.createPeriod(req.householdId!, {
-      itemType: "discretionary_item",
-      itemId: alloc.id,
+    const alloc = await waterfallService.createSavings(req.householdId!, data, actorCtx(req), {
       startDate: data.startDate ?? new Date(),
       endDate: data.endDate,
       amount: data.amount,
