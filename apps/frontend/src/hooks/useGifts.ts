@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { giftsApi } from "@/services/gifts.service";
 import { showError } from "@/lib/toast";
+import { WATERFALL_KEYS } from "@/hooks/useWaterfall";
 
 export const GIFTS_KEYS = {
   all: ["gifts"] as const,
@@ -85,6 +86,8 @@ export function useCreateGiftPerson() {
       void queryClient.invalidateQueries({ queryKey: ["gifts", "configPeople"] });
       void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
       void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
+      // Adding a person changes the upcoming-gifts view (prefix matches all years).
+      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to add person");
@@ -103,6 +106,8 @@ export function useUpdateGiftPerson() {
       void queryClient.invalidateQueries({ queryKey: ["gifts", "person", id] });
       void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
       void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
+      // Renaming a person updates how they appear in the upcoming-gifts view.
+      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update person");
@@ -275,6 +280,11 @@ export function useSetGiftBudget() {
     onSuccess: (_data, { year }) => {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.state(year) });
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.quickAddMatrix(year) });
+      // Gift budget feeds the discretionary waterfall; refresh dependent caches.
+      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
+      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
+      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update budget");
@@ -309,6 +319,11 @@ export function useSetGiftMode() {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.settings() });
       void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.years() });
+      // Mode (synced vs manual) changes how gifts feed discretionary spend.
+      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
+      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
+      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
   });
 }
