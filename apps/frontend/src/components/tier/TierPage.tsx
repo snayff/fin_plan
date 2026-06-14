@@ -8,7 +8,12 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { AttentionStrip } from "@/components/common/AttentionStrip";
 import { ShortfallTooltip } from "@/components/common/ShortfallTooltip";
 import { useSubcategories, useTierItems, type TierItemRow } from "@/hooks/useWaterfall";
-import { useHouseholdMembers, useSettings } from "@/hooks/useSettings";
+import {
+  useHouseholdMembers,
+  useSettings,
+  getStalenessMonths,
+  type StalenessItemType,
+} from "@/hooks/useSettings";
 import { useGiftPlannerSettings } from "@/hooks/useGifts";
 import { useTierShortfall } from "@/hooks/useShortfall";
 import { useUrlSelection } from "@/hooks/useUrlSelection";
@@ -35,6 +40,12 @@ export default function TierPage({ tier }: TierPageProps) {
   const { data: members } = useHouseholdMembers();
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
+  const TIER_STALENESS: Record<TierKey, StalenessItemType> = {
+    income: "income_source",
+    committed: "committed_item",
+    discretionary: "discretionary_item",
+  };
+  const stalenessMonths = getStalenessMonths(settings, TIER_STALENESS[tier]);
 
   const hasAddParam = searchParams.get("add") === "1";
   useAddParam((_kind) => {
@@ -166,6 +177,7 @@ export default function TierPage({ tier }: TierPageProps) {
             members={members.map((m) => ({ id: m.id, firstName: m.firstName }))}
             items={selectedSummary?.items ?? []}
             isLoading={itemsLoading}
+            stalenessMonths={stalenessMonths}
             initialIsAdding={hasAddParam}
             onSubcategorySelect={setSelectedId}
             lockedManager={lockedManager}

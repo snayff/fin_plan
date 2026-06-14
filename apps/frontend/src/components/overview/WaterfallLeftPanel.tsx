@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { isStale } from "@/utils/staleness";
 import { StalenessIndicator } from "@/components/common/StalenessIndicator";
 import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths } from "@/hooks/useSettings";
 import { WaterfallConnector } from "@/components/overview/WaterfallConnector";
 import { ShortfallBadge } from "@/components/common/ShortfallBadge";
 import { useTierShortfall } from "@/hooks/useShortfall";
@@ -127,14 +127,9 @@ export function WaterfallLeftPanel({
   const committedShortfall = useTierShortfall("committed", { isSnapshot });
   const discretionaryShortfall = useTierShortfall("discretionary", { isSnapshot });
   const showPence = settings?.showPence ?? false;
-  const thresholds = settings?.stalenessThresholds ?? {
-    income_source: 12,
-    committed_bill: 6,
-    yearly_bill: 12,
-    discretionary_category: 12,
-    savings_allocation: 12,
-    wealth_account: 3,
-  };
+  const incomeThreshold = getStalenessMonths(settings, "income_source");
+  const committedThreshold = getStalenessMonths(settings, "committed_item");
+  const discretionaryThreshold = getStalenessMonths(settings, "discretionary_item");
 
   const { income, committed, discretionary, surplus } = summary;
 
@@ -142,15 +137,15 @@ export function WaterfallLeftPanel({
     oldestReviewedAt ? isStale(oldestReviewedAt, thresholdMonths) : false;
 
   const incomeStaleCount = income.bySubcategory.filter((s) =>
-    isSubStale(s.oldestReviewedAt, thresholds.income_source ?? 12)
+    isSubStale(s.oldestReviewedAt, incomeThreshold)
   ).length;
 
   const committedStaleCount = committed.bySubcategory.filter((s) =>
-    isSubStale(s.oldestReviewedAt, thresholds.committed_bill ?? 6)
+    isSubStale(s.oldestReviewedAt, committedThreshold)
   ).length;
 
   const discretionaryStaleCount = discretionary.bySubcategory.filter((s) =>
-    isSubStale(s.oldestReviewedAt, thresholds.discretionary_category ?? 12)
+    isSubStale(s.oldestReviewedAt, discretionaryThreshold)
   ).length;
 
   const surplusBenchmark = settings?.surplusBenchmarkPct ?? 10;
@@ -198,10 +193,10 @@ export function WaterfallLeftPanel({
               >
                 <div className="flex items-center gap-2">
                   <span>{sub.name}</span>
-                  {isSubStale(sub.oldestReviewedAt, thresholds.income_source ?? 12) && (
+                  {isSubStale(sub.oldestReviewedAt, incomeThreshold) && (
                     <StalenessIndicator
                       lastReviewedAt={sub.oldestReviewedAt!}
-                      thresholdMonths={thresholds.income_source ?? 12}
+                      thresholdMonths={incomeThreshold}
                     />
                   )}
                 </div>
@@ -255,10 +250,10 @@ export function WaterfallLeftPanel({
               >
                 <div className="flex items-center gap-2">
                   <span>{sub.name}</span>
-                  {isSubStale(sub.oldestReviewedAt, thresholds.committed_bill ?? 6) && (
+                  {isSubStale(sub.oldestReviewedAt, committedThreshold) && (
                     <StalenessIndicator
                       lastReviewedAt={sub.oldestReviewedAt!}
-                      thresholdMonths={thresholds.committed_bill ?? 6}
+                      thresholdMonths={committedThreshold}
                     />
                   )}
                 </div>
@@ -326,10 +321,10 @@ export function WaterfallLeftPanel({
               >
                 <div className="flex items-center gap-2">
                   <span>{sub.name}</span>
-                  {isSubStale(sub.oldestReviewedAt, thresholds.discretionary_category ?? 12) && (
+                  {isSubStale(sub.oldestReviewedAt, discretionaryThreshold) && (
                     <StalenessIndicator
                       lastReviewedAt={sub.oldestReviewedAt!}
-                      thresholdMonths={thresholds.discretionary_category ?? 12}
+                      thresholdMonths={discretionaryThreshold}
                     />
                   )}
                 </div>

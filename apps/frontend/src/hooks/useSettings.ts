@@ -4,7 +4,7 @@ import { snapshotService } from "@/services/snapshot.service";
 import { householdService } from "@/services/household.service";
 import { useAuthStore } from "@/stores/authStore";
 import { authService } from "@/services/auth.service";
-import type { UpdateSettingsInput, AuditLogQuery } from "@finplan/shared";
+import type { UpdateSettingsInput, AuditLogQuery, StalenessThresholds } from "@finplan/shared";
 import { fetchAuditLog, updateMemberRole } from "@/services/auditLog.service";
 import { fetchSecurityActivity } from "@/services/securityActivity.service";
 import { purgeStaleQueries } from "@/lib/queryClient";
@@ -23,6 +23,34 @@ export function useSettings() {
     queryKey: SETTINGS_KEYS.settings,
     queryFn: settingsService.getSettings,
   });
+}
+
+/** Canonical staleness item types — must match stalenessThresholdsSchema keys. */
+export type StalenessItemType = keyof StalenessThresholds;
+
+/** Default staleness thresholds (months) per canonical item type. */
+export const STALENESS_DEFAULTS: Required<StalenessThresholds> = {
+  income_source: 12,
+  committed_item: 6,
+  discretionary_item: 12,
+  asset_item: 12,
+  account_item: 3,
+};
+
+/**
+ * Resolve the staleness threshold (in months) for an item type, honouring the
+ * user's custom thresholds and falling back to the canonical defaults.
+ *
+ * Consumers must use the canonical keys (income_source / committed_item /
+ * discretionary_item / asset_item / account_item) — the legacy committed_bill /
+ * discretionary_category keys never existed in the settings schema, so reading
+ * them silently dropped user customisation.
+ */
+export function getStalenessMonths(
+  settings: { stalenessThresholds?: StalenessThresholds | null } | null | undefined,
+  itemType: StalenessItemType
+): number {
+  return settings?.stalenessThresholds?.[itemType] ?? STALENESS_DEFAULTS[itemType];
 }
 
 export function useUpdateSettings() {

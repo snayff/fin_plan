@@ -17,7 +17,7 @@ import GhostAddButton from "@/components/tier/GhostAddButton";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { formatCurrency } from "@/utils/format";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths } from "@/hooks/useSettings";
 import { useIsaAllowance } from "@/hooks/useIsaAllowance";
 
 function formatDisposedDate(dateStr: string | null): string {
@@ -47,6 +47,7 @@ export function AccountItemArea({ type, initialIsAdding }: Props) {
   const { data: allItems } = useAccountsByType(type, { includeDisposed: true });
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
+  const accountStaleness = getStalenessMonths(settings, "account_item");
   const { data: isaSummary } = useIsaAllowance();
   const isaOverForecastMemberIds = new Set(
     (isaSummary?.byMember ?? [])
@@ -204,7 +205,7 @@ export function AccountItemArea({ type, initialIsAdding }: Props) {
             <AssetAccountRow
               item={item}
               itemKind="account"
-              stalenessThresholdMonths={3}
+              stalenessThresholdMonths={accountStaleness}
               hasIsaOverForecast={
                 item.isISA === true && isaOverForecastMemberIds.has(item.memberId ?? "")
               }
