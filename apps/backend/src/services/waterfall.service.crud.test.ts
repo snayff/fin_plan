@@ -113,8 +113,17 @@ describe("waterfallService delete methods", () => {
       householdId: "hh-1",
     } as any);
     prismaMock.incomeSource.delete.mockResolvedValue({} as any);
+    prismaMock.itemAmountPeriod.deleteMany.mockResolvedValue({ count: 2 } as any);
+    prismaMock.waterfallHistory.deleteMany.mockResolvedValue({ count: 1 } as any);
     await waterfallService.deleteIncome("hh-1", "inc-1", ctx);
     expect(prismaMock.incomeSource.delete).toHaveBeenCalledWith({ where: { id: "inc-1" } });
+    // #132: polymorphic period/history rows are cleaned up by itemType/itemId.
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "income_source", itemId: "inc-1" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "income_source", itemId: "inc-1" },
+    });
   });
 
   it("deleteIncome throws NotFoundError when the item belongs to another household", async () => {
@@ -136,6 +145,12 @@ describe("waterfallService delete methods", () => {
     prismaMock.committedItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteCommitted("hh-1", "ci-1", ctx);
     expect(prismaMock.committedItem.delete).toHaveBeenCalledWith({ where: { id: "ci-1" } });
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-1" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-1" },
+    });
   });
 
   it("deleteYearly removes an owned yearly committed item", async () => {
@@ -146,6 +161,13 @@ describe("waterfallService delete methods", () => {
     prismaMock.committedItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteYearly("hh-1", "ci-2", ctx);
     expect(prismaMock.committedItem.delete).toHaveBeenCalledWith({ where: { id: "ci-2" } });
+    // Yearly items are CommittedItem rows → committed_item itemType.
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-2" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-2" },
+    });
   });
 
   it("deleteDiscretionary removes an owned, non-planner item", async () => {
@@ -157,6 +179,12 @@ describe("waterfallService delete methods", () => {
     prismaMock.discretionaryItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteDiscretionary("hh-1", "di-1", ctx);
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "di-1" } });
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-1" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-1" },
+    });
   });
 
   it("deleteDiscretionary refuses to delete a planner-owned item", async () => {
@@ -175,10 +203,31 @@ describe("waterfallService delete methods", () => {
     prismaMock.discretionaryItem.findUnique.mockResolvedValue({
       id: "di-s",
       householdId: "hh-1",
+      isPlannerOwned: false,
     } as any);
     prismaMock.discretionaryItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteSavings("hh-1", "di-s", ctx);
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "di-s" } });
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-s" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-s" },
+    });
+  });
+
+  // #129: planner-owned items (e.g. the synced Gifts item) must not be
+  // mutable through the /savings path.
+  it("deleteSavings refuses to delete a planner-owned item", async () => {
+    prismaMock.discretionaryItem.findUnique.mockResolvedValue({
+      id: "di-s",
+      householdId: "hh-1",
+      isPlannerOwned: true,
+    } as any);
+    await expect(waterfallService.deleteSavings("hh-1", "di-s", ctx)).rejects.toThrow(
+      "managed by the Gifts planner"
+    );
+    expect(prismaMock.discretionaryItem.delete).not.toHaveBeenCalled();
   });
 });
 
@@ -239,6 +288,40 @@ describe("waterfallService.updateSavings", () => {
       where: { id: "di-s" },
       data: { name: "Bigger fund", lastReviewedAt: expect.any(Date) },
     });
+  });
+
+  // #129: planner-owned items must not be editable through the /savings path.
+  it("rejects updates to a planner-owned item", async () => {
+    prismaMock.discretionaryItem.findUnique.mockResolvedValue({
+      id: "di-s",
+      householdId: "hh-1",
+      isPlannerOwned: true,
+    } as any);
+    await expect(
+      waterfallService.updateSavings("hh-1", "di-s", { name: "x" }, ctx)
+    ).rejects.toThrow("managed by the Gifts planner");
+    expect(prismaMock.discretionaryItem.update).not.toHaveBeenCalled();
+  });
+});
+
+// ─── createSavings guard (#129) ─────────────────────────────────────────────────
+
+describe("waterfallService.createSavings guard branches", () => {
+  it("rejects creation in a planner-locked subcategory", async () => {
+    // validateSubcategoryOwnership and validateSubcategoryNotPlannerLocked both
+    // call subcategory.findFirst; the locked flag short-circuits with a 400.
+    prismaMock.subcategory.findFirst.mockResolvedValue({
+      id: "sub-gifts",
+      lockedByPlanner: true,
+    } as any);
+    await expect(
+      waterfallService.createSavings(
+        "hh-1",
+        { name: "x", amount: 10, subcategoryId: "sub-gifts" },
+        ctx
+      )
+    ).rejects.toThrow("managed by the Gifts planner");
+    expect(prismaMock.discretionaryItem.create).not.toHaveBeenCalled();
   });
 });
 

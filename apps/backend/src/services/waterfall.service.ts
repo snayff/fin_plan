@@ -519,6 +519,14 @@ export const waterfallService = {
       beforeFetch: async (tx) =>
         tx.incomeSource.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
       mutation: async (tx) => {
+        // Periods and history reference items polymorphically (itemType/itemId)
+        // with no FK, so they must be removed explicitly or they orphan.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "income_source", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "income_source", itemId: id },
+        });
         await tx.incomeSource.delete({ where: { id } });
         return null;
       },
@@ -626,6 +634,14 @@ export const waterfallService = {
       beforeFetch: async (tx) =>
         tx.committedItem.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
       mutation: async (tx) => {
+        // Periods and history reference items polymorphically (itemType/itemId)
+        // with no FK, so they must be removed explicitly or they orphan.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
         await tx.committedItem.delete({ where: { id } });
         return null;
       },
@@ -733,6 +749,14 @@ export const waterfallService = {
       beforeFetch: async (tx) =>
         tx.committedItem.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
       mutation: async (tx) => {
+        // Yearly items are CommittedItem rows, so periods/history use the
+        // committed_item itemType. No FK → delete explicitly to avoid orphans.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
         await tx.committedItem.delete({ where: { id } });
         return null;
       },
@@ -885,6 +909,14 @@ export const waterfallService = {
           unknown
         > | null>,
       mutation: async (tx) => {
+        // Periods and history reference items polymorphically (itemType/itemId)
+        // with no FK, so they must be removed explicitly or they orphan.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
         await tx.discretionaryItem.delete({ where: { id } });
         return null;
       },
@@ -917,6 +949,7 @@ export const waterfallService = {
 
   async createSavings(householdId: string, data: CreateDiscretionaryItemInput, ctx: ActorCtx) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
+    await validateSubcategoryNotPlannerLocked(householdId, data.subcategoryId);
     if ((data as any).linkedAccountId) {
       await validateLinkedAccount(householdId, data.subcategoryId, (data as any).linkedAccountId);
     }
@@ -953,6 +986,7 @@ export const waterfallService = {
   ) {
     const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Savings allocation");
+    assertNotPlannerOwned(existing as any);
     if (data.subcategoryId) {
       await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
     }
@@ -1006,6 +1040,7 @@ export const waterfallService = {
   async deleteSavings(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Savings allocation");
+    assertNotPlannerOwned(existing as any);
     await audited({
       db: prisma,
       ctx,
@@ -1018,6 +1053,14 @@ export const waterfallService = {
           unknown
         > | null>,
       mutation: async (tx) => {
+        // Savings allocations are DiscretionaryItem rows; periods/history use the
+        // discretionary_item itemType. No FK → delete explicitly to avoid orphans.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
         await tx.discretionaryItem.delete({ where: { id } });
         return null;
       },
