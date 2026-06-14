@@ -1007,51 +1007,71 @@ export const giftsService = {
       where: { householdId, year: year - 1 },
     });
 
-    await prisma.plannerYearBudget.create({
-      data: { householdId, year, giftBudget: prior.giftBudget },
-    });
-
-    if (priorAllocations.length > 0) {
-      await prisma.giftAllocation.createMany({
-        data: priorAllocations.map((a) => ({
-          householdId,
-          giftPersonId: a.giftPersonId,
-          giftEventId: a.giftEventId,
-          year,
-          planned: a.planned,
-          spent: null,
-          status: "planned" as const,
-          notes: a.notes,
-          dateMonth: a.dateMonth,
-          dateDay: a.dateDay,
-        })),
-      });
-    }
-
+    // Resolve the synced item (which manages its own transaction) up front so
+    // the rollover writes below can all share a single transaction.
     let settings = await this.getOrCreateSettings(householdId);
     if (settings.mode === "synced" && !settings.syncedDiscretionaryItemId) {
       settings = await this._ensureSyncedDiscretionaryItem(householdId, settings);
     }
-    if (settings.mode === "synced" && settings.syncedDiscretionaryItemId) {
-      await prisma.itemAmountPeriod.upsert({
-        where: {
-          itemType_itemId_startDate: {
-            itemType: "discretionary_item",
-            itemId: settings.syncedDiscretionaryItemId,
-            startDate: new Date(Date.UTC(year, 0, 1)),
-          },
-          householdId,
-        },
-        create: {
-          householdId,
-          itemType: "discretionary_item",
-          itemId: settings.syncedDiscretionaryItemId,
-          startDate: new Date(Date.UTC(year, 0, 1)),
-          endDate: null,
-          amount: prior.giftBudget,
-        },
-        update: { amount: prior.giftBudget },
+    const syncedItemId = settings.mode === "synced" ? settings.syncedDiscretionaryItemId : null;
+
+    // TODO(#133): audit coverage deferred pending decision
+    // New-year budget, rolled-over allocations and the synced period write must
+    // commit together — a mid-way failure used to leave a budget row with no
+    // allocations. A concurrent rollover that already inserted this year's
+    // budget surfaces as P2002; treat that as benign and return the winner's
+    // result rather than 500ing.
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.plannerYearBudget.create({
+          data: { householdId, year, giftBudget: prior.giftBudget },
+        });
+
+        if (priorAllocations.length > 0) {
+          await tx.giftAllocation.createMany({
+            data: priorAllocations.map((a) => ({
+              householdId,
+              giftPersonId: a.giftPersonId,
+              giftEventId: a.giftEventId,
+              year,
+              planned: a.planned,
+              spent: null,
+              status: "planned" as const,
+              notes: a.notes,
+              dateMonth: a.dateMonth,
+              dateDay: a.dateDay,
+            })),
+          });
+        }
+
+        if (syncedItemId) {
+          await tx.itemAmountPeriod.upsert({
+            where: {
+              itemType_itemId_startDate: {
+                itemType: "discretionary_item",
+                itemId: syncedItemId,
+                startDate: new Date(Date.UTC(year, 0, 1)),
+              },
+              householdId,
+            },
+            create: {
+              householdId,
+              itemType: "discretionary_item",
+              itemId: syncedItemId,
+              startDate: new Date(Date.UTC(year, 0, 1)),
+              endDate: null,
+              amount: prior.giftBudget,
+            },
+            update: { amount: prior.giftBudget },
+          });
+        }
       });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        // Another request rolled this year over first — not an error.
+        return false;
+      }
+      throw err;
     }
 
     return true;

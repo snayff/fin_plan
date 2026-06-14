@@ -83,6 +83,35 @@ describe("householdService.createHousehold — subcategory seeding", () => {
     expect(data).toHaveLength(16); // 3 income + 7 committed + 6 discretionary
     expect(data.every((r: any) => r.householdId === "hh-new")).toBe(true);
   });
+
+  // #135: the whole household build is wrapped in one transaction. If a later
+  // write fails the transaction rejects, so the household never persists.
+  it("propagates the error (no partial household) when a later write fails", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(buildUser({ id: "user-1", name: "Test User" }));
+    prismaMock.household.create.mockResolvedValue({ id: "hh-new", name: "New Household" } as any);
+    prismaMock.member.create.mockResolvedValue(
+      buildMember({ householdId: "hh-new", userId: "user-1", role: "owner" })
+    );
+    // settings.create fails midway → the surrounding $transaction must reject.
+    prismaMock.householdSettings.create.mockRejectedValue(new Error("settings insert failed"));
+
+    await expect(householdService.createHousehold("user-1", "New Household")).rejects.toThrow(
+      "settings insert failed"
+    );
+    // The seeding and active-household write never run.
+    expect(prismaMock.subcategory.createMany).not.toHaveBeenCalled();
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("maps a P2002 member-name collision to a ConflictError", async () => {
+    prismaMock.user.findUnique.mockResolvedValue(buildUser({ id: "user-1", name: "Test User" }));
+    prismaMock.household.create.mockResolvedValue({ id: "hh-new", name: "New Household" } as any);
+    prismaMock.member.create.mockRejectedValue({ code: "P2002" });
+
+    await expect(householdService.createHousehold("user-1", "New Household")).rejects.toThrow(
+      ConflictError
+    );
+  });
 });
 
 // ─── getUserHouseholds ──────────────────────────────────────────────────────
@@ -776,6 +805,47 @@ describe("householdService.acceptInvite with audit", () => {
         }),
       })
     );
+  });
+
+  // #135: the personal household's subcategories are now seeded inside the
+  // acceptInvite transaction (against the personal household id).
+  it("seeds the personal household's subcategories inside the transaction", async () => {
+    const invite = buildHouseholdInvite({
+      id: "invite-1",
+      email: "invitee@example.com",
+      householdId: "household-1",
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      household: { id: "household-1", name: "Test Household" },
+    });
+    const createdUser = buildUser({
+      id: "new-user-1",
+      email: "invitee@example.com",
+      name: "Alice",
+    });
+    const personal = buildHousehold({ id: "personal-hh-1" });
+
+    prismaMock.householdInvite.findUnique.mockResolvedValue(invite);
+    prismaMock.user.findUnique.mockResolvedValueOnce(null);
+    prismaMock.user.create.mockResolvedValue(createdUser);
+    prismaMock.household.create.mockResolvedValue(personal);
+    prismaMock.member.create.mockResolvedValue(buildMember());
+    prismaMock.householdSettings.create.mockResolvedValue({} as any);
+    prismaMock.user.update.mockResolvedValue(createdUser);
+    prismaMock.householdInvite.update.mockResolvedValue({ ...invite, usedAt: new Date() });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+    prismaMock.subcategory.createMany.mockResolvedValue({ count: 16 });
+    prismaMock.refreshToken.create.mockResolvedValue({} as any);
+
+    await householdService.acceptInvite("valid-token", {
+      name: "Alice",
+      email: "invitee@example.com",
+      password: "verysecure123",
+    });
+
+    expect(prismaMock.subcategory.createMany).toHaveBeenCalledTimes(1);
+    const seedCall = prismaMock.subcategory.createMany.mock.calls[0]![0] as any;
+    expect((seedCall.data as any[]).every((r) => r.householdId === "personal-hh-1")).toBe(true);
   });
 });
 

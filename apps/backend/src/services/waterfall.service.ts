@@ -22,6 +22,7 @@ import type {
   IncomeFrequency,
 } from "@finplan/shared";
 import { computeLifecycleState, periodService } from "./period.service.js";
+import type { PrismaClient } from "@prisma/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -186,6 +187,42 @@ function buildSubcategoryTotals(
       oldestReviewedAt: entry.oldest,
       itemCount: entry.count,
     };
+  });
+}
+
+// ─── Initial-period helper ───────────────────────────────────────────────────
+
+/**
+ * The opening amount period for a freshly-created item. Routes used to create
+ * the item and then call periodService.createPeriod in a second request, which
+ * could leave an item with no period if the second call failed (#130). Threading
+ * this through the create mutation lets the item and its first period commit in
+ * one transaction.
+ */
+export interface InitialPeriodInput {
+  startDate: Date;
+  endDate?: Date;
+  amount: number;
+}
+
+/**
+ * Create a brand-new item's opening period inside the item-create transaction.
+ * A fresh item has no neighbours, so createPeriodTx degenerates to a plain
+ * insert — but reusing it keeps the stitching/validation logic in one place.
+ */
+async function createInitialPeriod(
+  tx: PrismaClient,
+  householdId: string,
+  itemType: "income_source" | "committed_item" | "discretionary_item",
+  itemId: string,
+  initialPeriod: InitialPeriodInput
+): Promise<void> {
+  await periodService.createPeriodTx(tx, householdId, {
+    itemType,
+    itemId,
+    startDate: initialPeriod.startDate,
+    endDate: initialPeriod.endDate,
+    amount: initialPeriod.amount,
   });
 }
 
@@ -434,7 +471,12 @@ export const waterfallService = {
     return enrichItemsWithPeriods(householdId, items, "income_source");
   },
 
-  async createIncome(householdId: string, data: CreateIncomeSourceInput, ctx: ActorCtx) {
+  async createIncome(
+    householdId: string,
+    data: CreateIncomeSourceInput,
+    ctx: ActorCtx,
+    initialPeriod?: InitialPeriodInput
+  ) {
     const subcategoryId =
       data.subcategoryId ??
       (await subcategoryService.getDefaultSubcategoryId(householdId, "income"));
@@ -456,6 +498,9 @@ export const waterfallService = {
         const s = await tx.incomeSource.create({
           data: { ...itemData, subcategoryId, householdId, lastReviewedAt: new Date() },
         });
+        if (initialPeriod) {
+          await createInitialPeriod(tx, householdId, "income_source", s.id, initialPeriod);
+        }
         return s;
       },
     });
@@ -519,6 +564,14 @@ export const waterfallService = {
       beforeFetch: async (tx) =>
         tx.incomeSource.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
       mutation: async (tx) => {
+        // Periods and history reference items polymorphically (itemType/itemId)
+        // with no FK, so they must be removed explicitly or they orphan.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "income_source", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "income_source", itemId: id },
+        });
         await tx.incomeSource.delete({ where: { id } });
         return null;
       },
@@ -541,7 +594,12 @@ export const waterfallService = {
     return enrichItemsWithPeriods(householdId, items, "committed_item");
   },
 
-  async createCommitted(householdId: string, data: CreateCommittedItemInput, ctx: ActorCtx) {
+  async createCommitted(
+    householdId: string,
+    data: CreateCommittedItemInput,
+    ctx: ActorCtx,
+    initialPeriod?: InitialPeriodInput
+  ) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "committed");
     if (data.memberId) {
       await validateMemberOwnership(householdId, data.memberId);
@@ -563,6 +621,9 @@ export const waterfallService = {
             lastReviewedAt: new Date(),
           },
         });
+        if (initialPeriod) {
+          await createInitialPeriod(tx, householdId, "committed_item", item.id, initialPeriod);
+        }
         return item;
       },
     });
@@ -626,6 +687,14 @@ export const waterfallService = {
       beforeFetch: async (tx) =>
         tx.committedItem.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
       mutation: async (tx) => {
+        // Periods and history reference items polymorphically (itemType/itemId)
+        // with no FK, so they must be removed explicitly or they orphan.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
         await tx.committedItem.delete({ where: { id } });
         return null;
       },
@@ -648,7 +717,12 @@ export const waterfallService = {
     return enrichItemsWithPeriods(householdId, items, "committed_item");
   },
 
-  async createYearly(householdId: string, data: CreateCommittedItemInput, ctx: ActorCtx) {
+  async createYearly(
+    householdId: string,
+    data: CreateCommittedItemInput,
+    ctx: ActorCtx,
+    initialPeriod?: InitialPeriodInput
+  ) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "committed");
     if (data.memberId) {
       await validateMemberOwnership(householdId, data.memberId);
@@ -670,6 +744,9 @@ export const waterfallService = {
             lastReviewedAt: new Date(),
           },
         });
+        if (initialPeriod) {
+          await createInitialPeriod(tx, householdId, "committed_item", item.id, initialPeriod);
+        }
         return item;
       },
     });
@@ -733,6 +810,14 @@ export const waterfallService = {
       beforeFetch: async (tx) =>
         tx.committedItem.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
       mutation: async (tx) => {
+        // Yearly items are CommittedItem rows, so periods/history use the
+        // committed_item itemType. No FK → delete explicitly to avoid orphans.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "committed_item", itemId: id },
+        });
         await tx.committedItem.delete({ where: { id } });
         return null;
       },
@@ -768,7 +853,8 @@ export const waterfallService = {
   async createDiscretionary(
     householdId: string,
     data: CreateDiscretionaryItemInput,
-    ctx: ActorCtx
+    ctx: ActorCtx,
+    initialPeriod?: InitialPeriodInput
   ) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
     await validateSubcategoryNotPlannerLocked(householdId, data.subcategoryId);
@@ -795,6 +881,9 @@ export const waterfallService = {
             lastReviewedAt: new Date(),
           },
         });
+        if (initialPeriod) {
+          await createInitialPeriod(tx, householdId, "discretionary_item", item.id, initialPeriod);
+        }
         return item;
       },
     });
@@ -885,6 +974,14 @@ export const waterfallService = {
           unknown
         > | null>,
       mutation: async (tx) => {
+        // Periods and history reference items polymorphically (itemType/itemId)
+        // with no FK, so they must be removed explicitly or they orphan.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
         await tx.discretionaryItem.delete({ where: { id } });
         return null;
       },
@@ -915,8 +1012,14 @@ export const waterfallService = {
     return enrichItemsWithPeriods(householdId, items, "discretionary_item");
   },
 
-  async createSavings(householdId: string, data: CreateDiscretionaryItemInput, ctx: ActorCtx) {
+  async createSavings(
+    householdId: string,
+    data: CreateDiscretionaryItemInput,
+    ctx: ActorCtx,
+    initialPeriod?: InitialPeriodInput
+  ) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
+    await validateSubcategoryNotPlannerLocked(householdId, data.subcategoryId);
     if ((data as any).linkedAccountId) {
       await validateLinkedAccount(householdId, data.subcategoryId, (data as any).linkedAccountId);
     }
@@ -940,6 +1043,9 @@ export const waterfallService = {
             lastReviewedAt: new Date(),
           },
         });
+        if (initialPeriod) {
+          await createInitialPeriod(tx, householdId, "discretionary_item", item.id, initialPeriod);
+        }
         return item;
       },
     });
@@ -953,6 +1059,7 @@ export const waterfallService = {
   ) {
     const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Savings allocation");
+    assertNotPlannerOwned(existing as any);
     if (data.subcategoryId) {
       await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
     }
@@ -1006,6 +1113,7 @@ export const waterfallService = {
   async deleteSavings(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Savings allocation");
+    assertNotPlannerOwned(existing as any);
     await audited({
       db: prisma,
       ctx,
@@ -1018,6 +1126,14 @@ export const waterfallService = {
           unknown
         > | null>,
       mutation: async (tx) => {
+        // Savings allocations are DiscretionaryItem rows; periods/history use the
+        // discretionary_item itemType. No FK → delete explicitly to avoid orphans.
+        await tx.itemAmountPeriod.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
+        await tx.waterfallHistory.deleteMany({
+          where: { householdId, itemType: "discretionary_item", itemId: id },
+        });
         await tx.discretionaryItem.delete({ where: { id } });
         return null;
       },
