@@ -18,7 +18,6 @@ import {
   useReviewCommitted,
   useReviewYearly,
   useReviewDiscretionary,
-  useReviewSavings,
 } from "@/hooks/useReviewSession";
 import { useWaterfallSummary } from "@/hooks/useWaterfall";
 import { useQueryClient } from "@tanstack/react-query";
@@ -34,6 +33,7 @@ interface ReviewItem {
   monthlyBudget?: number;
   monthlyAmount?: number;
   balance?: number;
+  spendType?: string;
 }
 
 interface ReviewWizardProps {
@@ -150,17 +150,24 @@ function useStepItems(step: number): ReviewItem[] {
   const { data: committed = [] } = useReviewCommitted();
   const { data: yearly = [] } = useReviewYearly();
   const { data: discretionary = [] } = useReviewDiscretionary();
-  const { data: savings = [] } = useReviewSavings();
 
   switch (step) {
     case 0:
       return income as ReviewItem[];
     case 1:
-      return committed as ReviewItem[];
+      // `listCommitted` returns every committed item regardless of cadence;
+      // yearly/quarterly bills get their own step (case 2). Filter them out
+      // here so the same item never appears in two steps (#113).
+      return (committed as ReviewItem[]).filter(
+        (it) => it.spendType !== "yearly" && it.spendType !== "quarterly"
+      );
     case 2:
       return yearly as ReviewItem[];
     case 3:
-      return [...(discretionary as ReviewItem[]), ...(savings as ReviewItem[])];
+      // `listDiscretionary` already includes the Savings subcategory, so the
+      // separate savings list would duplicate those items — use the
+      // discretionary list as the single canonical source (#113).
+      return discretionary as ReviewItem[];
     default:
       return [];
   }
