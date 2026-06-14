@@ -219,19 +219,19 @@
      is pinned to a single passing token instead.
      Re-audit if --card or --text-secondary changes. */
   .label-section {
-    @apply text-[11px] font-heading font-semibold uppercase tracking-wider text-secondary;
+    @apply text-[11px] font-heading font-semibold uppercase tracking-wider text-body-secondary;
   }
   .label-detail {
-    @apply text-xs font-heading font-semibold uppercase tracking-wider text-secondary;
+    @apply text-xs font-heading font-semibold uppercase tracking-wider text-body-secondary;
   }
   .label-chart {
-    @apply text-[10px] font-heading font-semibold uppercase tracking-widest text-secondary;
+    @apply text-[10px] font-heading font-semibold uppercase tracking-widest text-body-secondary;
   }
 }
 
 @layer utilities {
   /* Custom utility classes for design system */
-  .text-secondary {
+  .text-body-secondary {
     color: hsl(var(--text-secondary));
   }
 
