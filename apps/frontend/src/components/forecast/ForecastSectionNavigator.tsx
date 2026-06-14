@@ -28,8 +28,7 @@ export function ForecastSectionNavigator({ selected, onSelect }: ForecastSection
 
   return (
     <LayoutGroup>
-      <motion.div
-        role="tablist"
+      <motion.nav
         aria-label="Forecast sections"
         className="flex flex-col"
         variants={containerVariants}
@@ -42,9 +41,8 @@ export function ForecastSectionNavigator({ selected, onSelect }: ForecastSection
             <motion.button
               key={e.id}
               type="button"
-              role="tab"
               onClick={() => onSelect(e.id)}
-              aria-selected={active}
+              aria-current={active || undefined}
               variants={rowVariants}
               className={[
                 "relative flex w-full items-center px-4 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -67,7 +65,7 @@ export function ForecastSectionNavigator({ selected, onSelect }: ForecastSection
             </motion.button>
           );
         })}
-      </motion.div>
+      </motion.nav>
     </LayoutGroup>
   );
 }
