@@ -80,6 +80,9 @@ export const AuditAction = {
   UPDATE_DISCRETIONARY_ITEM: "UPDATE_DISCRETIONARY_ITEM",
   DELETE_DISCRETIONARY_ITEM: "DELETE_DISCRETIONARY_ITEM",
   CREATE_SUBCATEGORY: "CREATE_SUBCATEGORY",
+  // Mutationless "confirm" (review-touch) of a waterfall item — covers
+  // income/committed/yearly/discretionary/savings confirms and confirm-batch.
+  CONFIRM_WATERFALL_ITEM: "CONFIRM_WATERFALL_ITEM",
 
   // Wealth
   CREATE_WEALTH_ACCOUNT: "CREATE_WEALTH_ACCOUNT",

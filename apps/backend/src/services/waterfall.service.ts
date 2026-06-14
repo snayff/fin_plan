@@ -1,8 +1,8 @@
 import { prisma } from "../config/database.js";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { subcategoryService } from "./subcategory.service.js";
-import { toGBP, toMonthlyAmount } from "@finplan/shared";
-import { audited } from "./audit.service.js";
+import { toGBP, toMonthlyAmount, AuditAction } from "@finplan/shared";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import type {
   CreateIncomeSourceInput,
@@ -584,10 +584,19 @@ export const waterfallService = {
     });
   },
 
-  async confirmIncome(householdId: string, id: string) {
+  async confirmIncome(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.incomeSource.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Income source");
-    return prisma.incomeSource.update({ where: { id }, data: { lastReviewedAt: new Date() } });
+    return audited({
+      db: prisma,
+      ctx,
+      action: AuditAction.CONFIRM_WATERFALL_ITEM,
+      resource: "income-source",
+      resourceId: id,
+      beforeFetch: async () => null,
+      mutation: async (tx) =>
+        tx.incomeSource.update({ where: { id }, data: { lastReviewedAt: new Date() } }),
+    });
   },
 
   // ─── Committed items ──────────────────────────────────────────────────────────
@@ -707,10 +716,19 @@ export const waterfallService = {
     });
   },
 
-  async confirmCommitted(householdId: string, id: string) {
+  async confirmCommitted(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.committedItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Committed item");
-    return prisma.committedItem.update({ where: { id }, data: { lastReviewedAt: new Date() } });
+    return audited({
+      db: prisma,
+      ctx,
+      action: AuditAction.CONFIRM_WATERFALL_ITEM,
+      resource: "committed-item",
+      resourceId: id,
+      beforeFetch: async () => null,
+      mutation: async (tx) =>
+        tx.committedItem.update({ where: { id }, data: { lastReviewedAt: new Date() } }),
+    });
   },
 
   // ─── Yearly items (CommittedItem with spendType=yearly) ─────────────────────
@@ -830,10 +848,19 @@ export const waterfallService = {
     });
   },
 
-  async confirmYearly(householdId: string, id: string) {
+  async confirmYearly(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.committedItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Committed item");
-    return prisma.committedItem.update({ where: { id }, data: { lastReviewedAt: new Date() } });
+    return audited({
+      db: prisma,
+      ctx,
+      action: AuditAction.CONFIRM_WATERFALL_ITEM,
+      resource: "committed-item",
+      resourceId: id,
+      beforeFetch: async () => null,
+      mutation: async (tx) =>
+        tx.committedItem.update({ where: { id }, data: { lastReviewedAt: new Date() } }),
+    });
   },
 
   // ─── Discretionary items ─────────────────────────────────────────────────────
@@ -994,12 +1021,18 @@ export const waterfallService = {
     });
   },
 
-  async confirmDiscretionary(householdId: string, id: string) {
+  async confirmDiscretionary(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Discretionary item");
-    return prisma.discretionaryItem.update({
-      where: { id },
-      data: { lastReviewedAt: new Date() },
+    return audited({
+      db: prisma,
+      ctx,
+      action: AuditAction.CONFIRM_WATERFALL_ITEM,
+      resource: "discretionary-item",
+      resourceId: id,
+      beforeFetch: async () => null,
+      mutation: async (tx) =>
+        tx.discretionaryItem.update({ where: { id }, data: { lastReviewedAt: new Date() } }),
     });
   },
 
@@ -1146,12 +1179,18 @@ export const waterfallService = {
     });
   },
 
-  async confirmSavings(householdId: string, id: string) {
+  async confirmSavings(householdId: string, id: string, ctx: ActorCtx) {
     const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
     assertOwned(existing, householdId, "Savings allocation");
-    return prisma.discretionaryItem.update({
-      where: { id },
-      data: { lastReviewedAt: new Date() },
+    return audited({
+      db: prisma,
+      ctx,
+      action: AuditAction.CONFIRM_WATERFALL_ITEM,
+      resource: "discretionary-item",
+      resourceId: id,
+      beforeFetch: async () => null,
+      mutation: async (tx) =>
+        tx.discretionaryItem.update({ where: { id }, data: { lastReviewedAt: new Date() } }),
     });
   },
 
@@ -1190,7 +1229,7 @@ export const waterfallService = {
 
   // ─── Batch confirm ────────────────────────────────────────────────────────────
 
-  async confirmBatch(householdId: string, data: ConfirmBatchInput) {
+  async confirmBatch(householdId: string, data: ConfirmBatchInput, ctx: ActorCtx) {
     const now = new Date();
 
     await prisma.$transaction(async (tx) => {
@@ -1220,6 +1259,20 @@ export const waterfallService = {
             break;
         }
       }
+
+      // One durable audit row for the whole batch confirm, committed atomically
+      // with the lastReviewedAt updates (#123).
+      await auditEventTx(tx, {
+        householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.CONFIRM_WATERFALL_ITEM,
+        resource: "review-session",
+        resourceId: householdId,
+        metadata: { count: data.items.length },
+      });
     });
   },
 
