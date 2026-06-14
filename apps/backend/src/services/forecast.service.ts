@@ -1,6 +1,6 @@
 import { prisma } from "../config/database.js";
 import { waterfallService } from "./waterfall.service.js";
-import { toMonthlyAmount } from "@finplan/shared";
+import { toMonthlyAmount, futureValueMonthly } from "@finplan/shared";
 import type { ForecastProjection, ForecastHorizon } from "@finplan/shared";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -56,9 +56,17 @@ interface ProjectionResult {
 
 /**
  * Project a balance series with optional disposal cut-off.
- * - Before disposal year: standard compounding growth + monthly contributions.
+ *
+ * Growth uses **monthly compounding** (shared `futureValueMonthly`), evaluated
+ * at each integer year boundary t = 1..years from the original starting balance.
+ * This keeps the Forecast and the Help-page calculator on one convention (#163).
+ *
+ * - Before disposal year: monthly-compounded growth + monthly contributions.
  * - At disposal year: capture proceeds (the value just before disposal), then 0 from there.
  * - If `disposalYear === 0`: item already disposed → series is all zeros, no proceeds (already realised).
+ *
+ * `annualRate` is a decimal (e.g. 0.05 for 5%); `futureValueMonthly` expects a
+ * percentage, so it is scaled by 100 at the call site.
  */
 function projectBalanceSeries(
   initialBalance: number,
@@ -71,11 +79,11 @@ function projectBalanceSeries(
     // Already disposed before the projection window opened.
     return { series: Array.from({ length: years + 1 }, () => 0), proceeds: null };
   }
+  const annualRatePct = annualRate * 100;
   const series = [initialBalance];
   let proceeds: { yearOffset: number; amount: number } | null = null;
   for (let y = 1; y <= years; y++) {
-    const prev = series[y - 1]!;
-    const grown = prev * (1 + annualRate) + monthlyContribution * 12;
+    const grown = futureValueMonthly(initialBalance, monthlyContribution, annualRatePct, y);
     if (disposalYear != null && y >= disposalYear) {
       if (proceeds == null) {
         // Capture the value at the disposal year, then drop to zero.
@@ -92,9 +100,11 @@ function projectBalanceSeries(
 type ProjectableAccount = {
   id: string;
   balance: number;
+  balanceDate: Date | null;
   monthlyContribution: number;
   growthRatePct: number | null;
   type: string;
+  disposedAt: Date | null;
   disposalYear: number | null;
   disposalAccountId: string | null;
 };
@@ -102,7 +112,9 @@ type ProjectableAccount = {
 type ProjectableAsset = {
   id: string;
   balance: number;
+  balanceDate: Date | null;
   growthRatePct: number | null;
+  disposedAt: Date | null;
   disposalYear: number | null;
   disposalAccountId: string | null;
 };
@@ -273,9 +285,11 @@ export const forecastService = {
     const toProjectableAccount = (acc: (typeof accounts)[number]): ProjectableAccount => ({
       id: acc.id,
       balance: acc.balances[0]?.value ?? 0,
+      balanceDate: acc.balances[0]?.date ?? null,
       monthlyContribution: monthlyContributionByAccountId.get(acc.id) ?? 0,
       growthRatePct: acc.growthRatePct,
       type: acc.type,
+      disposedAt: acc.disposedAt,
       disposalYear: disposalYearOffset(acc.disposedAt, now),
       disposalAccountId: acc.disposalAccountId,
     });
@@ -283,7 +297,9 @@ export const forecastService = {
     const toProjectableAsset = (a: (typeof assets)[number]): ProjectableAsset => ({
       id: a.id,
       balance: a.balances[0]?.value ?? 0,
+      balanceDate: a.balances[0]?.date ?? null,
       growthRatePct: a.growthRatePct,
+      disposedAt: a.disposedAt,
       disposalYear: disposalYearOffset(a.disposedAt, now),
       disposalAccountId: a.disposalAccountId,
     });
@@ -292,43 +308,49 @@ export const forecastService = {
     const projectableAssets = assets.map(toProjectableAsset);
 
     // ── Pre-compute disposal proceeds map ────────────────────────────────────
-    // We project each disposing source independently so we can compute the
-    // proceeds value at the disposal year, then route it to the target account.
-    // (The target account's series is then re-projected with the inflow folded
-    // in — see projectAccountWithInflows.)
+    // The proceeds AMOUNT comes from the shared `computeDisposalProceeds` helper
+    // (date-precise monthly compounding + contribution accrual), so forecast and
+    // cashflow agree (#128). The year-offset is kept solely for chart bucket
+    // placement — it routes the lump sum into the right yearly column.
     const inflowsByAccountId = new Map<string, Array<{ yearOffset: number; amount: number }>>();
 
-    function recordProceeds(targetId: string | null, p: ProjectionResult["proceeds"]) {
-      if (!targetId || !p) return;
+    function recordProceeds(targetId: string | null, yearOffset: number, amount: number | null) {
+      if (!targetId || amount == null) return;
       const bucket = inflowsByAccountId.get(targetId) ?? [];
-      bucket.push(p);
+      bucket.push({ yearOffset, amount });
       inflowsByAccountId.set(targetId, bucket);
     }
 
     // Source: assets with disposal
     for (const asset of projectableAssets) {
-      if (asset.disposalYear == null || asset.disposalYear === 0) continue;
-      const { proceeds } = projectAssetSeries(asset, horizonYears);
-      recordProceeds(asset.disposalAccountId, proceeds);
+      if (asset.disposalYear == null || asset.disposalYear === 0 || asset.disposedAt == null)
+        continue;
+      const amount = computeDisposalProceeds({
+        startBalance: asset.balance,
+        startBalanceDate: asset.balanceDate,
+        disposedAt: asset.disposedAt,
+        annualRate: assetEffectiveRate(asset),
+        monthlyContribution: 0,
+        now,
+      });
+      recordProceeds(asset.disposalAccountId, asset.disposalYear, amount);
     }
 
-    // Source: accounts with disposal — these need inflow-aware projection because
-    // a disposing account might itself be receiving proceeds before its own
-    // disposal date. For simplicity (and since chains of disposals are rare),
-    // we project disposing accounts WITHOUT incoming inflows when computing the
-    // proceeds value. This is acceptable in practice; cyclic flows are guarded
-    // by the "cannot dispose into itself" validation.
+    // Source: accounts with disposal — disposing accounts accrue their monthly
+    // contributions up to the disposal date. We compute the proceeds value
+    // WITHOUT incoming inflows (chains of disposals are rare and guarded by the
+    // "cannot dispose into itself" validation).
     for (const acc of projectableAccounts) {
-      if (acc.disposalYear == null || acc.disposalYear === 0) continue;
-      const rate = accountEffectiveRate(acc, settings);
-      const { proceeds } = projectBalanceSeries(
-        acc.balance,
-        acc.monthlyContribution,
-        rate,
-        horizonYears,
-        acc.disposalYear
-      );
-      recordProceeds(acc.disposalAccountId, proceeds);
+      if (acc.disposalYear == null || acc.disposalYear === 0 || acc.disposedAt == null) continue;
+      const amount = computeDisposalProceeds({
+        startBalance: acc.balance,
+        startBalanceDate: acc.balanceDate,
+        disposedAt: acc.disposedAt,
+        annualRate: accountEffectiveRate(acc, settings),
+        monthlyContribution: acc.monthlyContribution,
+        now,
+      });
+      recordProceeds(acc.disposalAccountId, acc.disposalYear, amount);
     }
 
     const ctx: SeriesContext = { settings, inflowsByAccountId };
@@ -422,9 +444,12 @@ export const forecastService = {
 // ─── Exports for cashflow service / tests ────────────────────────────────────
 
 /**
- * Compound a starting balance forward by an arbitrary fractional number of years.
- * Used by cashflow service to compute the disposal proceeds at month/day precision
- * (forecast service uses year-offset granularity).
+ * Compound a starting balance forward by an arbitrary fractional number of years
+ * using monthly compounding (no contributions).
+ *
+ * Retained for callers that only need pure growth; for disposal proceeds use
+ * `computeDisposalProceeds` so growth AND contribution accrual stay consistent
+ * between forecast and cashflow (#128).
  */
 export function compoundForwardYears(
   initialBalance: number,
@@ -432,7 +457,45 @@ export function compoundForwardYears(
   years: number
 ): number {
   if (years <= 0) return initialBalance;
-  return initialBalance * Math.pow(1 + annualRate, years);
+  return futureValueMonthly(initialBalance, 0, annualRate * 100, years);
+}
+
+const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+
+export interface DisposalProceedsInput {
+  startBalance: number;
+  /** Date the starting balance was recorded; null → cannot project. */
+  startBalanceDate: Date | null;
+  /** Date the holding is disposed of. */
+  disposedAt: Date;
+  /** Effective annual growth rate as a decimal (e.g. 0.05 for 5%). */
+  annualRate: number;
+  /** Monthly contribution accruing into the holding before disposal. */
+  monthlyContribution: number;
+  now: Date;
+}
+
+/**
+ * Disposal proceeds at the disposal date — the single source of truth shared by
+ * the forecast and cashflow services (#128).
+ *
+ * Grows the starting balance from its record date to the disposal date with
+ * **monthly compounding**, and accrues the monthly contribution pro-rata over
+ * the same window. Growth starts from `max(startBalanceDate, now)` so a stale
+ * historical balance is not over-grown across time already elapsed.
+ *
+ * Returns `null` when there is no recorded starting balance (can't project from
+ * nothing). A disposal at or before the projection start yields the starting
+ * balance unchanged (no forward growth).
+ */
+export function computeDisposalProceeds(input: DisposalProceedsInput): number | null {
+  const { startBalance, startBalanceDate, disposedAt, annualRate, monthlyContribution, now } =
+    input;
+  if (startBalanceDate == null) return null;
+  const fromMs = Math.max(startBalanceDate.getTime(), now.getTime());
+  const yearsForward = (disposedAt.getTime() - fromMs) / YEAR_MS;
+  if (yearsForward <= 0) return startBalance;
+  return futureValueMonthly(startBalance, monthlyContribution, annualRate * 100, yearsForward);
 }
 
 export const __test__ = { projectBalanceSeries, disposalYearOffset, accountEffectiveRate };
