@@ -40,6 +40,7 @@ function FullWaterfallPageBody() {
   const queryClient = useQueryClient();
   const waterfall = useFullWaterfall();
   const settings = useSettings();
+  const showPence = settings.data?.showPence ?? false;
   const dismissTip = useDismissWaterfallTip();
   const members = useHouseholdMembers();
 
@@ -188,13 +189,14 @@ function FullWaterfallPageBody() {
             items={waterfall.items.income}
             members={memberList}
             total={incomeTotal}
+            showPence={showPence}
             onCreateSubcategory={(name) => createIncomeSub.mutateAsync(name)}
             onSaveName={makeSaveName("income")}
             onSaveAmount={makeSaveAmount("income")}
             onDeleteItem={makeDeleteItem("income")}
           />
 
-          <WaterfallConnector text={`−  ${formatCurrency(committedTotal)}  committed`} />
+          <WaterfallConnector text={`−  ${formatCurrency(committedTotal, showPence)}  committed`} />
 
           {/* Committed tier */}
           <WaterfallTierTable
@@ -203,13 +205,16 @@ function FullWaterfallPageBody() {
             items={waterfall.items.committed}
             members={memberList}
             total={committedTotal}
+            showPence={showPence}
             onCreateSubcategory={(name) => createCommittedSub.mutateAsync(name)}
             onSaveName={makeSaveName("committed")}
             onSaveAmount={makeSaveAmount("committed")}
             onDeleteItem={makeDeleteItem("committed")}
           />
 
-          <WaterfallConnector text={`−  ${formatCurrency(discretionaryTotal)}  discretionary`} />
+          <WaterfallConnector
+            text={`−  ${formatCurrency(discretionaryTotal, showPence)}  discretionary`}
+          />
 
           {/* Discretionary tier */}
           <WaterfallTierTable
@@ -218,6 +223,7 @@ function FullWaterfallPageBody() {
             items={waterfall.items.discretionary}
             members={memberList}
             total={discretionaryTotal}
+            showPence={showPence}
             onCreateSubcategory={(name) => createDiscretionarySub.mutateAsync(name)}
             onSaveName={makeSaveName("discretionary")}
             onSaveAmount={makeSaveAmount("discretionary")}
@@ -229,6 +235,7 @@ function FullWaterfallPageBody() {
             income={incomeTotal}
             committed={committedTotal}
             discretionary={discretionaryTotal}
+            showPence={showPence}
           />
         </div>
       </div>

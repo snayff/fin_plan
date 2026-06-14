@@ -24,6 +24,7 @@ interface Props {
   subcategory: Subcategory;
   items: TierItemRowWithExtra[];
   members: Member[];
+  showPence: boolean;
   onAddDraft: (subcategoryId: string) => void;
   onDeleteItem: (id: string) => Promise<unknown>;
   onSaveName: (id: string, name: string) => Promise<unknown>;
@@ -41,6 +42,7 @@ export function SubcategoryGroup({
   subcategory,
   items,
   members,
+  showPence,
   onAddDraft,
   onDeleteItem,
   onSaveName,
@@ -59,7 +61,7 @@ export function SubcategoryGroup({
           <div className="flex items-baseline justify-between">
             <span>{subcategory.name}</span>
             <span className="font-numeric text-xs tabular-nums text-text-secondary">
-              {formatCurrency(total)}/mo
+              {formatCurrency(total, showPence)}/mo
             </span>
           </div>
         </td>
@@ -70,6 +72,7 @@ export function SubcategoryGroup({
           tier={tier}
           item={item}
           members={members}
+          showPence={showPence}
           onSaveName={(name) => onSaveName(item.id, name)}
           onSaveAmount={(amount) => onSaveAmount(item.id, amount)}
           onDelete={() => onDeleteItem(item.id)}

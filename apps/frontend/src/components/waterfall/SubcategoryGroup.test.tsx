@@ -30,6 +30,7 @@ describe("SubcategoryGroup", () => {
             subcategory={subcategory}
             items={items as any}
             members={[]}
+            showPence={false}
             onAddDraft={() => {}}
             onDeleteItem={() => Promise.resolve()}
             onSaveName={() => Promise.resolve()}
@@ -62,6 +63,7 @@ describe("SubcategoryGroup", () => {
             subcategory={subcategory}
             items={mixed as any}
             members={[]}
+            showPence={false}
             onAddDraft={() => {}}
             onDeleteItem={() => Promise.resolve()}
             onSaveName={() => Promise.resolve()}
@@ -83,6 +85,7 @@ describe("SubcategoryGroup", () => {
             subcategory={subcategory}
             items={items as any}
             members={[]}
+            showPence={false}
             onAddDraft={onAddDraft}
             onDeleteItem={() => Promise.resolve()}
             onSaveName={() => Promise.resolve()}

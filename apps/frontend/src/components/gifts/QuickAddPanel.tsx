@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { formatCurrency } from "@/utils/format";
+import { useSettings } from "@/hooks/useSettings";
 import type { GiftDateType } from "@finplan/shared";
 
 const MONTHS = [
@@ -49,6 +51,8 @@ type Props = {
 type AddForm = "person" | "event" | null;
 
 export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
+  const { data: settings } = useSettings();
+  const showPence = settings?.showPence ?? false;
   const matrix = useQuickAddMatrix(year);
   const bulk = useBulkUpsertAllocations();
   const setBudgetMutation = useSetGiftBudget();
@@ -502,7 +506,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                       </td>
                     ))}
                     <td className="border-b border-foreground/5 border-l border-foreground/10 bg-foreground/[0.04] px-2.5 py-3 text-right font-mono text-xs tabular-nums text-foreground">
-                      {rowTotal(p.id) > 0 ? `£${rowTotal(p.id).toLocaleString()}` : "—"}
+                      {rowTotal(p.id) > 0 ? formatCurrency(rowTotal(p.id), showPence) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -517,11 +521,11 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                       key={e.id}
                       className="bg-foreground/[0.04] px-2.5 py-3 text-right font-mono text-xs tabular-nums text-foreground/65 border-t border-foreground/10"
                     >
-                      {colTotal(e.id) > 0 ? `£${colTotal(e.id).toLocaleString()}` : "—"}
+                      {colTotal(e.id) > 0 ? formatCurrency(colTotal(e.id), showPence) : "—"}
                     </td>
                   ))}
                   <td className="bg-foreground/[0.04] px-2.5 py-3 text-right font-mono text-xs font-semibold tabular-nums text-foreground border-t border-foreground/10 border-l border-foreground/10">
-                    {grandTotal > 0 ? `£${grandTotal.toLocaleString()}` : "—"}
+                    {grandTotal > 0 ? formatCurrency(grandTotal, showPence) : "—"}
                   </td>
                 </tr>
               </tfoot>
@@ -560,7 +564,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                 Currently allocated
               </span>
               <span className="font-mono text-[15px] font-semibold tabular-nums text-foreground">
-                £{allocated.toLocaleString()}
+                {formatCurrency(allocated, showPence)}
               </span>
             </div>
             <div className="flex flex-col gap-0.5">
@@ -568,7 +572,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                 Remaining
               </span>
               <span className="font-mono text-[15px] font-semibold tabular-nums text-foreground">
-                £{remaining.toLocaleString()}
+                {formatCurrency(remaining, showPence)}
               </span>
             </div>
           </div>
