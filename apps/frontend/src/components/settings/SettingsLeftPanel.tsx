@@ -38,7 +38,7 @@ export function SettingsLeftPanel({
     : [{ key: "", items }];
 
   return (
-    <aside className="flex flex-col h-full w-[360px] shrink-0 border-r">
+    <div className="flex h-full flex-col">
       <div className="shrink-0">
         <PageHeader title={title} contextName={contextName} />
         {subLabel && (
@@ -79,6 +79,6 @@ export function SettingsLeftPanel({
         <span className="text-foreground/40">finplan</span>
         <span className="font-numeric text-xs text-foreground/30">v{version}</span>
       </div>
-    </aside>
+    </div>
   );
 }
