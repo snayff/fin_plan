@@ -1,3 +1,4 @@
+import { toMonthlyAmount } from "@finplan/shared";
 import { formatCurrency } from "@/utils/format";
 import { TierRow } from "./TierRow";
 import type { TierItemRow } from "@/hooks/useWaterfall";
@@ -31,8 +32,7 @@ interface Props {
 
 function monthlyTotal(items: TierItemRow[]): number {
   return items.reduce((sum, i) => {
-    const m = i.spendType === "monthly" ? i.amount : Math.round(i.amount / 12);
-    return sum + m;
+    return sum + toMonthlyAmount(i.amount, i.spendType);
   }, 0);
 }
 

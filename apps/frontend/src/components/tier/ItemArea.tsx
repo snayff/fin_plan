@@ -11,7 +11,7 @@ import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import { getEmptyStateCopy } from "./emptyStateCopy";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useCreateItem, useDeleteItem, type TierItemRow } from "@/hooks/useWaterfall";
-import { toGBP } from "@finplan/shared";
+import { toGBP, toMonthlyAmount } from "@finplan/shared";
 import type { ItemLifecycleState } from "@finplan/shared";
 import { AnimatedCurrency } from "@/components/common/AnimatedCurrency";
 import type { TierConfig, TierKey } from "./tierConfig";
@@ -119,8 +119,8 @@ export default function ItemArea({
       } else if (sortField === "createdAt") {
         cmp = a.createdAt.getTime() - b.createdAt.getTime();
       } else {
-        const aMonthly = a.spendType === "monthly" ? a.amount : Math.round(a.amount / 12);
-        const bMonthly = b.spendType === "monthly" ? b.amount : Math.round(b.amount / 12);
+        const aMonthly = toMonthlyAmount(a.amount, a.spendType);
+        const bMonthly = toMonthlyAmount(b.amount, b.spendType);
         cmp = aMonthly - bMonthly;
       }
       return sortDir === "asc" ? cmp : -cmp;
@@ -133,8 +133,7 @@ export default function ItemArea({
 
   // Monthly-equivalent total
   const total = items.reduce((sum, item) => {
-    const monthly = item.spendType === "monthly" ? item.amount : Math.round(item.amount / 12);
-    return sum + monthly;
+    return sum + toMonthlyAmount(item.amount, item.spendType);
   }, 0);
 
   const deletingItem = items.find((it) => it.id === deletingItemId);

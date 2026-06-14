@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { toMonthlyAmount } from "@finplan/shared";
 import SubcategoryList from "./SubcategoryList";
 import ItemArea, { type LockedManager } from "./ItemArea";
 import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
@@ -63,7 +64,7 @@ export default function TierPage({ tier }: TierPageProps) {
           items: [],
         };
       }
-      const monthly = item.spendType === "monthly" ? item.amount : Math.round(item.amount / 12);
+      const monthly = toMonthlyAmount(item.amount, item.spendType);
       groups[sid].total += monthly;
       groups[sid].items.push(item);
     }
