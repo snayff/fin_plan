@@ -110,6 +110,14 @@ describe("FinancialSummaryPanel with visualisations", () => {
     expect(screen.getByText("Entertainment")).toBeTruthy();
   });
 
+  it("committed doughnut centre includes the non-monthly average (monthlyTotal + monthlyAvg12)", () => {
+    renderWithProviders(
+      <FinancialSummaryPanel waterfallSummary={mockSummary} isSnapshot={false} />
+    );
+    // committed monthlyTotal 2000 + monthlyAvg12 2000 = 4000 in the doughnut centre.
+    expect(screen.getByText("£4,000")).toBeTruthy();
+  });
+
   it("renders the four sparkline tier cards", () => {
     renderWithProviders(
       <FinancialSummaryPanel waterfallSummary={mockSummary} isSnapshot={false} />
