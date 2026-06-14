@@ -51,6 +51,7 @@ export function AddSubcategoryButton({ onCreate }: Props) {
           type="text"
           aria-label="New subcategory name"
           placeholder="New subcategory name"
+          maxLength={24}
           value={value}
           disabled={saving}
           onChange={(e) => {
