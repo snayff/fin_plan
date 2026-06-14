@@ -716,6 +716,62 @@ describe("cashflowService.getProjection — disposal liquidation events", () => 
     // No liquidation event → netChange ≈ 0 (no income/spend either)
     expect(may.netChange).toBeCloseTo(0, 0);
   });
+
+  it("account disposal proceeds include monthly contribution accrual (#128)", async () => {
+    // Disposing Savings account: £10k @ 5%, £200pm linked contribution, balance
+    // recorded 2026-05-01, disposed 2026-08-01 (~3 months forward). Proceeds must
+    // include both growth AND contribution accrual (shared computeDisposalProceeds).
+    prismaMock.account.findMany.mockResolvedValue([
+      {
+        id: "target-cur",
+        type: "Current",
+        isCashflowLinked: true,
+        disposedAt: null,
+        disposalAccountId: null,
+        linkedItems: [],
+        balances: [{ value: 0, date: new Date("2026-05-01"), createdAt: new Date("2026-05-01") }],
+      },
+      {
+        id: "src-sav",
+        type: "Savings",
+        isCashflowLinked: false,
+        growthRatePct: 5,
+        disposedAt: new Date("2026-08-01"),
+        disposalAccountId: "target-cur",
+        linkedItems: [{ id: "item-c", spendType: "monthly" }],
+        balances: [
+          { value: 10000, date: new Date("2026-05-01"), createdAt: new Date("2026-05-01") },
+        ],
+      },
+    ] as any);
+    prismaMock.asset.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.committedItem.findMany.mockResolvedValue([]);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      {
+        itemType: "discretionary_item",
+        itemId: "item-c",
+        startDate: new Date("2026-01-01"),
+        endDate: null,
+        amount: 200,
+      },
+    ] as any);
+    prismaMock.householdSettings.findUnique.mockResolvedValue(null);
+
+    const result = await cashflowService.getProjection("hh-1", {
+      startYear: 2026,
+      startMonth: 8,
+      monthCount: 1,
+    });
+
+    const aug = result.months.find((m) => m.year === 2026 && m.month === 8)!;
+    // Proceeds accrue from "now" → disposal (2026-08-01). Without contribution
+    // accrual the figure would be ~£10k + a few quid of growth; the £200pm
+    // contribution pushes it clearly higher, proving #128 includes contributions.
+    expect(aug.netChange).toBeGreaterThan(10200);
+    expect(aug.netChange).toBeLessThan(10600);
+  });
 });
 
 describe("cashflowService.getMonthDetail", () => {

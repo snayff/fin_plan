@@ -3,7 +3,7 @@ import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { audited, auditEventTx, computeDiff } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { findEffectivePeriod } from "./period.service.js";
-import { compoundForwardYears } from "./forecast.service.js";
+import { computeDisposalProceeds } from "./forecast.service.js";
 import { toMonthlyAmount, clampedUTCDate } from "@finplan/shared";
 import type {
   LinkableAccountRow,
@@ -59,6 +59,8 @@ interface DisposalSource {
   startBalanceDate: Date | null; // null if no balance recorded yet
   /** Effective annual growth rate (decimal, e.g. 0.05 for 5%). */
   annualRate: number;
+  /** Monthly contribution accruing into the source before disposal (#128). */
+  monthlyContribution: number;
 }
 
 const DEFAULT_RATES = {
@@ -100,10 +102,17 @@ function buildLiquidationEvent(
   if (source.disposedAt < from || source.disposedAt >= to) return null;
   // No balance recorded → skip (we can't project from nothing).
   if (source.startBalanceDate == null) return null;
-  const yearsForward =
-    (source.disposedAt.getTime() - Math.max(source.startBalanceDate.getTime(), now.getTime())) /
-    (365.25 * 24 * 60 * 60 * 1000);
-  const projectedValue = compoundForwardYears(source.startBalance, source.annualRate, yearsForward);
+  // Shared with the forecast service so the two never disagree (#128): date-precise
+  // monthly-compounded growth AND pro-rata contribution accrual to the disposal date.
+  const projectedValue = computeDisposalProceeds({
+    startBalance: source.startBalance,
+    startBalanceDate: source.startBalanceDate,
+    disposedAt: source.disposedAt,
+    annualRate: source.annualRate,
+    monthlyContribution: source.monthlyContribution,
+    now,
+  });
+  if (projectedValue == null) return null;
   return {
     date: source.disposedAt,
     amount: Math.round(projectedValue * 100) / 100,
@@ -312,10 +321,41 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
     }),
     prisma.account.findMany({
       where: { householdId, disposedAt: { not: null }, disposalAccountId: { not: null } },
-      include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
+      include: {
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        linkedItems: { select: { id: true, spendType: true } },
+      },
     }),
     prisma.householdSettings.findUnique({ where: { householdId } }),
   ]);
+
+  // Derive each disposing account's monthly contribution from its linked
+  // discretionary items' active amount periods (mirrors the forecast service),
+  // so proceeds include contribution accrual up to the disposal date (#128).
+  const now = new Date();
+  const linkedItemIds = accounts.flatMap((a) => (a.linkedItems ?? []).map((i) => i.id));
+  const activePeriods =
+    linkedItemIds.length > 0
+      ? await prisma.itemAmountPeriod.findMany({
+          where: {
+            householdId,
+            itemType: "discretionary_item",
+            itemId: { in: linkedItemIds },
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gt: now } }],
+          },
+        })
+      : [];
+  const amountByItemId = new Map<string, number>();
+  for (const period of activePeriods) amountByItemId.set(period.itemId, period.amount);
+  const contributionByAccountId = new Map<string, number>();
+  for (const acc of accounts) {
+    const total = (acc.linkedItems ?? []).reduce(
+      (sum, item) => sum + toMonthlyAmount(amountByItemId.get(item.id) ?? 0, item.spendType),
+      0
+    );
+    contributionByAccountId.set(acc.id, total);
+  }
 
   const overrides = {
     currentRatePct: settingsRow?.currentRatePct ?? DEFAULT_RATES.currentRatePct,
@@ -339,6 +379,7 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
       startBalance: latest?.value ?? 0,
       startBalanceDate: latest?.date ?? null,
       annualRate: a.growthRatePct != null ? a.growthRatePct / 100 : 0,
+      monthlyContribution: 0,
     });
   }
 
@@ -354,6 +395,7 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
       startBalance: latest?.value ?? 0,
       startBalanceDate: latest?.date ?? null,
       annualRate: defaultAccountRate(acc.type, acc.growthRatePct),
+      monthlyContribution: contributionByAccountId.get(acc.id) ?? 0,
     });
   }
 
