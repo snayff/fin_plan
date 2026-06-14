@@ -177,7 +177,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: "net-worth",
     term: "Net Worth",
     definition:
-      "The total value of everything you own (your assets) minus everything you owe (your liabilities). finplan calculates this from the assets recorded on the Wealth page.",
+      "The total value of everything you own (your assets) minus everything you owe (your liabilities). finplan calculates this from the assets recorded on the Wealth page, and excludes pensions — they're illiquid, retirement-restricted wealth shown separately in the Forecast.",
     tag: "financial",
     relatedConceptIds: [],
     relatedTermIds: ["equity-value", "liquidity"],

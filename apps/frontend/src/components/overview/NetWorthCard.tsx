@@ -29,7 +29,7 @@ export function NetWorthCard({ netWorth, sparklineData }: NetWorthCardProps) {
   if (netWorth === null) {
     return (
       <div className="rounded-xl pt-5 pb-4 px-4 overflow-hidden" style={SHELL_STYLE}>
-        <p className={`${LABEL_CLASS} mb-3`}>NET WORTH</p>
+        <p className={`${LABEL_CLASS} mb-3`}>NET WORTH (EXCL. PENSIONS)</p>
         <div className="flex flex-col items-center text-center">
           <h3 className="font-heading text-sm font-semibold text-foreground mb-1">
             Track your wealth over time
@@ -51,7 +51,7 @@ export function NetWorthCard({ netWorth, sparklineData }: NetWorthCardProps) {
 
   return (
     <div className="rounded-xl pt-5 pb-4 overflow-hidden" style={SHELL_STYLE}>
-      <p className={`${LABEL_CLASS} mb-2`}>NET WORTH</p>
+      <p className={`${LABEL_CLASS} mb-2`}>NET WORTH (EXCL. PENSIONS)</p>
       <p className="text-center font-numeric text-[36px] font-medium leading-[1.1] tabular-nums text-foreground">
         {formatCurrency(netWorth, showPence)}
       </p>
