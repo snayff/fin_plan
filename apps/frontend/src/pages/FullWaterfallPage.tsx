@@ -120,7 +120,10 @@ function FullWaterfallPageBody() {
 
   const summaryData = waterfall.summary.data;
   const incomeTotal = summaryData?.income.total ?? 0;
-  const committedTotal = summaryData?.committed.monthlyTotal ?? 0;
+  // Committed monthly-equivalent includes the amortised average of non-monthly
+  // bills (monthlyAvg12) so the deduction and surplus reflect all committed spend.
+  const committedTotal =
+    (summaryData?.committed.monthlyTotal ?? 0) + (summaryData?.committed.monthlyAvg12 ?? 0);
   const discretionaryTotal = summaryData?.discretionary.total ?? 0;
 
   const allItems = [
