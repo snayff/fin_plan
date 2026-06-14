@@ -78,7 +78,9 @@ export default function TierPage({ tier }: TierPageProps) {
   // Defaults to the first subcategory when nothing is selected (desktop) but
   // stays `null` on mobile to render the left panel (list view) on load.
   const validateSubcategory = useCallback(
-    (v: string) => !!subcategories?.some((s) => s.id === v),
+    // Until subcategories load, treat any id as valid so a deep-linked
+    // ?subcategory= survives the first render instead of being stripped.
+    (v: string) => (subcategories ? subcategories.some((s) => s.id === v) : true),
     [subcategories]
   );
   const [urlSelectedId, setSelectedId, clearSelection] = useUrlSelection({
