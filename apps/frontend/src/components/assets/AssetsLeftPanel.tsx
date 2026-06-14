@@ -36,9 +36,7 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
       {/* List */}
       <nav aria-label="Assets and accounts" className="flex-1 min-h-0 overflow-y-auto">
         {/* Assets group */}
-        <p className="px-4 py-1.5 text-foreground/25 text-[10px] tracking-[0.1em] uppercase">
-          Assets
-        </p>
+        <p className="label-chart px-4 py-1.5">Assets</p>
         {ASSET_TYPES.map((type) => {
           const isSelected = selected === type;
           const total = summary?.assetTotals[type] ?? 0;
@@ -73,9 +71,7 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
         })}
 
         {/* Accounts group */}
-        <p className="px-4 pt-3.5 pb-1.5 text-foreground/25 text-[10px] tracking-[0.1em] uppercase">
-          Accounts
-        </p>
+        <p className="label-chart px-4 pt-3.5 pb-1.5">Accounts</p>
         {ACCOUNT_TYPES.map((type) => {
           const isSelected = selected === type;
           const total = summary?.accountTotals[type] ?? 0;

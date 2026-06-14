@@ -14,7 +14,7 @@ interface Props {
 
 const NONE_VALUE = "__none__";
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 
 export function LinkedAccountPicker({ value, onChange }: Props) {
   const { data: savingsAccounts = [] } = useAccountsByType("Savings");

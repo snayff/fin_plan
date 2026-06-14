@@ -196,7 +196,7 @@ export default function ItemForm({
     });
   }
 
-  const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+  const labelClass = "label-chart";
   const inputClass =
     "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -385,11 +385,7 @@ export default function ItemForm({
                         Current
                       </span>
                     )}
-                    {isFuture && (
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                        Scheduled
-                      </span>
-                    )}
+                    {isFuture && <span className="label-chart">Scheduled</span>}
                     <button
                       type="button"
                       disabled={deletePeriod.isPending}

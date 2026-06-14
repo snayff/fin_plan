@@ -51,9 +51,7 @@ export default function ItemAccordion({ item, config, onEdit, now, stalenessMont
         <div className="flex-1 flex flex-col gap-2">
           {/* Notes */}
           <div>
-            <span className="block text-text-muted uppercase tracking-[0.07em] text-[10px]">
-              Notes
-            </span>
+            <span className="block label-chart">Notes</span>
             {item.notes ? (
               <p className="text-xs italic text-text-tertiary">{item.notes}</p>
             ) : (
@@ -64,9 +62,7 @@ export default function ItemAccordion({ item, config, onEdit, now, stalenessMont
           {/* Last Reviewed — only when stale */}
           {stale && (
             <div>
-              <span className="block text-text-muted uppercase tracking-[0.07em] text-[10px]">
-                Last Reviewed
-              </span>
+              <span className="block label-chart">Last Reviewed</span>
               <span className="flex items-center gap-1.5 text-xs text-attention">
                 <span className="h-[5px] w-[5px] rounded-full bg-attention shrink-0" aria-hidden />
                 {formatReviewDate(item.lastReviewedAt)} · {monthsAgo} months ago

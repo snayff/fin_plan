@@ -105,7 +105,7 @@ export function CashflowYearView({
           type="button"
           disabled={!canShiftBack}
           onClick={() => onShiftWindow(0)}
-          className="ml-2 border border-foreground/10 rounded px-2 py-0.5 text-[10px] uppercase tracking-widest text-text-secondary disabled:opacity-30 hover:text-page-accent hover:border-page-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-page-accent transition-colors"
+          className="label-chart ml-2 border border-foreground/10 rounded px-2 py-0.5 disabled:opacity-30 hover:text-page-accent hover:border-page-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-page-accent transition-colors"
         >
           Today
         </button>

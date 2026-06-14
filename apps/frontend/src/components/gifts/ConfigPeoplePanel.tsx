@@ -85,7 +85,7 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
         {!readOnly && showAddInput && (
           <div className="border-t border-foreground/5 bg-foreground/[0.02] py-3 pr-4 flex flex-col gap-3 border-l-2 border-tier-discretionary pl-[30px]">
             <div className="flex flex-col gap-1">
-              <label className="text-text-muted uppercase tracking-[0.07em] text-[10px]">
+              <label className="label-chart">
                 Name <span className="text-text-muted">*</span>
               </label>
               <input

@@ -48,11 +48,7 @@ export function SettingsLeftPanel({
       <nav aria-label="Settings sections" className="flex-1 min-h-0 overflow-y-auto">
         {groups.map((g) => (
           <div key={g.key || "flat"}>
-            {g.key && (
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-4 pt-3 pb-1">
-                {g.key}
-              </p>
-            )}
+            {g.key && <p className="label-detail px-4 pt-3 pb-1">{g.key}</p>}
             {g.items.map((item) => {
               const isActive = item.id === activeId;
               return (

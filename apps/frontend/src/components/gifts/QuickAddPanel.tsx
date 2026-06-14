@@ -247,7 +247,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
     setAddForm(null);
   };
 
-  const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+  const labelClass = "label-chart";
   const inputClass =
     "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
   const selectTriggerClass =
@@ -460,18 +460,18 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 bg-foreground/[0.04] px-4 py-3 text-left font-heading text-[10px] font-semibold uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
+                  <th className="label-chart sticky left-0 z-10 bg-foreground/[0.04] px-4 py-3 text-left border-b border-foreground/10">
                     Person
                   </th>
                   {events.map((e) => (
                     <th
                       key={e.id}
-                      className="bg-foreground/[0.04] px-2.5 py-3 text-right font-heading text-[10px] font-semibold uppercase tracking-wider text-foreground/40 border-b border-foreground/10 whitespace-nowrap"
+                      className="label-chart bg-foreground/[0.04] px-2.5 py-3 text-right border-b border-foreground/10 whitespace-nowrap"
                     >
                       {e.name}
                     </th>
                   ))}
-                  <th className="bg-foreground/[0.04] px-2.5 py-3 text-right font-heading text-[10px] font-semibold uppercase tracking-wider text-foreground/40 border-b border-foreground/10 border-l border-foreground/10">
+                  <th className="label-chart bg-foreground/[0.04] px-2.5 py-3 text-right border-b border-foreground/10 border-l border-foreground/10">
                     Total
                   </th>
                 </tr>
@@ -514,7 +514,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
               </tbody>
               <tfoot>
                 <tr>
-                  <td className="sticky left-0 z-10 bg-foreground/[0.04] px-4 py-3 font-heading text-[10px] font-semibold uppercase tracking-wider text-foreground/40 border-t border-foreground/10">
+                  <td className="label-chart sticky left-0 z-10 bg-foreground/[0.04] px-4 py-3 border-t border-foreground/10">
                     Total
                   </td>
                   {events.map((e) => (
@@ -538,9 +538,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
         {budget && (
           <div className="flex gap-7 rounded-lg border border-foreground/10 bg-foreground/[0.02] px-5 py-3.5">
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-foreground/40">
-                Budget
-              </span>
+              <span className="label-chart">Budget</span>
               <div className="flex items-center gap-0.5">
                 <span className="font-mono text-[15px] font-semibold tabular-nums text-foreground/40">
                   £
@@ -561,17 +559,13 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
               </div>
             </div>
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-foreground/40">
-                Currently allocated
-              </span>
+              <span className="label-chart">Currently allocated</span>
               <span className="font-mono text-[15px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(allocated, showPence)}
               </span>
             </div>
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-foreground/40">
-                Remaining
-              </span>
+              <span className="label-chart">Remaining</span>
               <span className="font-mono text-[15px] font-semibold tabular-nums text-foreground">
                 {formatCurrency(remaining, showPence)}
               </span>

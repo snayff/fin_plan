@@ -11,7 +11,7 @@ function todayISO() {
   return new Date().toISOString().split("T")[0]!;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 

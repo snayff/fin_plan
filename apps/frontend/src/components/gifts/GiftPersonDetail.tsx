@@ -94,9 +94,7 @@ function AllocationCard({
             </GlossaryTermMarker>
           )}
         </div>
-        <span className="text-[11px] uppercase tracking-wide text-foreground/40">
-          {allocation.status}
-        </span>
+        <span className="label-section">{allocation.status}</span>
       </div>
       <div className="mt-2 flex items-center gap-4">
         <label className="flex items-center gap-1 text-[11px] text-foreground/40">
