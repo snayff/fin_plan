@@ -1,6 +1,12 @@
 import { prisma } from "../config/database.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CreatePeriodInput, UpdatePeriodInput, ItemLifecycleState } from "@finplan/shared";
+import { ConflictError, NotFoundError, ValidationError } from "../utils/errors.js";
+
+/** Narrow a thrown value to a Prisma unique-constraint (P2002) error. */
+function isUniqueViolation(err: unknown): boolean {
+  return err !== null && typeof err === "object" && (err as { code?: unknown }).code === "P2002";
+}
 
 /**
  * A Prisma client or an interactive-transaction client. `setCurrentAmount`
@@ -111,26 +117,50 @@ export const periodService = {
     return computeLifecycleState(periods, now);
   },
 
-  async createPeriod(householdId: string, data: CreatePeriodInput) {
-    const existing = await prisma.itemAmountPeriod.findMany({
+  /**
+   * Insert a new amount period, stitching it into the existing timeline. The
+   * core logic runs against the supplied `db` (a Prisma client or transaction
+   * client) so callers can compose it into a larger transaction — e.g. creating
+   * an item and its initial period atomically (#130).
+   *
+   * Boundary rules (#144):
+   *  - only close the previous period when it is still open (endDate === null)
+   *    or its endDate extends past the new start — never resurrect a period that
+   *    was already closed before the new start;
+   *  - if an explicit endDate is supplied it must be after the start, and must
+   *    not overrun the next period's start.
+   */
+  async createPeriodTx(db: PrismaLike, householdId: string, data: CreatePeriodInput) {
+    const existing = await db.itemAmountPeriod.findMany({
       where: { householdId, itemType: data.itemType as any, itemId: data.itemId },
       orderBy: { startDate: "asc" },
     });
 
-    // Find the period that should have its endDate set to this new period's startDate
+    const nextPeriod = findNextPeriod(existing, data.startDate);
+
+    // Validate an explicit endDate before mutating anything.
+    if (data.endDate) {
+      if (data.endDate <= data.startDate) {
+        throw new ValidationError("Period end date must be after its start date");
+      }
+      if (nextPeriod && data.endDate > nextPeriod.startDate) {
+        throw new ValidationError("Period end date overlaps the following period");
+      }
+    }
+
+    // Close the previous period only if it is still open or extends past the
+    // new start — don't reopen a period that already closed before this start.
     const prevPeriod = findPreviousPeriod(existing, data.startDate);
-    if (prevPeriod) {
-      await prisma.itemAmountPeriod.update({
+    if (prevPeriod && (prevPeriod.endDate === null || prevPeriod.endDate > data.startDate)) {
+      await db.itemAmountPeriod.update({
         where: { id: prevPeriod.id },
         data: { endDate: data.startDate },
       });
     }
 
-    // Find the period after this one — set new period's endDate to that period's startDate
-    const nextPeriod = findNextPeriod(existing, data.startDate);
     const endDate = data.endDate ?? nextPeriod?.startDate ?? null;
 
-    return prisma.itemAmountPeriod.create({
+    return db.itemAmountPeriod.create({
       data: {
         householdId,
         itemType: data.itemType as any,
@@ -142,63 +172,113 @@ export const periodService = {
     });
   },
 
-  async updatePeriod(householdId: string, id: string, data: UpdatePeriodInput) {
-    const period = await prisma.itemAmountPeriod.findFirst({ where: { id, householdId } });
-    if (!period) throw new Error("Period not found");
-
-    const updateData: Record<string, unknown> = {};
-    if (data.amount !== undefined) updateData.amount = data.amount;
-    if (data.startDate !== undefined) updateData.startDate = data.startDate;
-    if (data.endDate !== undefined) updateData.endDate = data.endDate;
-
-    // If startDate changes, update the previous period's endDate
-    if (data.startDate && data.startDate.getTime() !== period.startDate.getTime()) {
-      const allPeriods = await prisma.itemAmountPeriod.findMany({
-        where: { householdId, itemType: period.itemType, itemId: period.itemId },
-        orderBy: { startDate: "asc" },
-      });
-      const prevPeriod = findPreviousPeriod(allPeriods, period.startDate);
-      if (prevPeriod) {
-        await prisma.itemAmountPeriod.update({
-          where: { id: prevPeriod.id },
-          data: { endDate: data.startDate },
-        });
+  async createPeriod(householdId: string, data: CreatePeriodInput) {
+    try {
+      return await prisma.$transaction((tx) => this.createPeriodTx(tx, householdId, data));
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictError("A period already starts on that date");
       }
+      throw err;
     }
+  },
 
-    return prisma.itemAmountPeriod.update({ where: { id, householdId }, data: updateData });
+  async updatePeriod(householdId: string, id: string, data: UpdatePeriodInput) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const period = await tx.itemAmountPeriod.findFirst({ where: { id, householdId } });
+        if (!period) throw new NotFoundError("Period not found");
+
+        const updateData: Record<string, unknown> = {};
+        if (data.amount !== undefined) updateData.amount = data.amount;
+        if (data.startDate !== undefined) updateData.startDate = data.startDate;
+        if (data.endDate !== undefined) updateData.endDate = data.endDate;
+
+        // Merge requested changes onto the current row to validate the result.
+        const mergedStart = data.startDate ?? period.startDate;
+        const mergedEnd = data.endDate !== undefined ? data.endDate : period.endDate;
+
+        if (mergedEnd !== null && mergedEnd <= mergedStart) {
+          throw new ValidationError("Period end date must be after its start date");
+        }
+
+        const startMoved =
+          data.startDate !== undefined && data.startDate.getTime() !== period.startDate.getTime();
+
+        // Neighbour overlap / previous-period stitching only matters when the
+        // start moves; fetch the timeline once and reuse it.
+        if (startMoved) {
+          const allPeriods = await tx.itemAmountPeriod.findMany({
+            where: { householdId, itemType: period.itemType, itemId: period.itemId },
+            orderBy: { startDate: "asc" },
+          });
+
+          const prevPeriod = findPreviousPeriod(allPeriods, period.startDate);
+          const nextPeriod = findNextPeriod(allPeriods, period.startDate);
+
+          // Reject moving the start on or before the previous period's start, or
+          // on/after the next period's start — either would overlap a neighbour.
+          if (prevPeriod && mergedStart <= prevPeriod.startDate) {
+            throw new ValidationError("Period overlaps the preceding period");
+          }
+          if (nextPeriod && mergedStart >= nextPeriod.startDate) {
+            throw new ValidationError("Period overlaps the following period");
+          }
+          // An explicit end must also not overrun the next period's start.
+          if (mergedEnd !== null && nextPeriod && mergedEnd > nextPeriod.startDate) {
+            throw new ValidationError("Period end date overlaps the following period");
+          }
+
+          if (prevPeriod) {
+            await tx.itemAmountPeriod.update({
+              where: { id: prevPeriod.id },
+              data: { endDate: mergedStart },
+            });
+          }
+        }
+
+        return tx.itemAmountPeriod.update({ where: { id, householdId }, data: updateData });
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictError("A period already starts on that date");
+      }
+      throw err;
+    }
   },
 
   async deletePeriod(
     householdId: string,
     id: string
   ): Promise<{ deleteItem: boolean; itemType?: string; itemId?: string } | void> {
-    const period = await prisma.itemAmountPeriod.findFirst({ where: { id, householdId } });
-    if (!period) throw new Error("Period not found");
+    return prisma.$transaction(async (tx) => {
+      const period = await tx.itemAmountPeriod.findFirst({ where: { id, householdId } });
+      if (!period) throw new NotFoundError("Period not found");
 
-    const allPeriods = await prisma.itemAmountPeriod.findMany({
-      where: { householdId, itemType: period.itemType, itemId: period.itemId },
-      orderBy: { startDate: "asc" },
-    });
-
-    // If this is the last period, signal item deletion
-    if (allPeriods.length <= 1) {
-      return { deleteItem: true, itemType: period.itemType, itemId: period.itemId };
-    }
-
-    const idx = allPeriods.findIndex((p) => p.id === id);
-    const prevPeriod = idx > 0 ? allPeriods[idx - 1] : null;
-    const nextPeriod = idx < allPeriods.length - 1 ? allPeriods[idx + 1] : null;
-
-    // Adjust adjacent period to close the gap
-    if (prevPeriod) {
-      await prisma.itemAmountPeriod.update({
-        where: { id: prevPeriod.id },
-        data: { endDate: nextPeriod?.startDate ?? null },
+      const allPeriods = await tx.itemAmountPeriod.findMany({
+        where: { householdId, itemType: period.itemType, itemId: period.itemId },
+        orderBy: { startDate: "asc" },
       });
-    }
 
-    await prisma.itemAmountPeriod.delete({ where: { id, householdId } });
+      // If this is the last period, signal item deletion
+      if (allPeriods.length <= 1) {
+        return { deleteItem: true, itemType: period.itemType, itemId: period.itemId };
+      }
+
+      const idx = allPeriods.findIndex((p) => p.id === id);
+      const prevPeriod = idx > 0 ? allPeriods[idx - 1] : null;
+      const nextPeriod = idx < allPeriods.length - 1 ? allPeriods[idx + 1] : null;
+
+      // Adjust adjacent period to close the gap
+      if (prevPeriod) {
+        await tx.itemAmountPeriod.update({
+          where: { id: prevPeriod.id },
+          data: { endDate: nextPeriod?.startDate ?? null },
+        });
+      }
+
+      await tx.itemAmountPeriod.delete({ where: { id, householdId } });
+    });
   },
 };
 

@@ -217,6 +217,93 @@ describe("periodService.createPeriod", () => {
     });
     expect(result.amount).toBe(9);
   });
+
+  // #144: the previous period is only closed when still open or extends past
+  // the new start — a period that already closed before the new start must not
+  // be resurrected (its endDate left untouched).
+  it("does not resurrect a previous period that closed before the new start", async () => {
+    const existingPeriods = [
+      {
+        id: "p1",
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2020-01-01"),
+        endDate: new Date("2021-01-01"), // closed long before the new start
+        amount: 7,
+      },
+    ];
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue(existingPeriods);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({ id: "p2", amount: 9 } as any);
+
+    await periodService.createPeriod(HH, {
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2026-10-01"),
+      amount: 9,
+    });
+
+    // The already-closed gap period must not be touched.
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalled();
+  });
+
+  // #144: explicit endDate validation.
+  it("rejects an explicit endDate on or before the start date", async () => {
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([]);
+
+    await expect(
+      periodService.createPeriod(HH, {
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-10-01"),
+        endDate: new Date("2026-10-01"),
+        amount: 9,
+      })
+    ).rejects.toThrow("end date must be after");
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an explicit endDate that overruns the following period", async () => {
+    const existingPeriods = [
+      {
+        id: "p-next",
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2027-01-01"),
+        endDate: null,
+        amount: 5,
+      },
+    ];
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue(existingPeriods);
+
+    await expect(
+      periodService.createPeriod(HH, {
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-10-01"),
+        endDate: new Date("2027-06-01"), // past the next period's start
+        amount: 9,
+      })
+    ).rejects.toThrow("overlaps the following period");
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
+  });
+
+  // #131: a unique-constraint collision surfaces as a 409, never a raw 500.
+  it("maps a P2002 unique violation to a ConflictError", async () => {
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([]);
+    prismaMock.itemAmountPeriod.create.mockRejectedValue({ code: "P2002" });
+
+    await expect(
+      periodService.createPeriod(HH, {
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-10-01"),
+        amount: 9,
+      })
+    ).rejects.toThrow("already starts on that date");
+  });
 });
 
 describe("periodService.updatePeriod", () => {
@@ -254,6 +341,78 @@ describe("periodService.updatePeriod", () => {
       data: { amount: 11 },
     });
     expect(result.amount).toBe(11);
+  });
+
+  // #144: merged start must remain before the (existing) endDate.
+  it("rejects a startDate moved on or after the existing endDate", async () => {
+    const period = {
+      id: "p1",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2025-01-01"),
+      endDate: new Date("2025-06-01"),
+      amount: 7,
+    };
+    prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
+
+    await expect(
+      periodService.updatePeriod(HH, "p1", { startDate: new Date("2025-07-01") })
+    ).rejects.toThrow("end date must be after");
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+  });
+
+  // #144: moving the start across a neighbour must be rejected, not silently
+  // produce overlapping periods.
+  it("rejects a startDate that overlaps the following period", async () => {
+    const target = {
+      id: "p2",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2025-01-01"),
+      endDate: null,
+      amount: 7,
+    };
+    const allPeriods = [
+      target,
+      {
+        id: "p3",
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-01-01"),
+        endDate: null,
+        amount: 9,
+      },
+    ];
+    prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(target);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue(allPeriods);
+
+    await expect(
+      // Push p2's start to 2026-06-01, past p3's start → overlap.
+      periodService.updatePeriod(HH, "p2", { startDate: new Date("2026-06-01") })
+    ).rejects.toThrow("overlaps the following period");
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+  });
+
+  // #131: a startDate collision raised by the DB surfaces as a 409.
+  it("maps a P2002 unique violation to a ConflictError", async () => {
+    const period = {
+      id: "p1",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2025-01-01"),
+      endDate: null,
+      amount: 7,
+    };
+    prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
+    prismaMock.itemAmountPeriod.update.mockRejectedValue({ code: "P2002" });
+
+    await expect(periodService.updatePeriod(HH, "p1", { amount: 11 })).rejects.toThrow(
+      "already starts on that date"
+    );
   });
 });
 
