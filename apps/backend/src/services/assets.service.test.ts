@@ -56,6 +56,37 @@ describe("assetsService.getSummary", () => {
     expect(result.accountTotals.Pension).toBe(0);
     expect(result.grandTotal).toBe(114000);
   });
+
+  it("grandTotal (net worth) EXCLUDES pension account balances (#164)", async () => {
+    prismaMock.asset.findMany.mockResolvedValue([
+      {
+        type: "Property",
+        balances: [{ value: 200000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+    ] as any);
+    prismaMock.account.findMany.mockResolvedValue([
+      {
+        type: "Savings",
+        balances: [{ value: 10000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+      {
+        type: "StocksAndShares",
+        balances: [{ value: 5000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+      {
+        type: "Pension",
+        balances: [{ value: 50000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+    ] as any);
+
+    const result = await assetsService.getSummary(HOUSEHOLD_ID);
+
+    // Pension still reported per-type for the Assets page breakdown...
+    expect(result.accountTotals.Pension).toBe(50000);
+    // ...but excluded from grandTotal so it reconciles with forecast year-0:
+    // Property 200000 + Savings 10000 + S&S 5000 = 215000 (pension 50000 excluded).
+    expect(result.grandTotal).toBe(215000);
+  });
 });
 
 describe("assetsService.listAssetsByType", () => {

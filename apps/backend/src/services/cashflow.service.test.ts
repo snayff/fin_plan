@@ -716,6 +716,127 @@ describe("cashflowService.getProjection — disposal liquidation events", () => 
     // No liquidation event → netChange ≈ 0 (no income/spend either)
     expect(may.netChange).toBeCloseTo(0, 0);
   });
+
+  it("account disposal proceeds include monthly contribution accrual (#128)", async () => {
+    // Disposing Savings account: £10k @ 5%, £200pm linked contribution, balance
+    // recorded 2026-05-01, disposed 2026-08-01 (~3 months forward). Proceeds must
+    // include both growth AND contribution accrual (shared computeDisposalProceeds).
+    prismaMock.account.findMany.mockResolvedValue([
+      {
+        id: "target-cur",
+        type: "Current",
+        isCashflowLinked: true,
+        disposedAt: null,
+        disposalAccountId: null,
+        linkedItems: [],
+        balances: [{ value: 0, date: new Date("2026-05-01"), createdAt: new Date("2026-05-01") }],
+      },
+      {
+        id: "src-sav",
+        type: "Savings",
+        isCashflowLinked: false,
+        growthRatePct: 5,
+        disposedAt: new Date("2026-08-01"),
+        disposalAccountId: "target-cur",
+        linkedItems: [{ id: "item-c", spendType: "monthly" }],
+        balances: [
+          { value: 10000, date: new Date("2026-05-01"), createdAt: new Date("2026-05-01") },
+        ],
+      },
+    ] as any);
+    prismaMock.asset.findMany.mockResolvedValue([]);
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.committedItem.findMany.mockResolvedValue([]);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      {
+        itemType: "discretionary_item",
+        itemId: "item-c",
+        startDate: new Date("2026-01-01"),
+        endDate: null,
+        amount: 200,
+      },
+    ] as any);
+    prismaMock.householdSettings.findUnique.mockResolvedValue(null);
+
+    const result = await cashflowService.getProjection("hh-1", {
+      startYear: 2026,
+      startMonth: 8,
+      monthCount: 1,
+    });
+
+    const aug = result.months.find((m) => m.year === 2026 && m.month === 8)!;
+    // Proceeds accrue from "now" → disposal (2026-08-01). Without contribution
+    // accrual the figure would be ~£10k + a few quid of growth; the £200pm
+    // contribution pushes it clearly higher, proving #128 includes contributions.
+    expect(aug.netChange).toBeGreaterThan(10200);
+    expect(aug.netChange).toBeLessThan(10600);
+  });
+});
+
+describe("cashflowService.getProjection — avg monthly surplus excludes partial current month (#117)", () => {
+  it("steady-state household → avgMonthlySurplus ≈ steady-state surplus, unskewed by month[0]", async () => {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth() + 1; // 1-indexed current month
+    const d = (year: number, month: number, day: number) =>
+      new Date(Date.UTC(year, month - 1, day));
+
+    // Linked Current account, balance anchored on the 1st of the current month.
+    prismaMock.account.findMany.mockResolvedValue([
+      {
+        id: "cur-1",
+        type: "Current",
+        isCashflowLinked: true,
+        disposedAt: null,
+        disposalAccountId: null,
+        linkedItems: [],
+        balances: [{ value: 5000, date: d(y, m, 1), createdAt: d(y, m, 1) }],
+      },
+    ] as any);
+    prismaMock.asset.findMany.mockResolvedValue([]);
+    // Steady monthly income on day 5 → every FULL month nets +2000. Plus a large
+    // one-off bonus in the current month only, which inflates month[0]'s netChange.
+    prismaMock.incomeSource.findMany.mockResolvedValue([
+      { id: "sal", name: "Salary", frequency: "monthly", dueDate: d(y, m, 5), householdId: "hh-1" },
+      {
+        id: "bonus",
+        name: "Bonus",
+        frequency: "one_off",
+        dueDate: d(y, m, 10),
+        householdId: "hh-1",
+      },
+    ] as any);
+    prismaMock.committedItem.findMany.mockResolvedValue([]);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      {
+        itemType: "income_source",
+        itemId: "sal",
+        startDate: d(2020, 1, 1),
+        endDate: null,
+        amount: 2000,
+      },
+      {
+        itemType: "income_source",
+        itemId: "bonus",
+        startDate: d(2020, 1, 1),
+        endDate: null,
+        amount: 9000,
+      },
+    ] as any);
+    prismaMock.householdSettings.findUnique.mockResolvedValue(null);
+
+    const result = await cashflowService.getProjection("hh-1", {
+      startYear: y,
+      startMonth: m,
+      monthCount: 4,
+    });
+
+    // Full months (2,3,4) net +2000 each; month[0] is inflated by the £9k bonus.
+    // Average over the full months only → 2000, NOT (2000*3 + 11000)/4 = 4250.
+    expect(result.avgMonthlySurplus).toBeCloseTo(2000, 5);
+  });
 });
 
 describe("cashflowService.getMonthDetail", () => {

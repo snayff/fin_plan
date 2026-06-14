@@ -99,7 +99,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/income/:id/confirm", preMutation, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const source = await waterfallService.confirmIncome(req.householdId!, id);
+    const source = await waterfallService.confirmIncome(req.householdId!, id, actorCtx(req));
     return reply.send(source);
   });
 
@@ -135,7 +135,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/committed/:id/confirm", preMutation, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const bill = await waterfallService.confirmCommitted(req.householdId!, id);
+    const bill = await waterfallService.confirmCommitted(req.householdId!, id, actorCtx(req));
     return reply.send(bill);
   });
 
@@ -171,7 +171,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/yearly/:id/confirm", preMutation, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const bill = await waterfallService.confirmYearly(req.householdId!, id);
+    const bill = await waterfallService.confirmYearly(req.householdId!, id, actorCtx(req));
     return reply.send(bill);
   });
 
@@ -212,7 +212,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/discretionary/:id/confirm", preMutation, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const cat = await waterfallService.confirmDiscretionary(req.householdId!, id);
+    const cat = await waterfallService.confirmDiscretionary(req.householdId!, id, actorCtx(req));
     return reply.send(cat);
   });
 
@@ -248,7 +248,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/savings/:id/confirm", preMutation, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const alloc = await waterfallService.confirmSavings(req.householdId!, id);
+    const alloc = await waterfallService.confirmSavings(req.householdId!, id, actorCtx(req));
     return reply.send(alloc);
   });
 
@@ -264,7 +264,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.post("/confirm-batch", preMutation, async (req, reply) => {
     const data = confirmBatchSchema.parse(req.body);
-    await waterfallService.confirmBatch(req.householdId!, data);
+    await waterfallService.confirmBatch(req.householdId!, data, actorCtx(req));
     return reply.status(204).send();
   });
 

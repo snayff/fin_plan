@@ -241,11 +241,14 @@ describe("waterfallService confirm methods stamp lastReviewedAt", () => {
     ["confirmSavings", "discretionaryItem"],
   ] as const;
 
+  const ctx = { householdId: "hh-1", actorId: "user-1", actorName: "Test" };
+
   for (const [method, model] of cases) {
     it(`${method} updates lastReviewedAt for an owned item`, async () => {
       (prismaMock as any)[model].findUnique.mockResolvedValue({ id: "x-1", householdId: "hh-1" });
       (prismaMock as any)[model].update.mockResolvedValue({ id: "x-1" });
-      await (waterfallService as any)[method]("hh-1", "x-1");
+      prismaMock.auditLog.create.mockResolvedValue({} as any);
+      await (waterfallService as any)[method]("hh-1", "x-1", ctx);
       expect((prismaMock as any)[model].update).toHaveBeenCalledWith({
         where: { id: "x-1" },
         data: { lastReviewedAt: expect.any(Date) },
@@ -254,7 +257,9 @@ describe("waterfallService confirm methods stamp lastReviewedAt", () => {
 
     it(`${method} throws when the item is missing`, async () => {
       (prismaMock as any)[model].findUnique.mockResolvedValue(null);
-      await expect((waterfallService as any)[method]("hh-1", "x-1")).rejects.toThrow("not found");
+      await expect((waterfallService as any)[method]("hh-1", "x-1", ctx)).rejects.toThrow(
+        "not found"
+      );
     });
   }
 });
@@ -653,14 +658,19 @@ describe("waterfallService.getHistory", () => {
 
 describe("waterfallService.confirmBatch routes every item-type label", () => {
   it("dispatches bill, yearly, discretionary and savings labels to the right models", async () => {
-    await waterfallService.confirmBatch("hh-1", {
-      items: [
-        { type: "committed_bill", id: "b1" },
-        { type: "yearly_bill", id: "b2" },
-        { type: "discretionary_category", id: "d1" },
-        { type: "savings_allocation", id: "s1" },
-      ] as any,
-    });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+    await waterfallService.confirmBatch(
+      "hh-1",
+      {
+        items: [
+          { type: "committed_bill", id: "b1" },
+          { type: "yearly_bill", id: "b2" },
+          { type: "discretionary_category", id: "d1" },
+          { type: "savings_allocation", id: "s1" },
+        ] as any,
+      },
+      { householdId: "hh-1", actorId: "user-1", actorName: "Test" }
+    );
 
     expect(prismaMock.committedItem.updateMany).toHaveBeenCalledTimes(2);
     expect(prismaMock.discretionaryItem.updateMany).toHaveBeenCalledTimes(2);

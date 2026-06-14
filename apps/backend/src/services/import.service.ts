@@ -665,7 +665,8 @@ export const importService = {
   async restoreFromBackup(
     householdId: string,
     callerUserId: string,
-    backupId: string
+    backupId: string,
+    ctx?: ActorCtx
   ): Promise<{ success: boolean; householdId: string }> {
     await assertOwner(householdId, callerUserId);
 
@@ -677,12 +678,14 @@ export const importService = {
       throw new ValidationError("Backup has expired");
     }
 
-    // Import the backup data as an overwrite (this will create its own backup of current state)
+    // Import the backup data as an overwrite (this will create its own backup of
+    // current state). Pass the actor ctx so the restore-overwrite is audited (#123).
     const result = await this.importHousehold(
       householdId,
       callerUserId,
       backupRecord.data,
-      "overwrite"
+      "overwrite",
+      ctx
     );
 
     // Delete the used backup

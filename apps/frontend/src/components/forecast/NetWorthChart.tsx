@@ -40,7 +40,7 @@ export function NetWorthChart({
   return (
     <div className="bg-surface border border-surface-elevated rounded-xl overflow-hidden">
       <div className="px-5 pt-4 pb-2">
-        <span className="label-chart">Net Worth</span>
+        <span className="label-chart">Net Worth (excl. pensions)</span>
       </div>
 
       {isEmpty ? (

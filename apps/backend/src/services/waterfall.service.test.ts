@@ -53,6 +53,8 @@ describe("waterfallService.listIncome", () => {
 });
 
 describe("waterfallService.confirmIncome", () => {
+  const ctx = { householdId: "hh-1", actorId: "user-1", actorName: "Test" };
+
   it("updates lastReviewedAt to current timestamp", async () => {
     const id = "inc-1";
     const householdId = "hh-1";
@@ -60,8 +62,9 @@ describe("waterfallService.confirmIncome", () => {
 
     prismaMock.incomeSource.findUnique.mockResolvedValue({ id, householdId, amount: 3000 } as any);
     prismaMock.incomeSource.update.mockResolvedValue({ id, lastReviewedAt: now } as any);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
 
-    const result = await waterfallService.confirmIncome(householdId, id);
+    const result = await waterfallService.confirmIncome(householdId, id, ctx);
 
     expect(prismaMock.incomeSource.update).toHaveBeenCalledWith({
       where: { id },
@@ -69,17 +72,40 @@ describe("waterfallService.confirmIncome", () => {
     });
     expect(result).toMatchObject({ id });
   });
+
+  it("writes a CONFIRM_WATERFALL_ITEM audit row (#123)", async () => {
+    const id = "inc-1";
+    prismaMock.incomeSource.findUnique.mockResolvedValue({ id, householdId: "hh-1" } as any);
+    prismaMock.incomeSource.update.mockResolvedValue({ id, lastReviewedAt: new Date() } as any);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await waterfallService.confirmIncome("hh-1", id, ctx);
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "CONFIRM_WATERFALL_ITEM",
+          resource: "income-source",
+          resourceId: id,
+          actorId: "user-1",
+        }),
+      })
+    );
+  });
 });
 
 describe("waterfallService.confirmBatch", () => {
+  const ctx = { householdId: "hh-1", actorId: "user-1", actorName: "Test" };
+
   it("updates lastReviewedAt on all specified items", async () => {
     const householdId = "hh-1";
     const items = [
       { type: "income_source" as const, id: "inc-1" },
       { type: "committed_item" as const, id: "bill-1" },
     ];
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
 
-    await waterfallService.confirmBatch(householdId, { items });
+    await waterfallService.confirmBatch(householdId, { items }, ctx);
 
     expect(prismaMock.incomeSource.updateMany).toHaveBeenCalledWith({
       where: { id: "inc-1", householdId },
@@ -89,6 +115,26 @@ describe("waterfallService.confirmBatch", () => {
       where: { id: "bill-1", householdId },
       data: { lastReviewedAt: expect.any(Date) },
     });
+  });
+
+  it("writes one CONFIRM_WATERFALL_ITEM audit row for the batch (#123)", async () => {
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await waterfallService.confirmBatch(
+      "hh-1",
+      { items: [{ type: "income_source" as const, id: "inc-1" }] },
+      ctx
+    );
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "CONFIRM_WATERFALL_ITEM",
+          resource: "review-session",
+          actorId: "user-1",
+        }),
+      })
+    );
   });
 });
 
@@ -746,6 +792,68 @@ describe("waterfallService.getWaterfallSummary — consolidated models", () => {
   });
 });
 
+describe("waterfallService.getWaterfallSummary — rounding consistency (#120)", () => {
+  it("subcategory total and tier total equal the sum of the rounded displayed parts", async () => {
+    // Three items of £33.333… each. With round-then-sum the displayed parts
+    // (33.33 each) sum to 99.99 and BOTH the subcategory total and the tier
+    // total must equal exactly that — never 100.00 from sum-then-round drift.
+    const third = 100 / 3; // 33.3333…
+    prismaMock.incomeSource.findMany.mockResolvedValue([]);
+    prismaMock.committedItem.findMany.mockResolvedValue([]);
+    prismaMock.discretionaryItem.findMany.mockResolvedValue([
+      {
+        id: "d1",
+        householdId: "hh-1",
+        name: "A",
+        spendType: "monthly",
+        subcategoryId: "sub-food",
+        sortOrder: 0,
+        lastReviewedAt: new Date(),
+      },
+      {
+        id: "d2",
+        householdId: "hh-1",
+        name: "B",
+        spendType: "monthly",
+        subcategoryId: "sub-food",
+        sortOrder: 1,
+        lastReviewedAt: new Date(),
+      },
+      {
+        id: "d3",
+        householdId: "hh-1",
+        name: "C",
+        spendType: "monthly",
+        subcategoryId: "sub-food",
+        sortOrder: 2,
+        lastReviewedAt: new Date(),
+      },
+    ] as any);
+    prismaMock.subcategory.findMany.mockResolvedValue([
+      { id: "sub-food", name: "Food", tier: "discretionary", sortOrder: 0 },
+    ] as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      makePeriod("discretionary_item", "d1", third),
+      makePeriod("discretionary_item", "d2", third),
+      makePeriod("discretionary_item", "d3", third),
+    ]);
+
+    const summary = await waterfallService.getWaterfallSummary("hh-1");
+
+    const parts = summary.discretionary.categories.map((c) => c.monthlyBudget);
+    const partsSum = parts.reduce((s, v) => s + v, 0);
+
+    // Each displayed part is rounded to 33.33; three of them sum to 99.99.
+    expect(parts).toEqual([33.33, 33.33, 33.33]);
+    expect(partsSum).toBe(99.99);
+    // Tier total equals the sum of the displayed parts (no penny drift).
+    expect(summary.discretionary.total).toBe(99.99);
+    // Subcategory total likewise equals the displayed parts' sum.
+    const foodSub = summary.discretionary.bySubcategory.find((s) => s.name === "Food")!;
+    expect(foodSub.monthlyTotal).toBe(99.99);
+  });
+});
+
 describe("waterfallService.deleteAll — with subcategories", () => {
   it("deletes all items, periods, and subcategories", async () => {
     prismaMock.incomeSource.findMany.mockResolvedValue([]);
@@ -777,8 +885,17 @@ describe("waterfallService.confirmBatch — consolidated models", () => {
       { type: "committed_item" as const, id: "ci-1" },
       { type: "discretionary_item" as const, id: "di-1" },
     ];
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
 
-    await waterfallService.confirmBatch("hh-1", { items });
+    await waterfallService.confirmBatch(
+      "hh-1",
+      { items },
+      {
+        householdId: "hh-1",
+        actorId: "user-1",
+        actorName: "Test",
+      }
+    );
 
     expect(prismaMock.incomeSource.updateMany).toHaveBeenCalledWith({
       where: { id: "inc-1", householdId: "hh-1" },

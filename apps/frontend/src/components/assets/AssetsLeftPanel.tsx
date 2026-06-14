@@ -27,7 +27,13 @@ interface Props {
 export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType = {} }: Props) {
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
-  const grandTotal = summary?.grandTotal ?? 0;
+  // The Assets page total reflects ALL holdings shown in the list (pensions
+  // included). `summary.grandTotal` now means net worth EXCLUDING pensions (#164)
+  // — used by the Overview/Forecast — so we sum the displayed type rows here to
+  // keep the footer reconciled with the rows above it.
+  const grandTotal =
+    Object.values(summary?.assetTotals ?? {}).reduce((s, v) => s + v, 0) +
+    Object.values(summary?.accountTotals ?? {}).reduce((s, v) => s + v, 0);
 
   return (
     <div className="flex flex-col h-full">

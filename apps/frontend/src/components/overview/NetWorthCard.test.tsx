@@ -21,7 +21,7 @@ describe("NetWorthCard", () => {
   it("renders the populated card with amount and sparkline when netWorth is provided", () => {
     renderWithProviders(<NetWorthCard netWorth={50000} sparklineData={[]} />);
 
-    expect(screen.getByText("NET WORTH")).toBeTruthy();
+    expect(screen.getByText("NET WORTH (EXCL. PENSIONS)")).toBeTruthy();
     expect(screen.getByText(/£50,000/)).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Add wealth account" })).toBeNull();
   });

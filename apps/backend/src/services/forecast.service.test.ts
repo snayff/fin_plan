@@ -8,7 +8,11 @@ const waterfallServiceMock = {
 mock.module("../config/database.js", () => ({ prisma: prismaMock }));
 mock.module("./waterfall.service.js", () => ({ waterfallService: waterfallServiceMock }));
 
-const { forecastService, __test__: forecastTest } = await import("./forecast.service.js");
+const {
+  forecastService,
+  computeDisposalProceeds,
+  __test__: forecastTest,
+} = await import("./forecast.service.js");
 
 beforeEach(() => {
   resetPrismaMocks();
@@ -116,8 +120,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Year 1: 10000 * 1.04 + (100 * 12) = 10400 + 1200 = 11600
-    expect(result.netWorth[1]!.nominal).toBe(11600);
+    // Monthly compounding: FV(10000, 100pm, 4%, 1y) ≈ 11629.66 → 11630
+    expect(result.netWorth[1]!.nominal).toBe(11630);
   });
 
   it("applies asset growth rate (no contributions)", async () => {
@@ -130,8 +134,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Year 1: 200000 * 1.03 = 206000
-    expect(result.netWorth[1]!.nominal).toBe(206000);
+    // Monthly compounding: FV(200000, 0, 3%, 1y) ≈ 206083.19 → 206083
+    expect(result.netWorth[1]!.nominal).toBe(206083);
   });
 
   it("applies depreciation (negative growthRatePct) on assets", async () => {
@@ -144,8 +148,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Year 1: 20000 * 0.85 = 17000
-    expect(result.netWorth[1]!.nominal).toBe(17000);
+    // Monthly compounding at -15%: FV(20000, 0, -15%, 1y) ≈ 17197.89 → 17198
+    expect(result.netWorth[1]!.nominal).toBe(17198);
   });
 
   it("Current accounts use currentRatePct as default growth rate", async () => {
@@ -161,8 +165,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Year 1: 5000 * 1.02 (currentRatePct) = 5100
-    expect(result.netWorth[1]!.nominal).toBe(5100);
+    // Monthly compounding: FV(5000, 0, 2%, 1y) ≈ 5100.92 → 5101
+    expect(result.netWorth[1]!.nominal).toBe(5101);
   });
 
   it("Current account growthRatePct override takes precedence over currentRatePct", async () => {
@@ -197,8 +201,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Current: 1000 * 1.01 = 1010; Savings: 1000 * 1.05 = 1050; total = 2060
-    expect(result.netWorth[1]!.nominal).toBe(2060);
+    // Monthly compounding: FV(1000,0,1%,1y)≈1010.05 + FV(1000,0,5%,1y)≈1051.16 → 2061
+    expect(result.netWorth[1]!.nominal).toBe(2061);
   });
 
   it("uses per-account growthRatePct override over household default", async () => {
@@ -211,8 +215,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Year 1 with 10% override: 10000 * 1.10 = 11000
-    expect(result.netWorth[1]!.nominal).toBe(11000);
+    // Monthly compounding at 10% override: FV(10000, 0, 10%, 1y) ≈ 11047.13 → 11047
+    expect(result.netWorth[1]!.nominal).toBe(11047);
   });
 
   it("real value deflates nominal by inflation", async () => {
@@ -246,8 +250,8 @@ describe("forecastService.getProjections — net worth", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // DEFAULT_SETTINGS: savingsRatePct: 4 → year 1: 10000 * 1.04 = 10400
-    expect(result.netWorth[1]!.nominal).toBe(10400);
+    // DEFAULT_SETTINGS savingsRatePct: 4, monthly compounding: FV(10000,0,4%,1y) ≈ 10407.42 → 10407
+    expect(result.netWorth[1]!.nominal).toBe(10407);
   });
 });
 
@@ -453,8 +457,8 @@ describe("forecastService.getProjections — savings series", () => {
 
     const result = await forecastService.getProjections("hh-1", 1);
 
-    // Year 1: 10000 * 1.04 + (100 * 12) = 11600
-    expect(result.savings[1]!.balance).toBe(11600);
+    // Monthly compounding: FV(10000, 100pm, 4%, 1y) ≈ 11629.66 → 11630
+    expect(result.savings[1]!.balance).toBe(11630);
   });
 
   it("all-zero series when no Savings accounts exist", async () => {
@@ -510,8 +514,9 @@ describe("forecastService.__test__.projectBalanceSeries — disposal cut-off", (
     const { series, proceeds } = projectBalanceSeries(10000, 0, 0.05, 2, null);
     expect(proceeds).toBeNull();
     expect(series[0]).toBe(10000);
-    expect(series[1]).toBeCloseTo(10500, 0);
-    expect(series[2]).toBeCloseTo(11025, 0);
+    // Monthly compounding at 5%: year 1 ≈ 10511.62, year 2 ≈ 11049.41
+    expect(series[1]).toBeCloseTo(10511.62, 1);
+    expect(series[2]).toBeCloseTo(11049.41, 1);
   });
 
   it("disposalYear=0 → all-zero series, no proceeds (already disposed)", () => {
@@ -522,15 +527,15 @@ describe("forecastService.__test__.projectBalanceSeries — disposal cut-off", (
   });
 
   it("disposalYear=2 → series drops to 0 at year 2, proceeds captured", () => {
-    // 10000 at 10%/yr, no contributions, disposed at year 2
+    // 10000 at 10%/yr (monthly compounding), no contributions, disposed at year 2
     const { series, proceeds } = projectBalanceSeries(10000, 0, 0.1, 3, 2);
     expect(series[0]).toBe(10000);
-    expect(series[1]).toBeCloseTo(11000, 0); // year 1: still active
+    expect(series[1]).toBeCloseTo(11047.13, 1); // year 1: still active
     expect(series[2]).toBe(0); // year 2: dropped to 0
     expect(series[3]).toBe(0); // year 3: still 0
     expect(proceeds).not.toBeNull();
     expect(proceeds!.yearOffset).toBe(2);
-    expect(proceeds!.amount).toBeCloseTo(12100, 0); // 11000 * 1.1
+    expect(proceeds!.amount).toBeCloseTo(12203.91, 1); // FV(10000,0,10%,2y)
   });
 
   it("disposalYear=1 → series is [balance, 0], proceeds captured at year 1", () => {
@@ -631,8 +636,8 @@ describe("forecastService.getProjections — stocksAndShares series", () => {
     const result = await forecastService.getProjections("hh-1", 1);
 
     expect(result.stocksAndShares[0]!.balance).toBe(10000);
-    // Year 1: 10000 * 1.07 = 10700 (investmentRatePct 7%)
-    expect(result.stocksAndShares[1]!.balance).toBe(10700);
+    // Monthly compounding at investmentRatePct 7%: FV(10000,0,7%,1y) ≈ 10722.90 → 10723
+    expect(result.stocksAndShares[1]!.balance).toBe(10723);
   });
 
   it("sums linked contributions into stocksAndShares scope only", async () => {
@@ -678,5 +683,96 @@ describe("forecastService.getProjections — stocksAndShares series", () => {
 
     expect(result.monthlyContributionsByScope.stocksAndShares).toBe(150);
     expect(result.monthlyContributionsByScope.savings).toBe(75);
+  });
+});
+
+describe("forecastService.getProjections — monthly compounding parity (#163)", () => {
+  it("year-10 of £0 start / £500pm / 6% ≈ £81,939.67 (matches Help calculator)", async () => {
+    prismaMock.account.findMany.mockResolvedValue([
+      mockAccount({
+        type: "Savings",
+        balance: 0,
+        growthRatePct: 6,
+        linkedItems: [{ id: "item-pm", spendType: "monthly" }],
+      }),
+    ] as any);
+    prismaMock.asset.findMany.mockResolvedValue([] as any);
+    prismaMock.householdSettings.findUnique.mockResolvedValue(defaultSettings as any);
+    prismaMock.member.findMany.mockResolvedValue([] as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      {
+        id: "p-pm",
+        itemType: "discretionary_item",
+        itemId: "item-pm",
+        startDate: new Date("2026-01-01"),
+        endDate: null,
+        amount: 500,
+        createdAt: new Date(),
+      },
+    ] as any);
+
+    const result = await forecastService.getProjections("hh-1", 10);
+
+    // Monthly-compounding annuity FV(0, 500pm, 6%, 10y) = 81939.67 (rounded to £)
+    expect(result.savings[10]!.balance).toBe(81940);
+  });
+});
+
+describe("computeDisposalProceeds (#128)", () => {
+  const now = new Date("2026-01-01");
+
+  it("zero contributions → pure monthly-compounded growth", () => {
+    // 10000 at 5% from balance date == now to disposal in exactly 1 year
+    const v = computeDisposalProceeds({
+      startBalance: 10000,
+      startBalanceDate: now,
+      disposedAt: new Date("2027-01-01"),
+      annualRate: 0.05,
+      monthlyContribution: 0,
+      now,
+    });
+    // 365 days / 365.25 ≈ 0.99932 yr at 5% monthly compounding → ≈ 10511.26
+    expect(v!).toBeCloseTo(10511.26, 1);
+  });
+
+  it("partial-year accrual (10k / 5% / £200pm / ~3 months)", () => {
+    // forecast and cashflow share this helper → identical proceeds
+    const startBalanceDate = now;
+    const disposedAt = new Date("2026-04-02"); // ~0.25 year (91 days)
+    const v = computeDisposalProceeds({
+      startBalance: 10000,
+      startBalanceDate,
+      disposedAt,
+      annualRate: 0.05,
+      monthlyContribution: 200,
+      now,
+    });
+    // Some growth on 10000 plus ~3 months of £200 contributions
+    expect(v!).toBeGreaterThan(10000 + 200 * 2);
+    expect(v!).toBeLessThan(10800);
+  });
+
+  it("past disposal (before now) yields the starting balance unchanged", () => {
+    const v = computeDisposalProceeds({
+      startBalance: 10000,
+      startBalanceDate: new Date("2025-01-01"),
+      disposedAt: new Date("2025-06-01"),
+      annualRate: 0.05,
+      monthlyContribution: 200,
+      now,
+    });
+    expect(v).toBe(10000);
+  });
+
+  it("null start balance date → null (cannot project from nothing)", () => {
+    const v = computeDisposalProceeds({
+      startBalance: 10000,
+      startBalanceDate: null,
+      disposedAt: new Date("2027-01-01"),
+      annualRate: 0.05,
+      monthlyContribution: 200,
+      now,
+    });
+    expect(v).toBeNull();
   });
 });

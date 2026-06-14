@@ -164,9 +164,12 @@ export const assetsService = {
       ])
     ) as Record<AccountType, number>;
 
+    // Net worth excludes pensions everywhere (#164): pensions are illiquid,
+    // retirement-restricted wealth surfaced separately in the Forecast. Excluding
+    // them here keeps the Overview grand total reconciled with forecast year-0.
     const grandTotal =
       Object.values(assetTotals).reduce((s, v) => s + v, 0) +
-      Object.values(accountTotals).reduce((s, v) => s + v, 0);
+      Object.entries(accountTotals).reduce((s, [type, v]) => (type === "Pension" ? s : s + v), 0);
 
     return { assetTotals, accountTotals, grandTotal };
   },
