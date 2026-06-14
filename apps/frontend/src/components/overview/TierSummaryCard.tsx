@@ -32,7 +32,7 @@ export function TierSummaryCard({ tier, amount, sparklineData }: TierSummaryCard
   const color = TIER_COLORS[tier];
 
   return (
-    <div className="rounded-xl py-4" style={{ background: "#0d1120", border: "1px solid #1a1f35" }}>
+    <div className="rounded-xl border border-border bg-card py-4">
       <p
         className="text-center mb-2"
         style={{
@@ -49,7 +49,7 @@ export function TierSummaryCard({ tier, amount, sparklineData }: TierSummaryCard
       <p
         className="text-center mb-3 tabular-nums"
         style={{
-          color: "rgba(238,242,255,0.92)",
+          color: "hsl(var(--foreground) / 0.92)",
           fontSize: "19px",
           fontFamily: "'JetBrains Mono', monospace",
           fontWeight: 500,
