@@ -6,16 +6,17 @@ How work is tracked on GitHub for finplan. This is the **single source of truth*
 
 ---
 
-## Two tracks
+## Three tracks
 
 Every ticket is exactly one of:
 
-| Track            | Label          | For                        | Pipeline                                                      |
-| ---------------- | -------------- | -------------------------- | ------------------------------------------------------------- |
-| **Feature**      | `feature`      | Big-ticket work            | Full 5-stage pipeline (Design → Spec → Plan → Build → Verify) |
-| **Quick change** | `quick-change` | Small, self-contained work | Implemented directly — no design/spec/plan                    |
+| Track           | Label         | For                                | Pipeline                                                      |
+| --------------- | ------------- | ---------------------------------- | ------------------------------------------------------------- |
+| **Feature**     | `feature`     | Big-ticket work                    | Full 5-stage pipeline (Design → Spec → Plan → Build → Verify) |
+| **Enhancement** | `enhancement` | Small improvement / new capability | Implemented directly — no design/spec/plan                    |
+| **Bug**         | `bug`         | Defect fix                         | Implemented directly — no design/spec/plan                    |
 
-The track label is the first signal read when picking up a ticket.
+The track label is the first signal read when picking up a ticket. `enhancement` and `bug` share an anatomy and a workflow — they differ only in intent (improve vs fix), which keeps triage and reporting honest.
 
 ---
 
@@ -23,13 +24,13 @@ The track label is the first signal read when picking up a ticket.
 
 Minimal and purposeful. The **checklist in the issue body** is the source of truth for _where a ticket is up to_ — there are deliberately no per-stage status labels.
 
-| Label                                 | Role                                                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `feature`                             | Big-ticket, full pipeline                                                                                    |
-| `quick-change`                        | Small, implement directly                                                                                    |
-| `ready-to-build`                      | Feature's Plan stage is complete → executable now. **Managed automatically** (see [Automation](#automation)) |
-| `a11y`                                | Accessibility domain                                                                                         |
-| `enhancement`, `documentation`, `bug` | Domain labels (reused from defaults)                                                                         |
+| Label                   | Role                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `feature`               | Track — big-ticket, full pipeline                                                                            |
+| `enhancement`           | Track — small improvement, implement directly                                                                |
+| `bug`                   | Track — defect fix, implement directly                                                                       |
+| `ready-to-build`        | Feature's Plan stage is complete → executable now. **Managed automatically** (see [Automation](#automation)) |
+| `a11y`, `documentation` | Domain tags — layered on top of a track to flag the area of work                                             |
 
 There is **no public `security` label** — security-sensitive items never live in public issues (see [Security items](#security-items)).
 
@@ -46,7 +47,7 @@ gh issue list --label ready-to-build
 A single **slug** (kebab-case, e.g. `model-interest-inflation-debt`) threads through every layer so nothing is ever re-typed or drifts:
 
 ```
-issue title  →  branch feature/<slug>  →  docs/4. planning/<slug>/  →  skill invocations  →  PR "Closes #N"
+issue title  →  branch <track>/<slug>  →  docs/4. planning/<slug>/  →  skill invocations  →  PR "Closes #N"
 ```
 
 The slug is recorded in the issue body so it is the one canonical string everything derives from.
@@ -87,9 +88,9 @@ The canonical body for a `feature` ticket:
 
 ---
 
-## Quick-change ticket anatomy
+## Enhancement / Bug ticket anatomy
 
-The canonical body for a `quick-change` ticket:
+Enhancement and bug tickets share one canonical body — both are implemented directly with no design/spec/plan gates:
 
 ```markdown
 **Slug:** `<slug>`
@@ -108,7 +109,7 @@ The canonical body for a `quick-change` ticket:
 - [ ] `bun run lint && bun run type-check && bun run test` pass
 ```
 
-No design/spec/plan gates.
+For a `bug`, the Summary should describe the defect (observed vs expected); for an `enhancement`, it describes the improvement and its motivation.
 
 ---
 
@@ -116,8 +117,8 @@ No design/spec/plan gates.
 
 Two front-ends, one canonical structure:
 
-- **`/create-new-ticket`** — CLI/agent creation. Gathers track + slug + summary + intent, runs the [privacy check](#privacy-rules), applies labels, and creates the issue. Drives the migration batch too.
-- **Issue form templates** (`.github/ISSUE_TEMPLATE/feature.yml`, `quick-change.yml`) — manual creation in the GitHub UI. Blank issues are disabled so structure is always enforced.
+- **`/create-new-ticket`** — CLI/agent creation. Gathers track + slug + summary + (intent for features) + acceptance, runs the [privacy check](#privacy-rules), applies labels, and creates the issue. Drives the migration batch too.
+- **Issue form templates** (`.github/ISSUE_TEMPLATE/feature.yml`, `enhancement.yml`, `bug.yml`) — manual creation in the GitHub UI. Blank issues are disabled so structure is always enforced.
 
 ---
 
@@ -125,10 +126,10 @@ Two front-ends, one canonical structure:
 
 **`/progress-ticket <N>`** is the driver. The operational loop:
 
-- **`quick-change`** → branch off `stage` as `quick-change/<slug>`, implement (TDD), run `bun run lint && bun run type-check && bun run test`, tick the boxes, PR into `stage`.
+- **`enhancement` / `bug`** → branch off `stage` as `enhancement/<slug>` or `bug/<slug>`, implement (TDD), run `bun run lint && bun run type-check && bun run test`, tick the boxes, PR into `stage`.
 - **`feature`** → read the checklist, find the first unticked box, run that stage's skill. On completion: tick the box, paste the artifact link, commit. Stop at each gate the stage skill itself requires the user to approve (Design/Spec/Plan all have built-in approval) — never run the whole pipeline end-to-end silently.
 
-Stage → command mapping:
+Stage → command mapping (feature track):
 
 | Unticked box | Command run                     |
 | ------------ | ------------------------------- |
@@ -164,4 +165,4 @@ The repo (and therefore every issue **and** every doc under `docs/`) is public. 
 - Plan checked + label absent → add `ready-to-build`
 - Plan unchecked + label present → remove `ready-to-build`
 
-This means the label never needs manual bookkeeping; the checklist is always the source of truth.
+This means the label never needs manual bookkeeping; the checklist is always the source of truth. `enhancement` and `bug` tickets have no Plan gate, so the Action ignores them.

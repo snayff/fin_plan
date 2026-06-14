@@ -1,6 +1,6 @@
 ---
 name: create-new-ticket
-description: Use to create a finplan GitHub issue (feature or quick-change) with consistent structure, slug, labels, and a public-repo privacy check. Handles single tickets and migration batches. Routes security-sensitive items to a private advisory instead. Invoke with `/create-new-ticket`.
+description: Use to create a finplan GitHub issue (feature, enhancement, or bug) with consistent structure, slug, labels, and a public-repo privacy check. Handles single tickets and migration batches. Routes security-sensitive items to a private advisory instead. Invoke with `/create-new-ticket`.
 ---
 
 # Create New Ticket (finplan)
@@ -13,14 +13,15 @@ Creates GitHub issues with the canonical structure defined in `docs/3. architect
 
 ## Step 1: Load the canonical structure
 
-Read `docs/3. architecture/issue-workflow.md` — use its "Feature ticket anatomy", "Quick-change ticket anatomy", "Label scheme", and "Privacy rules" sections verbatim. Do not invent structure.
+Read `docs/3. architecture/issue-workflow.md` — use its "Feature ticket anatomy", "Enhancement / Bug ticket anatomy", "Label scheme", and "Privacy rules" sections verbatim. Do not invent structure.
 
 ## Step 2: Determine the track
 
 - **`feature`** — big-ticket; runs the full 5-stage pipeline.
-- **`quick-change`** — small, self-contained; implemented directly.
+- **`enhancement`** — small improvement or new capability; implemented directly.
+- **`bug`** — a defect fix; implemented directly.
 
-If unclear, ask. A useful test: does it need a design conversation before anyone could implement it? If yes → `feature`.
+If unclear, ask. Two useful tests: does it need a design conversation before anyone could implement it? If yes → `feature`. Otherwise, is it fixing broken behaviour (→ `bug`) or improving/adding something that works (→ `enhancement`)?
 
 ## Step 3: Security gate (STOP if it applies)
 
@@ -48,11 +49,11 @@ Build the body to exactly match the canonical anatomy, then:
 ```bash
 gh issue create \
   --title "<concise title>" \
-  --label "<feature|quick-change>" \
+  --label "<feature|enhancement|bug>" \
   --body "<canonical body>"
 ```
 
-Add any domain labels (`a11y`, `enhancement`, `documentation`) and `--body` cross-links (`Relates to #N`) as needed. Do **not** add `ready-to-build` manually — automation manages it.
+Add any domain tags (`a11y`, `documentation`) and `--body` cross-links (`Relates to #N`) as needed. Do **not** add `ready-to-build` manually — automation manages it.
 
 ## Step 7: Report
 

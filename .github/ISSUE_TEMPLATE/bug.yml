@@ -1,6 +1,6 @@
-name: Quick change
-description: Small, self-contained work implemented directly — no design/spec/plan.
-labels: ["quick-change"]
+name: Bug
+description: A defect to fix, implemented directly — no design/spec/plan.
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
@@ -13,14 +13,14 @@ body:
     attributes:
       label: Slug
       description: Kebab-case identifier. Threads through branch name and PR.
-      placeholder: asset-value-date
+      placeholder: isa-tax-year-boundary-off-by-one
     validations:
       required: true
   - type: textarea
     id: summary
     attributes:
       label: Summary
-      description: What + why, generic.
+      description: What's broken — observed vs expected behaviour, generic.
     validations:
       required: true
   - type: textarea
