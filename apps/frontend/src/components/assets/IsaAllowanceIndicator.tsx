@@ -16,7 +16,10 @@ export function IsaAllowanceIndicator() {
   if (isError && !data) return <PanelError variant="right" onRetry={() => void refetch()} />;
   if (!data || data.byMember.length === 0) return null;
 
-  const { byMember, annualLimit, daysRemaining } = data;
+  const { byMember, annualLimit, daysRemaining, taxYearStart, taxYearEnd } = data;
+  const startYear = taxYearStart.slice(0, 4);
+  const endYear = taxYearEnd.slice(0, 4);
+  const taxYearLabel = `${startYear}/${endYear.slice(-2)}`;
   const overForecastMembers = byMember.filter(
     (m) => m.used <= annualLimit && m.forecastedYearTotal > annualLimit
   );
@@ -33,7 +36,7 @@ export function IsaAllowanceIndicator() {
       className="flex flex-col gap-2 px-4 pb-4 pt-2 border-t border-foreground/5"
     >
       <div className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">
-        ISA allowance · 2026/27 tax year
+        ISA allowance · {taxYearLabel} tax year
       </div>
       <div className="divide-y divide-foreground/[0.05]">
         {byMember.map((m) => (
