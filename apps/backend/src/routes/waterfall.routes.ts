@@ -19,6 +19,7 @@ import {
   batchSaveSubcategoriesSchema,
   resetSubcategoriesSchema,
   createSubcategorySchema,
+  idParamSchema,
 } from "@finplan/shared";
 import { periodService } from "../services/period.service.js";
 import { prisma } from "../config/database.js";
@@ -85,20 +86,20 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/income/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateIncomeSourceSchema.parse(req.body);
     const source = await waterfallService.updateIncome(req.householdId!, id, data, actorCtx(req));
     return reply.send(source);
   });
 
   fastify.delete("/income/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await waterfallService.deleteIncome(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
 
   fastify.post("/income/:id/confirm", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const source = await waterfallService.confirmIncome(req.householdId!, id, actorCtx(req));
     return reply.send(source);
   });
@@ -121,20 +122,20 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/committed/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateCommittedItemSchema.parse(req.body);
     const bill = await waterfallService.updateCommitted(req.householdId!, id, data, actorCtx(req));
     return reply.send(bill);
   });
 
   fastify.delete("/committed/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await waterfallService.deleteCommitted(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
 
   fastify.post("/committed/:id/confirm", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const bill = await waterfallService.confirmCommitted(req.householdId!, id, actorCtx(req));
     return reply.send(bill);
   });
@@ -157,20 +158,20 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/yearly/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateCommittedItemSchema.parse(req.body);
     const bill = await waterfallService.updateYearly(req.householdId!, id, data, actorCtx(req));
     return reply.send(bill);
   });
 
   fastify.delete("/yearly/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await waterfallService.deleteYearly(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
 
   fastify.post("/yearly/:id/confirm", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const bill = await waterfallService.confirmYearly(req.householdId!, id, actorCtx(req));
     return reply.send(bill);
   });
@@ -193,7 +194,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/discretionary/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateDiscretionaryItemSchema.parse(req.body);
     const cat = await waterfallService.updateDiscretionary(
       req.householdId!,
@@ -205,13 +206,13 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.delete("/discretionary/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await waterfallService.deleteDiscretionary(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
 
   fastify.post("/discretionary/:id/confirm", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const cat = await waterfallService.confirmDiscretionary(req.householdId!, id, actorCtx(req));
     return reply.send(cat);
   });
@@ -234,20 +235,20 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/savings/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateDiscretionaryItemSchema.parse(req.body);
     const alloc = await waterfallService.updateSavings(req.householdId!, id, data, actorCtx(req));
     return reply.send(alloc);
   });
 
   fastify.delete("/savings/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await waterfallService.deleteSavings(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
 
   fastify.post("/savings/:id/confirm", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const alloc = await waterfallService.confirmSavings(req.householdId!, id, actorCtx(req));
     return reply.send(alloc);
   });
@@ -291,7 +292,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/periods/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updatePeriodSchema.parse(req.body);
     // Verify ownership via parent item
     const existing = await prisma.itemAmountPeriod.findUnique({ where: { id } });
@@ -302,7 +303,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   });
 
   fastify.delete("/periods/:id", preMutation, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     // Verify ownership via parent item
     const existing = await prisma.itemAmountPeriod.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError("Period not found");

@@ -23,7 +23,9 @@ export {
   nameSchema,
   notesSchema,
   idSchema,
+  idParamSchema,
   emailSchema,
+  type IdParam,
 } from "./common.schemas";
 
 // Household schemas and types

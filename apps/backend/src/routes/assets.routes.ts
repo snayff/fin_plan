@@ -12,6 +12,7 @@ import {
   assetTypeSchema,
   accountTypeSchema,
   listDisposedQuerySchema,
+  idParamSchema,
 } from "@finplan/shared";
 
 export async function assetsRoutes(fastify: FastifyInstance) {
@@ -41,34 +42,34 @@ export async function assetsRoutes(fastify: FastifyInstance) {
     return reply.status(201).send(asset);
   });
 
-  fastify.patch("/assets/:assetId", pre, async (req, reply) => {
-    const { assetId } = req.params as { assetId: string };
+  fastify.patch("/assets/:id", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
     const data = updateAssetSchema.parse(req.body);
-    const asset = await assetsService.updateAsset(req.householdId!, assetId, data, actorCtx(req));
+    const asset = await assetsService.updateAsset(req.householdId!, id, data, actorCtx(req));
     return reply.send(asset);
   });
 
-  fastify.delete("/assets/:assetId", pre, async (req, reply) => {
-    const { assetId } = req.params as { assetId: string };
-    const result = await assetsService.deleteAsset(req.householdId!, assetId, actorCtx(req));
+  fastify.delete("/assets/:id", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
+    const result = await assetsService.deleteAsset(req.householdId!, id, actorCtx(req));
     return reply.send(result);
   });
 
-  fastify.post("/assets/:assetId/balance", pre, async (req, reply) => {
-    const { assetId } = req.params as { assetId: string };
+  fastify.post("/assets/:id/balance", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
     const data = recordAssetBalanceSchema.parse(req.body);
     const balance = await assetsService.recordAssetBalance(
       req.householdId!,
-      assetId,
+      id,
       data,
       actorCtx(req)
     );
     return reply.status(201).send(balance);
   });
 
-  fastify.post("/assets/:assetId/confirm", pre, async (req, reply) => {
-    const { assetId } = req.params as { assetId: string };
-    const result = await assetsService.confirmAsset(req.householdId!, assetId, actorCtx(req));
+  fastify.post("/assets/:id/confirm", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
+    const result = await assetsService.confirmAsset(req.householdId!, id, actorCtx(req));
     return reply.send(result);
   });
 
@@ -95,39 +96,34 @@ export async function assetsRoutes(fastify: FastifyInstance) {
     return reply.status(201).send(account);
   });
 
-  fastify.patch("/accounts/:accountId", pre, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
+  fastify.patch("/accounts/:id", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
     const data = updateAccountSchema.parse(req.body);
-    const account = await assetsService.updateAccount(
-      req.householdId!,
-      accountId,
-      data,
-      actorCtx(req)
-    );
+    const account = await assetsService.updateAccount(req.householdId!, id, data, actorCtx(req));
     return reply.send(account);
   });
 
-  fastify.delete("/accounts/:accountId", pre, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
-    const result = await assetsService.deleteAccount(req.householdId!, accountId, actorCtx(req));
+  fastify.delete("/accounts/:id", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
+    const result = await assetsService.deleteAccount(req.householdId!, id, actorCtx(req));
     return reply.send(result);
   });
 
-  fastify.post("/accounts/:accountId/balance", pre, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
+  fastify.post("/accounts/:id/balance", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
     const data = recordAccountBalanceSchema.parse(req.body);
     const balance = await assetsService.recordAccountBalance(
       req.householdId!,
-      accountId,
+      id,
       data,
       actorCtx(req)
     );
     return reply.status(201).send(balance);
   });
 
-  fastify.post("/accounts/:accountId/confirm", pre, async (req, reply) => {
-    const { accountId } = req.params as { accountId: string };
-    const result = await assetsService.confirmAccount(req.householdId!, accountId, actorCtx(req));
+  fastify.post("/accounts/:id/confirm", pre, async (req, reply) => {
+    const { id } = idParamSchema.parse(req.params);
+    const result = await assetsService.confirmAccount(req.householdId!, id, actorCtx(req));
     return reply.send(result);
   });
 }

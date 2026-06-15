@@ -94,5 +94,14 @@ export const notesSchema = z.string().trim().max(NOTES_MAX);
 /** Entity identifier (cuid/uuid, optionally prefixed). */
 export const idSchema = z.string().min(1).max(ID_MAX);
 
+/**
+ * Validated `{ id }` route param. Reuses {@link idSchema}'s bounds so single-id
+ * routes can `idParamSchema.parse(req.params)` instead of an untyped
+ * `req.params as { id: string }` cast — malformed ids then surface as a
+ * consistent 400 via the shared error handler.
+ */
+export const idParamSchema = z.object({ id: idSchema });
+export type IdParam = z.infer<typeof idParamSchema>;
+
 /** Email address with sane length cap. */
 export const emailSchema = z.string().trim().max(EMAIL_MAX).email();

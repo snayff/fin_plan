@@ -21,6 +21,7 @@ import {
 import { AuthorizationError, NotFoundError } from "../utils/errors.js";
 import { actorCtx } from "../lib/actor-ctx.js";
 import { audited } from "../services/audit.service.js";
+import { exportImportRoutes } from "./export-import.routes.js";
 
 /**
  * Asserts that the household id supplied in the URL matches the caller's
@@ -35,6 +36,11 @@ function assertActiveHousehold(urlHouseholdId: string, activeHouseholdId: string
 }
 
 export async function householdRoutes(fastify: FastifyInstance) {
+  // Co-locate the export/import household routes here so the entire household
+  // URL-space is defined in one module. Sub-registered without a prefix, so the
+  // emitted paths (/api/households/export, /import, …) are unchanged.
+  await fastify.register(exportImportRoutes);
+
   // List all households the current user belongs to
   fastify.get("/households", { preHandler: [userOnlyAuth] }, async (request, reply) => {
     const userId = request.user!.userId;
