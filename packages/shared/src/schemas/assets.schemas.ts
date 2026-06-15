@@ -7,6 +7,20 @@ import {
   positiveMoneySchema,
 } from "./common.schemas";
 
+// List query (shared by the assets and accounts list-by-type routes).
+// `disposed` is the only boolean query param in the route layer; parse it via
+// Zod so the coercion is explicit and consistent. Only "true"/"false" are
+// accepted (anything else 400s); absence preserves the default of excluding
+// disposed items.
+export const listDisposedQuerySchema = z.object({
+  disposed: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+});
+
+export type ListDisposedQuery = z.infer<typeof listDisposedQuerySchema>;
+
 export const assetTypeSchema = z.enum(["Property", "Vehicle", "Other"]);
 export const accountTypeSchema = z.enum([
   "Current",
