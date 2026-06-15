@@ -75,6 +75,34 @@ describe("GET /api/assets/assets/:type", () => {
       includeDisposed: false,
     });
   });
+
+  it("includes disposed when disposed=true", async () => {
+    const app = await buildTestApp();
+    app.register(assetsRoutes, { prefix: "/api/assets" });
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/assets/assets/Property?disposed=true",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockAssetsService.listAssetsByType).toHaveBeenCalledWith("hh-1", "Property", {
+      includeDisposed: true,
+    });
+  });
+
+  it("rejects a non-boolean disposed value with 400", async () => {
+    const app = await buildTestApp();
+    app.setErrorHandler(errorHandler);
+    app.register(assetsRoutes, { prefix: "/api/assets" });
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/assets/assets/Property?disposed=yes",
+    });
+    expect(res.statusCode).toBe(400);
+  });
 });
 
 describe("POST /api/assets/assets", () => {
@@ -145,6 +173,34 @@ describe("GET /api/assets/accounts/:type", () => {
     expect(mockAssetsService.listAccountsByType).toHaveBeenCalledWith("hh-1", "Pension", {
       includeDisposed: false,
     });
+  });
+
+  it("includes disposed when disposed=true", async () => {
+    const app = await buildTestApp();
+    app.register(assetsRoutes, { prefix: "/api/assets" });
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/assets/accounts/Pension?disposed=true",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockAssetsService.listAccountsByType).toHaveBeenCalledWith("hh-1", "Pension", {
+      includeDisposed: true,
+    });
+  });
+
+  it("rejects a non-boolean disposed value with 400", async () => {
+    const app = await buildTestApp();
+    app.setErrorHandler(errorHandler);
+    app.register(assetsRoutes, { prefix: "/api/assets" });
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/assets/accounts/Pension?disposed=yes",
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 
