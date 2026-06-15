@@ -12,6 +12,7 @@ import {
   bulkUpsertAllocationsSchema,
   setGiftBudgetSchema,
   setGiftPlannerModeSchema,
+  idParamSchema,
 } from "@finplan/shared";
 
 function parseYear(raw: string | undefined): number {
@@ -45,7 +46,7 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get("/people/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const { year } = req.query as { year?: string };
     const y = parseYear(year);
     const detail = await giftsService.getPersonDetail(req.householdId!, id, y);
@@ -95,14 +96,14 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/people/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateGiftPersonSchema.parse(req.body);
     const person = await giftsService.updatePerson(req.householdId!, id, data, actorCtx(req));
     return reply.send(person);
   });
 
   fastify.delete("/people/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await giftsService.deletePerson(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
@@ -116,14 +117,14 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/events/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateGiftEventSchema.parse(req.body);
     const event = await giftsService.updateEvent(req.householdId!, id, data, actorCtx(req));
     return reply.send(event);
   });
 
   fastify.delete("/events/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await giftsService.deleteEvent(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
