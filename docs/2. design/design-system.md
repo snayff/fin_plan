@@ -1013,7 +1013,7 @@ When a list has no items (accounts, purchases, gifts, etc.):
 **Callout gradient CTA card spec:**
 
 ```
-background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, rgba(168, 85, 247, 0.05) 100%)
+background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%)
 border: 1px solid rgba(99, 102, 241, 0.1)
 border-radius: 8px
 padding: 14px 16px
@@ -1196,9 +1196,9 @@ When a historical snapshot is loaded:
 
 - Used for three purposes: (1) staleness age on `StalenessIndicator` hover, (2) term definitions on hover for financial terminology, (3) explanations on hover for any standalone icon that carries meaning but has no visible label text
 - Tooltip definitions for financial terms and functional icons are maintained in `definitions.md`
-- No in-app glossary — contextual tooltips are the only explanation mechanism
+- Contextual tooltips are the primary in-context explanation mechanism. A dedicated in-app glossary (the Help page, rendered from `definitions.md` via `data/glossary.ts`) provides the full searchable reference — the two share the same canonical source so they never drift
 - Tooltip text: 12px, `font-body`, `surface-overlay` background
-- **Rule:** any icon not accompanied by visible label text must have a tooltip. No icon-only UI element may be left without one.
+- **Rule:** any icon not accompanied by visible label text must carry an accessible name — at minimum an `aria-label`. A hover tooltip is additionally recommended when the icon's meaning isn't obvious from context. No icon-only UI element may be left without an accessible name.
 
 ---
 

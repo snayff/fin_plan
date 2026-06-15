@@ -39,9 +39,9 @@
 
 9. **Non-advisory.** finplan surfaces mechanics and arithmetic only — never recommendations. "£11,600 ISA allowance remaining before April" is acceptable. "You should use your ISA allowance" is not.
 
-10. **Non-judgemental.** finplan does not colour-code financial positions as good or bad. Whether you have money or no money, the app shows the same neutral treatment. Financial values are never red (negative) or green (positive). The app helps — it does not grade.
+10. **Non-judgemental.** finplan does not colour-code financial positions as good or bad. Whether you have money or no money, the app shows the same neutral treatment. Financial values are never red (negative) or green (positive). The app helps — it does not grade. _Carve-out:_ this rule governs **financial values only**. It does not constrain functional UI affordances such as a completion tick (green "✓ Done") or a destructive control (red delete state), which communicate interaction state — not a judgement about your finances.
 
-11. **Calm by default.** The app is a trusted companion, not an alarm system. Silence means everything is fine. Amber is the only attention signal — a gentle "noteworthy" marker, never an alarm. Red is reserved for app errors only.
+11. **Calm by default.** The app is a trusted companion, not an alarm system. Silence means everything is fine. Amber is the only attention signal — a gentle "noteworthy" marker, never an alarm. Red is reserved for app errors and destructive actions (e.g. delete/remove controls) — never for financial values, and never as a general alarm.
 
 12. **Staleness is always informational, never blocking.** A stale value is flagged but never prevents the user from proceeding. The user is always in control.
 
