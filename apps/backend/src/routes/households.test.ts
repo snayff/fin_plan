@@ -1032,3 +1032,17 @@ describe("DELETE /api/households/:id/member-profiles/:memberId", () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+describe("export/import route co-location", () => {
+  // The household URL-space is defined in one module: registering householdRoutes
+  // alone must expose the export/import household routes (sub-registered), with the
+  // emitted paths unchanged.
+  it.each([
+    ["GET", "/api/households/export"],
+    ["POST", "/api/households/import"],
+    ["POST", "/api/households/import/restore/:backupId"],
+    ["POST", "/api/households/validate-import"],
+  ])("registers %s %s under the household module", (method, url) => {
+    expect(app.hasRoute({ method: method as any, url })).toBe(true);
+  });
+});

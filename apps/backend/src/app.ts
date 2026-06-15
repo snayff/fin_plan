@@ -18,7 +18,6 @@ import { auditLogRoutes } from "./routes/audit-log.routes";
 import { assetsRoutes } from "./routes/assets.routes";
 import { forecastRoutes } from "./routes/forecast.routes";
 import { giftsRoutes } from "./routes/gifts.routes";
-import { exportImportRoutes } from "./routes/export-import.routes.js";
 import { cashflowRoutes } from "./routes/cashflow.routes";
 import { searchRoutes } from "./routes/search.routes.js";
 import { securityActivityRoutes } from "./routes/security-activity.routes.js";
@@ -102,7 +101,6 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
   // API routes
   server.register(authRoutes, { prefix: "/api/auth" });
   server.register(householdRoutes, { prefix: "/api" });
-  server.register(exportImportRoutes, { prefix: "/api" });
   server.register(inviteRoutes, { prefix: "/api/auth" });
   server.register(waterfallRoutes, { prefix: "/api/waterfall" });
   server.register(plannerRoutes, { prefix: "/api/planner" });
