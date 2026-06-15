@@ -404,6 +404,7 @@ describe("householdService.inviteMember with audited()", () => {
     prismaMock.member.findFirst.mockResolvedValueOnce(ownerMember).mockResolvedValueOnce(null);
     prismaMock.household.findUnique.mockResolvedValue(household);
     prismaMock.householdInvite.findFirst.mockResolvedValue(null);
+    prismaMock.member.create.mockResolvedValue(buildMember({ id: "placeholder-1", userId: null }));
     prismaMock.householdInvite.create.mockResolvedValue(
       buildHouseholdInvite({ email: "invitee@test.com" })
     );
@@ -413,6 +414,7 @@ describe("householdService.inviteMember with audited()", () => {
       household.id,
       owner.id,
       "invitee@test.com",
+      "Invited Person",
       "member",
       actor
     );
@@ -445,6 +447,7 @@ describe("householdService.inviteMember", () => {
     prismaMock.member.findFirst.mockResolvedValueOnce(ownerMember).mockResolvedValueOnce(null);
     prismaMock.household.findUnique.mockResolvedValue(household);
     prismaMock.householdInvite.findFirst.mockResolvedValue(null);
+    prismaMock.member.create.mockResolvedValue(buildMember({ id: "placeholder-1", userId: null }));
     prismaMock.householdInvite.create.mockResolvedValue(
       buildHouseholdInvite({ email: "invitee@test.com" })
     );
@@ -454,6 +457,7 @@ describe("householdService.inviteMember", () => {
       household.id,
       owner.id,
       " Invitee@Test.com ",
+      "Invited Person",
       "member",
       ctx
     );
@@ -468,6 +472,77 @@ describe("householdService.inviteMember", () => {
       })
     );
     expect(result.email).toBe("invitee@test.com");
+  });
+
+  it("creates a placeholder member (userId null) linked to the invite", async () => {
+    const owner = buildUser();
+    const household = buildHousehold();
+    const ownerMember = buildMember({
+      householdId: household.id,
+      userId: owner.id,
+      role: "owner",
+    });
+
+    prismaMock.member.findFirst.mockResolvedValueOnce(ownerMember).mockResolvedValueOnce(null);
+    prismaMock.household.findUnique.mockResolvedValue(household);
+    prismaMock.householdInvite.findFirst.mockResolvedValue(null);
+    prismaMock.member.create.mockResolvedValue(buildMember({ id: "placeholder-1", userId: null }));
+    prismaMock.householdInvite.create.mockResolvedValue(
+      buildHouseholdInvite({ email: "invitee@test.com" })
+    );
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await householdService.inviteMember(
+      household.id,
+      owner.id,
+      "invitee@test.com",
+      "Invited Person",
+      "admin",
+      ctx
+    );
+
+    expect(prismaMock.member.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          householdId: household.id,
+          userId: null,
+          name: "Invited Person",
+          role: "admin",
+        }),
+      })
+    );
+    expect(prismaMock.householdInvite.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ memberId: "placeholder-1" }),
+      })
+    );
+  });
+
+  it("maps a duplicate member name to a non-revealing ConflictError", async () => {
+    const owner = buildUser();
+    const household = buildHousehold();
+    const ownerMember = buildMember({
+      householdId: household.id,
+      userId: owner.id,
+      role: "owner",
+    });
+
+    prismaMock.member.findFirst.mockResolvedValueOnce(ownerMember).mockResolvedValueOnce(null);
+    prismaMock.household.findUnique.mockResolvedValue(household);
+    prismaMock.householdInvite.findFirst.mockResolvedValue(null);
+    prismaMock.member.create.mockRejectedValue({ code: "P2002" });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await expect(
+      householdService.inviteMember(
+        household.id,
+        owner.id,
+        "invitee@test.com",
+        "Duplicate Name",
+        "member",
+        ctx
+      )
+    ).rejects.toThrow(ConflictError);
   });
 
   it("rejects invite when email already belongs to a household member", async () => {
@@ -485,7 +560,14 @@ describe("householdService.inviteMember", () => {
     prismaMock.household.findUnique.mockResolvedValue(household);
 
     await expect(
-      householdService.inviteMember(household.id, owner.id, "member@example.com", "member", ctx)
+      householdService.inviteMember(
+        household.id,
+        owner.id,
+        "member@example.com",
+        "Invited Person",
+        "member",
+        ctx
+      )
     ).rejects.toThrow(ConflictError);
   });
 });
@@ -846,6 +928,59 @@ describe("householdService.acceptInvite with audit", () => {
     expect(prismaMock.subcategory.createMany).toHaveBeenCalledTimes(1);
     const seedCall = prismaMock.subcategory.createMany.mock.calls[0]![0] as any;
     expect((seedCall.data as any[]).every((r) => r.householdId === "personal-hh-1")).toBe(true);
+  });
+
+  it("links the accepting user to the existing placeholder member instead of creating a duplicate", async () => {
+    const invite = buildHouseholdInvite({
+      id: "invite-1",
+      email: "invitee@example.com",
+      householdId: "household-1",
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      memberId: "placeholder-1",
+      household: { id: "household-1", name: "Test Household" },
+    });
+    const createdUser = buildUser({
+      id: "new-user-1",
+      email: "invitee@example.com",
+      name: "Alice",
+    });
+    const personal = buildHousehold({ id: "personal-hh-1" });
+
+    prismaMock.householdInvite.findUnique.mockResolvedValue(invite);
+    prismaMock.user.findUnique.mockResolvedValueOnce(null);
+    prismaMock.user.create.mockResolvedValue(createdUser);
+    prismaMock.household.create.mockResolvedValue(personal);
+    // personal-household member creation
+    prismaMock.member.create.mockResolvedValue(buildMember());
+    prismaMock.member.update.mockResolvedValue(
+      buildMember({ id: "placeholder-1", userId: "new-user-1" })
+    );
+    prismaMock.householdSettings.create.mockResolvedValue({} as any);
+    prismaMock.user.update.mockResolvedValue(createdUser);
+    prismaMock.householdInvite.update.mockResolvedValue({ ...invite, usedAt: new Date() });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+    prismaMock.subcategory.createMany.mockResolvedValue({ count: 16 });
+    prismaMock.refreshToken.create.mockResolvedValue({} as any);
+
+    await householdService.acceptInvite("valid-token", {
+      name: "Alice",
+      email: "invitee@example.com",
+      password: "verysecure123",
+    });
+
+    // Placeholder is linked to the new user…
+    expect(prismaMock.member.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "placeholder-1" },
+        data: expect.objectContaining({ userId: "new-user-1" }),
+      })
+    );
+    // …and no member was created in the invited household (only the personal one)
+    const invitedHouseholdCreate = prismaMock.member.create.mock.calls.find(
+      (c) => (c[0] as any)?.data?.householdId === "household-1"
+    );
+    expect(invitedHouseholdCreate).toBeUndefined();
   });
 });
 

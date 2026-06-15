@@ -316,6 +316,7 @@ export const householdService = {
     householdId: string,
     ownerUserId: string,
     email: string,
+    name: string,
     role: "member" | "admin" = "member",
     ctx: ActorCtx
   ) {
@@ -329,6 +330,7 @@ export const householdService = {
     if (!household) throw new NotFoundError("Household not found");
 
     const normalizedEmail = normalizeEmail(email)!;
+    const trimmedName = name.trim();
 
     const existingMember = await prisma.member.findFirst({
       where: {
@@ -358,25 +360,45 @@ export const householdService = {
     const tokenHash = hashInviteToken(rawToken);
     const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS);
 
-    await audited({
-      db: prisma,
-      ctx,
-      action: AuditAction.INVITE_MEMBER,
-      resource: "household-invite",
-      resourceId: tokenHash,
-      beforeFetch: async () => null,
-      mutation: async (tx) =>
-        tx.householdInvite.create({
-          data: {
-            householdId,
-            email: normalizedEmail,
-            tokenHash,
-            expiresAt,
-            createdByUserId: ownerUserId,
-            intendedRole: role,
-          },
-        }),
-    });
+    try {
+      await audited({
+        db: prisma,
+        ctx,
+        action: AuditAction.INVITE_MEMBER,
+        resource: "household-invite",
+        resourceId: tokenHash,
+        beforeFetch: async () => null,
+        // Inviting immediately creates a placeholder member (userId null) so the
+        // invited person shows in the roster right away; the invite links to it
+        // via memberId, and acceptance/join sets userId on this same row.
+        mutation: async (tx) => {
+          const placeholder = await tx.member.create({
+            data: {
+              householdId,
+              userId: null,
+              name: trimmedName,
+              role,
+            },
+          });
+          return tx.householdInvite.create({
+            data: {
+              householdId,
+              email: normalizedEmail,
+              tokenHash,
+              expiresAt,
+              createdByUserId: ownerUserId,
+              intendedRole: role,
+              memberId: placeholder.id,
+            },
+          });
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        throw new ConflictError("A member with that name already exists in this household");
+      }
+      throw err;
+    }
 
     return { token: rawToken, email: normalizedEmail };
   },
@@ -492,16 +514,26 @@ export const householdService = {
       // the whole personal household is atomic (#135).
       await subcategoryService.seedDefaults(personal.id, tx);
 
-      // Join the invited household and set it as active
+      // Join the invited household and set it as active. New invites carry a
+      // placeholder member (created at invite time) — link the new user to it
+      // rather than creating a duplicate. Legacy invites with no placeholder
+      // fall back to creating the member.
       try {
-        await tx.member.create({
-          data: {
-            householdId: invite.householdId,
-            userId: created.id,
-            name: newUser.name,
-            role: invite.intendedRole ?? "member",
-          },
-        });
+        if (invite.memberId) {
+          await tx.member.update({
+            where: { id: invite.memberId },
+            data: { userId: created.id },
+          });
+        } else {
+          await tx.member.create({
+            data: {
+              householdId: invite.householdId,
+              userId: created.id,
+              name: newUser.name,
+              role: invite.intendedRole ?? "member",
+            },
+          });
+        }
       } catch (err: any) {
         if (err?.code === "P2002") {
           throw new ConflictError("A member with that name already exists in this household");
@@ -588,15 +620,22 @@ export const householdService = {
           resource: "household-member",
           resourceId: existingUserId,
           beforeFetch: async () => null,
+          // New invites carry a placeholder member — link the joining user to it
+          // rather than creating a duplicate. Legacy invites fall back to create.
           mutation: async (tx) => {
-            const member = await tx.member.create({
-              data: {
-                householdId: invite.householdId,
-                userId: existingUserId,
-                name: user.name,
-                role: invite.intendedRole ?? "member",
-              },
-            });
+            const member = invite.memberId
+              ? await tx.member.update({
+                  where: { id: invite.memberId },
+                  data: { userId: existingUserId },
+                })
+              : await tx.member.create({
+                  data: {
+                    householdId: invite.householdId,
+                    userId: existingUserId,
+                    name: user.name,
+                    role: invite.intendedRole ?? "member",
+                  },
+                });
             await tx.user.update({
               where: { id: existingUserId },
               data: { activeHouseholdId: invite.householdId },
@@ -610,14 +649,19 @@ export const householdService = {
         });
       } else {
         await prisma.$transaction([
-          prisma.member.create({
-            data: {
-              householdId: invite.householdId,
-              userId: existingUserId,
-              name: user.name,
-              role: invite.intendedRole ?? "member",
-            },
-          }),
+          invite.memberId
+            ? prisma.member.update({
+                where: { id: invite.memberId },
+                data: { userId: existingUserId },
+              })
+            : prisma.member.create({
+                data: {
+                  householdId: invite.householdId,
+                  userId: existingUserId,
+                  name: user.name,
+                  role: invite.intendedRole ?? "member",
+                },
+              }),
           prisma.user.update({
             where: { id: existingUserId },
             data: { activeHouseholdId: invite.householdId },

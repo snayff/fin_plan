@@ -71,6 +71,8 @@ describe("HouseholdSection", () => {
 
     renderWithProviders(<HouseholdSection />);
 
+    const nameInput = screen.getByLabelText("Invited person's name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "New Member" } });
     const input = screen.getByLabelText("Invite email address") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "member@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Create link" }));
