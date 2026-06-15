@@ -63,6 +63,41 @@ describe("Account ISA validation", () => {
   });
 });
 
+describe("Account Pension validation", () => {
+  it("accepts Pension type with a memberId", () => {
+    const r = createAccountSchema.safeParse({
+      name: "Vanguard SIPP",
+      type: "Pension",
+      memberId: "m1",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects Pension type with memberId null", () => {
+    const r = createAccountSchema.safeParse({
+      name: "Vanguard SIPP",
+      type: "Pension",
+      memberId: null,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects Pension type with memberId omitted", () => {
+    const r = createAccountSchema.safeParse({
+      name: "Vanguard SIPP",
+      type: "Pension",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts non-Pension types without a member", () => {
+    expect(createAccountSchema.safeParse({ name: "Barclays", type: "Current" }).success).toBe(true);
+    expect(
+      createAccountSchema.safeParse({ name: "Marcus", type: "Savings", memberId: null }).success
+    ).toBe(true);
+  });
+});
+
 describe("createAccountSchema — monthlyContributionLimit", () => {
   it("accepts a non-negative number", () => {
     const r = createAccountSchema.safeParse({
