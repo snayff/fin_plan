@@ -61,6 +61,21 @@ export function assertOwnerOrAdmin(role: string): void {
   }
 }
 
+/**
+ * Single source of the household capability matrix: an admin may perform every
+ * household-level change except deleting the household, which remains owner-only
+ * (see `assertOwner`/`householdService.delete`). Loads the caller's membership
+ * and asserts owner-or-admin, returning the membership for any follow-up checks.
+ */
+export async function assertCallerOwnerOrAdmin(householdId: string, userId: string) {
+  const m = await prisma.member.findFirst({
+    where: { householdId, userId },
+  });
+  if (!m) throw new AuthorizationError("Not a member of this household");
+  assertOwnerOrAdmin(m.role);
+  return m;
+}
+
 type UpdateMemberRoleParams = {
   householdId: string;
   callerId: string;
@@ -201,8 +216,8 @@ export const householdService = {
     });
   },
 
-  async renameHousehold(householdId: string, ownerUserId: string, name: string, ctx: ActorCtx) {
-    await assertOwner(householdId, ownerUserId);
+  async renameHousehold(householdId: string, callerUserId: string, name: string, ctx: ActorCtx) {
+    await assertCallerOwnerOrAdmin(householdId, callerUserId);
 
     return audited({
       db: prisma,
@@ -221,14 +236,23 @@ export const householdService = {
 
   // ─── Members ───────────────────────────────────────────────────────────────
 
-  async removeMember(householdId: string, ownerUserId: string, memberId: string, ctx: ActorCtx) {
-    await assertOwner(householdId, ownerUserId);
+  async removeMember(householdId: string, callerUserId: string, memberId: string, ctx: ActorCtx) {
+    const caller = await assertCallerOwnerOrAdmin(householdId, callerUserId);
     const target = await prisma.member.findUnique({ where: { id: memberId } });
     if (!target || target.householdId !== householdId) {
       throw new NotFoundError("Member not found");
     }
-    if (target.userId === ownerUserId) {
-      throw new ValidationError("Owner cannot remove themselves from the household");
+    if (target.userId === callerUserId) {
+      throw new ValidationError("You cannot remove yourself. Use 'Leave household' instead.");
+    }
+    // The owner is never removable by another member; ownership is only
+    // relinquished by leaving. This also stops an admin from removing the owner.
+    if (target.role === "owner") {
+      throw new AuthorizationError("The household owner cannot be removed");
+    }
+    // Admins cannot act on a peer admin (mirrors the role-change rules).
+    if (caller.role === "admin" && target.role === "admin") {
+      throw new AuthorizationError("Admins cannot remove another admin");
     }
 
     await audited({
@@ -320,11 +344,7 @@ export const householdService = {
     role: "member" | "admin" = "member",
     ctx: ActorCtx
   ) {
-    const callerMembership = await prisma.member.findFirst({
-      where: { householdId, userId: ownerUserId },
-    });
-    if (!callerMembership) throw new AuthorizationError("Not a member of this household");
-    assertOwnerOrAdmin(callerMembership.role);
+    await assertCallerOwnerOrAdmin(householdId, ownerUserId);
 
     const household = await prisma.household.findUnique({ where: { id: householdId } });
     if (!household) throw new NotFoundError("Household not found");
@@ -403,8 +423,8 @@ export const householdService = {
     return { token: rawToken, email: normalizedEmail };
   },
 
-  async cancelInvite(householdId: string, ownerUserId: string, inviteId: string, ctx: ActorCtx) {
-    await assertOwner(householdId, ownerUserId);
+  async cancelInvite(householdId: string, callerUserId: string, inviteId: string, ctx: ActorCtx) {
+    await assertCallerOwnerOrAdmin(householdId, callerUserId);
 
     const invite = await prisma.householdInvite.findUnique({ where: { id: inviteId } });
     if (!invite || invite.householdId !== householdId) throw new NotFoundError("Invite not found");

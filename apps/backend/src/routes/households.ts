@@ -1,9 +1,5 @@
 import { FastifyInstance } from "fastify";
-import {
-  householdService,
-  updateMemberRole,
-  assertOwnerOrAdmin,
-} from "../services/household.service";
+import { householdService, updateMemberRole } from "../services/household.service";
 import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
 import { prisma } from "../config/database.js";
 import { memberService } from "../services/member.service.js";
@@ -12,15 +8,12 @@ import {
   createHouseholdInviteSchema,
   renameHouseholdSchema,
   updateMemberRoleSchema,
-  updateMemberProfileSchema,
   createMemberSchema,
   updateMemberSchema,
   deleteMemberSchema,
-  AuditAction,
 } from "@finplan/shared";
 import { AuthorizationError, NotFoundError } from "../utils/errors.js";
 import { actorCtx } from "../lib/actor-ctx.js";
-import { audited } from "../services/audit.service.js";
 import { exportImportRoutes } from "./export-import.routes.js";
 
 /**
@@ -156,57 +149,6 @@ export async function householdRoutes(fastify: FastifyInstance) {
       const { id } = request.params as { id: string };
       await householdService.leaveHousehold(id, userId, actorCtx(request));
       return reply.send({ success: true });
-    }
-  );
-
-  // Update a member's profile (self, or owner/admin)
-  fastify.patch(
-    "/households/:householdId/members/:userId/profile",
-    { preHandler: [authMiddleware] },
-    async (req, reply) => {
-      const { householdId, userId } = req.params as { householdId: string; userId: string };
-      if (householdId !== req.householdId) {
-        throw new AuthorizationError("Forbidden");
-      }
-      const callerId = req.user!.userId;
-      const isSelf = userId === callerId;
-      if (!isSelf) {
-        const callerMember = await prisma.member.findFirst({
-          where: { householdId, userId: callerId },
-          select: { role: true },
-        });
-        assertOwnerOrAdmin(callerMember?.role ?? "member");
-      }
-      const targetMember = await prisma.member.findFirst({
-        where: { householdId, userId },
-        select: { id: true },
-      });
-      if (!targetMember) {
-        throw new NotFoundError("Member not found");
-      }
-      const data = updateMemberProfileSchema.parse(req.body);
-      const updated = await audited({
-        db: prisma,
-        ctx: actorCtx(req),
-        action: AuditAction.UPDATE_MEMBER_PROFILE,
-        resource: "household-member",
-        resourceId: targetMember.id,
-        beforeFetch: async (tx) =>
-          tx.member.findUnique({
-            where: { id: targetMember.id },
-          }) as Promise<Record<string, unknown> | null>,
-        mutation: async (tx) =>
-          tx.member.update({
-            where: { id: targetMember.id },
-            data: {
-              ...(data.dateOfBirth !== undefined
-                ? { dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null }
-                : {}),
-              ...(data.retirementYear !== undefined ? { retirementYear: data.retirementYear } : {}),
-            },
-          }),
-      });
-      return reply.send(updated);
     }
   );
 
