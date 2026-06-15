@@ -16,6 +16,7 @@
     "coverage:check": "bun scripts/check-coverage.ts",
     "coverage:gaps": "bun scripts/coverage-gaps.ts",
     "coverage:bump": "bun scripts/bump-baseline.ts",
+    "privacy:check": "bun scripts/check-privacy.ts",
     "build": "turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",

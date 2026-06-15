@@ -132,6 +132,7 @@ Structural layout is in **Architecture** above. Domain rules:
 - **No `any` in security paths:** Auth middleware, token handling, and API client must be fully typed
 - **Generic auth messages:** Login/register errors must never reveal whether an account exists
 - **Error masking:** Use `NotFoundError` for both "not found" and "not owned" — never reveal resource existence to unauthorised callers
+- **No real personal data in the repo:** The repo is public. Never commit a real name, personal email, or production domain — this includes test fixtures and HTML mockups, not just docs/issues. Use placeholders (`Jane Smith` / `jane@example.com` / `test@test.com` / `example.com`). Enforced by `bun run privacy:check` (CI + pre-commit); real values to catch go in the private denylist (`PRIVACY_DENYLIST` secret or gitignored `scripts/privacy-denylist.local.txt`), never the repo. Full policy: `docs/3. architecture/issue-workflow.md` → Privacy rules.
 
 ---
 
