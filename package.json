@@ -48,7 +48,7 @@
     "typescript-eslint": "^8.60.1"
   },
   "overrides": {
-    "ws": "^8.17.1",
+    "ws": "^8.21.0",
     "flatted": "^3.4.0",
     "brace-expansion": "^1.1.13",
     "picomatch": "^2.3.2",
