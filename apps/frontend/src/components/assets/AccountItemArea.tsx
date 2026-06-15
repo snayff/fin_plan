@@ -164,6 +164,7 @@ export function AccountItemArea({ type, initialIsAdding }: Props) {
                   disposedAt,
                   disposalAccountId,
                   initialValue,
+                  initialValueDate,
                 }) => {
                   try {
                     await createAccount.mutateAsync({
@@ -175,6 +176,7 @@ export function AccountItemArea({ type, initialIsAdding }: Props) {
                       isISA: isISA || undefined,
                       isaYearContribution: isaYearContribution ?? undefined,
                       initialValue,
+                      initialValueDate,
                       disposedAt: disposedAt ?? undefined,
                       disposalAccountId: disposalAccountId ?? undefined,
                     });

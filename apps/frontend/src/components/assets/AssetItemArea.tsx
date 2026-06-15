@@ -146,6 +146,7 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
                   disposedAt,
                   disposalAccountId,
                   initialValue,
+                  initialValueDate,
                 }) => {
                   try {
                     await createAsset.mutateAsync({
@@ -154,6 +155,7 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
                       memberId: memberId ?? undefined,
                       growthRatePct,
                       initialValue,
+                      initialValueDate,
                       disposedAt: disposedAt ?? undefined,
                       disposalAccountId: disposalAccountId ?? undefined,
                     });
