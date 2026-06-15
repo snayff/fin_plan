@@ -98,8 +98,11 @@ jobs:
       - name: Generate Prisma Client
         run: cd apps/backend && bunx prisma generate
 
-      - name: Push schema to test database
-        run: cd apps/backend && bunx prisma db push
+      - name: Apply migrations to test database
+        # Use migrate deploy (not db push) so CI exercises the exact migration
+        # path production runs — catching drift between the migration history and
+        # schema.prisma, plus any ordering issues in the committed migrations.
+        run: cd apps/backend && bunx prisma migrate deploy
 
       - name: Backend tests with coverage
         run: cd apps/backend && bun run test:coverage
@@ -341,8 +344,11 @@ jobs:
       - name: Generate Prisma Client
         run: cd apps/backend && bunx prisma generate
 
-      - name: Push schema to test database
-        run: cd apps/backend && bunx prisma db push
+      - name: Apply migrations to test database
+        # Use migrate deploy (not db push) so CI exercises the exact migration
+        # path production runs — catching drift between the migration history and
+        # schema.prisma, plus any ordering issues in the committed migrations.
+        run: cd apps/backend && bunx prisma migrate deploy
 
       - name: Seed test data
         run: cd apps/backend && bun run db:seed
