@@ -175,6 +175,38 @@ describe("assetsService.createAsset", () => {
       )
     ).rejects.toThrow("Member not found in household");
   });
+
+  it("persists initialValueDate as the opening balance date when provided", async () => {
+    prismaMock.asset.create.mockResolvedValue({
+      id: ASSET_ID,
+      name: "Family Home",
+      type: "Property",
+      householdId: HOUSEHOLD_ID,
+    } as any);
+    prismaMock.assetBalance.create.mockResolvedValue({ id: "bal-1" } as any);
+
+    await assetsService.createAsset(
+      HOUSEHOLD_ID,
+      {
+        name: "Family Home",
+        type: "Property",
+        initialValue: 250000,
+        initialValueDate: "2026-01-15",
+      },
+      mockCtx
+    );
+
+    expect(prismaMock.assetBalance.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        assetId: ASSET_ID,
+        value: 250000,
+        date: new Date("2026-01-15"),
+      }),
+    });
+    // initialValueDate must NOT be passed to asset.create — it's not a column
+    const assetCreateCall = prismaMock.asset.create.mock.calls.at(-1)?.[0] as { data: object };
+    expect(assetCreateCall.data).not.toHaveProperty("initialValueDate");
+  });
 });
 
 describe("assetsService.recordAssetBalance", () => {
@@ -380,6 +412,33 @@ describe("assetsService.createAccount", () => {
     // initialValue must NOT be passed to account.create — it's not a column
     const accountCreateCall = prismaMock.account.create.mock.calls[0]?.[0] as { data: object };
     expect(accountCreateCall.data).not.toHaveProperty("initialValue");
+  });
+
+  it("persists initialValueDate as the opening balance date when provided", async () => {
+    prismaMock.account.create.mockResolvedValue({
+      id: ACCOUNT_ID,
+      name: "HSBC Current",
+      type: "Current",
+      householdId: HOUSEHOLD_ID,
+    } as any);
+    prismaMock.accountBalance.create.mockResolvedValue({ id: "bal-1" } as any);
+
+    await assetsService.createAccount(
+      HOUSEHOLD_ID,
+      { name: "HSBC Current", type: "Current", initialValue: 1500, initialValueDate: "2026-01-15" },
+      mockCtx
+    );
+
+    expect(prismaMock.accountBalance.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: ACCOUNT_ID,
+        value: 1500,
+        date: new Date("2026-01-15"),
+      }),
+    });
+    // initialValueDate must NOT be passed to account.create — it's not a column
+    const accountCreateCall = prismaMock.account.create.mock.calls.at(-1)?.[0] as { data: object };
+    expect(accountCreateCall.data).not.toHaveProperty("initialValueDate");
   });
 
   it("creates account without initialValue and skips balance insert", async () => {

@@ -10,6 +10,10 @@ function isoDateOnly(value: string | null | undefined): string {
   return value.length >= 10 ? value.slice(0, 10) : value;
 }
 
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0]!;
+}
+
 const GROWTH_RATE_SETTING_KEY: Partial<
   Record<AccountType, "currentRatePct" | "savingsRatePct" | "investmentRatePct" | "pensionRatePct">
 > = {
@@ -53,6 +57,7 @@ interface Props {
     disposedAt: string | null;
     disposalAccountId: string | null;
     initialValue?: number;
+    initialValueDate?: string;
   }) => void;
   onCancel: () => void;
   onDeleteRequest?: () => void;
@@ -97,10 +102,12 @@ export function AccountForm({
   );
   const [isaError, setIsaError] = useState<string | null>(null);
   const [initialValue, setInitialValue] = useState<string>("");
+  const [initialValueDate, setInitialValueDate] = useState<string>(todayISO());
   const [valueFocused, setValueFocused] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   // Disposal state
   const [disposalOpen, setDisposalOpen] = useState<boolean>(initialDisposedAt != null);
@@ -192,8 +199,18 @@ export function AccountForm({
       if (!isNaN(n) && n >= 0) parsedIsaContrib = n;
     }
 
-    if (!valid) return;
     const parsedValue = initialValue.trim() === "" ? undefined : parseValue(initialValue);
+    const hasInitialValue = mode === "add" && parsedValue !== undefined && !isNaN(parsedValue);
+
+    // Initial-value date only applies when an opening value is being recorded.
+    if (hasInitialValue && initialValueDate > todayISO()) {
+      setDateError("Date cannot be in the future");
+      valid = false;
+    } else {
+      setDateError(null);
+    }
+
+    if (!valid) return;
     onSave({
       name: name.trim(),
       memberId,
@@ -203,9 +220,7 @@ export function AccountForm({
       isaYearContribution: parsedIsaContrib,
       disposedAt: dateSet ? disposedAt : null,
       disposalAccountId: acctSet ? disposalAccountId : null,
-      ...(mode === "add" && parsedValue !== undefined && !isNaN(parsedValue)
-        ? { initialValue: parsedValue }
-        : {}),
+      ...(hasInitialValue ? { initialValue: parsedValue, initialValueDate } : {}),
     });
   }
 
@@ -231,23 +246,42 @@ export function AccountForm({
           {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
-        {/* Current value (add mode only) */}
+        {/* Current value + as-of date (add mode only) */}
         {mode === "add" && (
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className={labelClass}>Current value</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="£0.00"
-              value={displayValue}
-              onChange={(e) => setInitialValue(e.target.value)}
-              onFocus={() => setValueFocused(true)}
-              onBlur={() => setValueFocused(false)}
-              aria-label="Current value"
-              className={[inputClass, "font-numeric"].join(" ")}
-            />
-            <p className="text-[11px] text-text-muted">Optional — leave blank to record later.</p>
-          </div>
+          <>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>Current value</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="£0.00"
+                value={displayValue}
+                onChange={(e) => setInitialValue(e.target.value)}
+                onFocus={() => setValueFocused(true)}
+                onBlur={() => setValueFocused(false)}
+                aria-label="Current value"
+                className={[inputClass, "font-numeric"].join(" ")}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>As of</label>
+              <input
+                type="date"
+                max={todayISO()}
+                value={initialValueDate}
+                onChange={(e) => {
+                  setInitialValueDate(e.target.value);
+                  setDateError(null);
+                }}
+                aria-label="Initial value date"
+                className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
+              />
+              {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
+            </div>
+            <p className="col-span-2 -mt-1 text-[11px] text-text-muted">
+              Optional — leave blank to record later.
+            </p>
+          </>
         )}
 
         {/* Assigned to */}
@@ -337,6 +371,7 @@ export function AccountForm({
                   setIsISA(e.target.checked);
                   setIsaError(null);
                 }}
+                aria-label="Is ISA?"
               />
               <label htmlFor="isISA" className="text-xs text-text-secondary">
                 Is ISA?

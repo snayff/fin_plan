@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import {
+  createAssetSchema,
   createAccountSchema,
   updateAccountSchema,
   isaAllowanceSummarySchema,
@@ -94,6 +95,57 @@ describe("updateAccountSchema — monthlyContributionLimit", () => {
   it("accepts setting and clearing the limit", () => {
     expect(updateAccountSchema.safeParse({ monthlyContributionLimit: 300 }).success).toBe(true);
     expect(updateAccountSchema.safeParse({ monthlyContributionLimit: null }).success).toBe(true);
+  });
+});
+
+describe("createAssetSchema / createAccountSchema — initialValueDate", () => {
+  it("asset: accepts an optional initialValueDate in YYYY-MM-DD form", () => {
+    const r = createAssetSchema.safeParse({
+      name: "Family Home",
+      type: "Property",
+      initialValue: 250000,
+      initialValueDate: "2026-01-15",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("asset: accepts omission of initialValueDate (no behaviour change)", () => {
+    const r = createAssetSchema.safeParse({
+      name: "Family Home",
+      type: "Property",
+      initialValue: 250000,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("asset: rejects a non-ISO initialValueDate", () => {
+    const r = createAssetSchema.safeParse({
+      name: "Family Home",
+      type: "Property",
+      initialValue: 250000,
+      initialValueDate: "15/01/2026",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("account: accepts an optional initialValueDate in YYYY-MM-DD form", () => {
+    const r = createAccountSchema.safeParse({
+      name: "HSBC Current",
+      type: "Current",
+      initialValue: 1500,
+      initialValueDate: "2026-01-15",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("account: rejects a non-ISO initialValueDate", () => {
+    const r = createAccountSchema.safeParse({
+      name: "HSBC Current",
+      type: "Current",
+      initialValue: 1500,
+      initialValueDate: "not-a-date",
+    });
+    expect(r.success).toBe(false);
   });
 });
 

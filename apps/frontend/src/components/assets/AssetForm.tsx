@@ -23,6 +23,7 @@ interface Props {
     disposedAt: string | null;
     disposalAccountId: string | null;
     initialValue?: number;
+    initialValueDate?: string;
   }) => void;
   onCancel: () => void;
   onDeleteRequest?: () => void;
@@ -37,6 +38,10 @@ function isoDateOnly(value: string | null | undefined): string {
   if (!value) return "";
   // Server returns full ISO; the <input type="date"> needs YYYY-MM-DD
   return value.length >= 10 ? value.slice(0, 10) : value;
+}
+
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0]!;
 }
 
 export function AssetForm({
@@ -61,8 +66,10 @@ export function AssetForm({
     initialGrowthRatePct != null ? String(initialGrowthRatePct) : ""
   );
   const [initialValue, setInitialValue] = useState<string>("");
+  const [initialValueDate, setInitialValueDate] = useState<string>(todayISO());
   const [valueFocused, setValueFocused] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   // Disposal state — start expanded if the asset already has a disposal date.
   const [disposalOpen, setDisposalOpen] = useState<boolean>(initialDisposedAt != null);
@@ -118,13 +125,22 @@ export function AssetForm({
     const parsedGrowth = growthRatePct.trim() === "" ? null : Number(growthRatePct);
     const parsedValue = initialValue.trim() === "" ? undefined : parseValue(initialValue);
 
+    // Initial-value date only applies when an opening value is being recorded.
+    if (mode === "add" && parsedValue !== undefined && initialValueDate > todayISO()) {
+      setDateError("Date cannot be in the future");
+      return;
+    }
+    setDateError(null);
+
     onSave({
       name: name.trim(),
       memberId,
       growthRatePct: parsedGrowth,
       disposedAt: dateSet ? disposedAt : null,
       disposalAccountId: acctSet ? disposalAccountId : null,
-      ...(mode === "add" && parsedValue !== undefined ? { initialValue: parsedValue } : {}),
+      ...(mode === "add" && parsedValue !== undefined
+        ? { initialValue: parsedValue, initialValueDate }
+        : {}),
     });
   }
 
@@ -151,28 +167,45 @@ export function AssetForm({
           {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
-        {/* Current value (add mode only) + Growth rate — side by side */}
+        {/* Current value + as-of date (add mode only) — side by side */}
         {mode === "add" && (
-          <div className="flex flex-col gap-1">
-            <label className={labelClass}>
-              Current value <span className="text-text-muted">*</span>
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="£0.00"
-              value={displayValue}
-              onChange={(e) => setInitialValue(e.target.value)}
-              onFocus={() => setValueFocused(true)}
-              onBlur={() => setValueFocused(false)}
-              aria-label="Current value"
-              className={[inputClass, "font-numeric"].join(" ")}
-            />
-          </div>
+          <>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>
+                Current value <span className="text-text-muted">*</span>
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="£0.00"
+                value={displayValue}
+                onChange={(e) => setInitialValue(e.target.value)}
+                onFocus={() => setValueFocused(true)}
+                onBlur={() => setValueFocused(false)}
+                aria-label="Current value"
+                className={[inputClass, "font-numeric"].join(" ")}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>As of</label>
+              <input
+                type="date"
+                max={todayISO()}
+                value={initialValueDate}
+                onChange={(e) => {
+                  setInitialValueDate(e.target.value);
+                  setDateError(null);
+                }}
+                aria-label="Initial value date"
+                className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
+              />
+              {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
+            </div>
+          </>
         )}
 
         {/* Growth rate */}
-        <div className={`flex flex-col gap-1 ${mode === "edit" ? "col-span-2" : ""}`}>
+        <div className="flex flex-col gap-1 col-span-2">
           <label className={labelClass}>Growth rate (% p.a.)</label>
           <input
             type="text"

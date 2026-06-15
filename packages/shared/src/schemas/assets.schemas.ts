@@ -52,6 +52,7 @@ export const createAssetSchema = z
     memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
     initialValue: positiveMoneySchema.optional(),
+    initialValueDate: isoDateString.optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage);
@@ -101,6 +102,7 @@ export const createAccountSchema = z
     monthlyContributionLimit: nonNegativeMoneySchema.nullable().optional(),
     isCashflowLinked: z.boolean().optional(),
     initialValue: positiveMoneySchema.optional(),
+    initialValueDate: isoDateString.optional(),
     isISA: z.boolean().optional(),
     isaYearContribution: nonNegativeMoneySchema.nullable().optional(),
     ...disposalPair,

@@ -210,6 +210,7 @@ export const assetsService = {
     );
     const {
       initialValue,
+      initialValueDate,
       disposedAt: _ignoredDate,
       disposalAccountId: _ignoredAcct,
       ...rest
@@ -232,7 +233,7 @@ export const assetsService = {
             data: {
               assetId: asset.id,
               value: initialValue,
-              date: new Date(),
+              date: initialValueDate ? new Date(initialValueDate) : new Date(),
             },
           });
         }
@@ -455,6 +456,7 @@ export const assetsService = {
     );
     const {
       initialValue,
+      initialValueDate,
       disposedAt: _ignoredDate,
       disposalAccountId: _ignoredAcct,
       ...accountData
@@ -477,7 +479,7 @@ export const assetsService = {
             data: {
               accountId: account.id,
               value: initialValue,
-              date: new Date(),
+              date: initialValueDate ? new Date(initialValueDate) : new Date(),
             },
           });
         }
