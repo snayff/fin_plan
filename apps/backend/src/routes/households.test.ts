@@ -704,67 +704,6 @@ describe("DELETE /api/households/:id (delete household)", () => {
   });
 });
 
-describe("PATCH /api/households/:householdId/members/:userId/profile", () => {
-  it("allows member to update own profile fields", async () => {
-    // Caller is user-1 updating their own profile
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-1/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2055 },
-    });
-
-    expect(response.statusCode).toBe(200);
-  });
-
-  it("rejects member updating another member's profile", async () => {
-    mockCallerMember = { role: "member" };
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-2/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2060 },
-    });
-
-    expect(response.statusCode).toBe(403);
-  });
-
-  it("allows owner to update any member's profile", async () => {
-    mockCallerMember = { role: "owner" };
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-2/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2060 },
-    });
-
-    expect(response.statusCode).toBe(200);
-  });
-
-  it("rejects request when householdId does not match active household", async () => {
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/other-household/members/user-1/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2055 },
-    });
-
-    expect(response.statusCode).toBe(403);
-  });
-
-  it("returns 401 without auth", async () => {
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-1/profile",
-      payload: { retirementYear: 2055 },
-    });
-
-    expect(response.statusCode).toBe(401);
-  });
-});
-
 describe("GET /api/households/:id/member-profiles", () => {
   it("returns 200 with list of members", async () => {
     const response = await app.inject({

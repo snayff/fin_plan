@@ -334,6 +334,132 @@ describe("householdService.removeMember", () => {
   });
 });
 
+// ─── capability matrix: admins may perform household-level changes ────────────
+
+describe("household capability matrix — admin authority", () => {
+  it("allows an admin to rename the household", async () => {
+    const ctx = { householdId: "household-1", actorId: "admin-user", actorName: "Admin" };
+    const adminMember = buildMember({
+      householdId: "household-1",
+      userId: "admin-user",
+      role: "admin",
+    });
+    const household = buildHousehold({ id: "household-1" });
+    prismaMock.member.findFirst.mockResolvedValue(adminMember);
+    prismaMock.household.findUnique.mockResolvedValue(household);
+    prismaMock.household.update.mockResolvedValue({ ...household, name: "New Name" });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    const result = await householdService.renameHousehold(
+      "household-1",
+      "admin-user",
+      "New Name",
+      ctx
+    );
+
+    expect(result.name).toBe("New Name");
+  });
+
+  it("allows an admin to remove a member", async () => {
+    const ctx = { householdId: "household-1", actorId: "admin-user", actorName: "Admin" };
+    const adminMember = buildMember({
+      householdId: "household-1",
+      userId: "admin-user",
+      role: "admin",
+    });
+    const target = buildMember({
+      id: "member-1",
+      householdId: "household-1",
+      userId: "target-user",
+      role: "member",
+    });
+    prismaMock.member.findFirst.mockResolvedValue(adminMember);
+    prismaMock.member.findUnique.mockResolvedValue(target);
+    prismaMock.member.delete.mockResolvedValue(target);
+    prismaMock.user.findUnique.mockResolvedValue(buildUser({ id: "target-user" }));
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await householdService.removeMember("household-1", "admin-user", "member-1", ctx);
+
+    expect(prismaMock.member.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "member-1" } })
+    );
+  });
+
+  it("rejects removing the household owner", async () => {
+    const ctx = { householdId: "household-1", actorId: "admin-user", actorName: "Admin" };
+    const adminMember = buildMember({
+      householdId: "household-1",
+      userId: "admin-user",
+      role: "admin",
+    });
+    const ownerTarget = buildMember({
+      id: "owner-member",
+      householdId: "household-1",
+      userId: "owner-user",
+      role: "owner",
+    });
+    prismaMock.member.findFirst.mockResolvedValue(adminMember);
+    prismaMock.member.findUnique.mockResolvedValue(ownerTarget);
+
+    await expect(
+      householdService.removeMember("household-1", "admin-user", "owner-member", ctx)
+    ).rejects.toThrow(AuthorizationError);
+    expect(prismaMock.member.delete).not.toHaveBeenCalled();
+  });
+
+  it("rejects an admin removing another admin", async () => {
+    const ctx = { householdId: "household-1", actorId: "admin-user", actorName: "Admin" };
+    const adminMember = buildMember({
+      householdId: "household-1",
+      userId: "admin-user",
+      role: "admin",
+    });
+    const otherAdmin = buildMember({
+      id: "other-admin-member",
+      householdId: "household-1",
+      userId: "other-admin",
+      role: "admin",
+    });
+    prismaMock.member.findFirst.mockResolvedValue(adminMember);
+    prismaMock.member.findUnique.mockResolvedValue(otherAdmin);
+
+    await expect(
+      householdService.removeMember("household-1", "admin-user", "other-admin-member", ctx)
+    ).rejects.toThrow(AuthorizationError);
+    expect(prismaMock.member.delete).not.toHaveBeenCalled();
+  });
+
+  it("allows an admin to cancel a pending invite", async () => {
+    const ctx = { householdId: "household-1", actorId: "admin-user", actorName: "Admin" };
+    const adminMember = buildMember({
+      householdId: "household-1",
+      userId: "admin-user",
+      role: "admin",
+    });
+    const invite = buildHouseholdInvite({ id: "invite-1", householdId: "household-1" });
+    prismaMock.member.findFirst.mockResolvedValue(adminMember);
+    prismaMock.householdInvite.findUnique.mockResolvedValue(invite);
+    prismaMock.householdInvite.delete.mockResolvedValue(invite);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await householdService.cancelInvite("household-1", "admin-user", "invite-1", ctx);
+
+    expect(prismaMock.householdInvite.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "invite-1" } })
+    );
+  });
+
+  it("still forbids a plain member from renaming the household", async () => {
+    const ctx = { householdId: "household-1", actorId: "member-user", actorName: "Member" };
+    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "member" }));
+
+    await expect(
+      householdService.renameHousehold("household-1", "member-user", "New Name", ctx)
+    ).rejects.toThrow(AuthorizationError);
+  });
+});
+
 // ─── validateInviteToken ──────────────────────────────────────────────────────
 
 describe("householdService.validateInviteToken", () => {

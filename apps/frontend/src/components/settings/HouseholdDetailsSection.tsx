@@ -12,7 +12,8 @@ export function HouseholdDetailsSection() {
   const rename = useRenameHousehold();
   const household = data?.household;
   const currentMember = household?.memberProfiles.find((m) => m.userId === user?.id);
-  const isOwner = currentMember?.role === "owner";
+  // Renaming the household is a household-level change: owners and admins may do it.
+  const canEditDetails = currentMember?.role === "owner" || currentMember?.role === "admin";
 
   const { value, setValue, status, errorMessage } = useAutoSave<string>({
     initialValue: household?.name ?? "",
@@ -25,7 +26,7 @@ export function HouseholdDetailsSection() {
       title="Details"
       description="Name and basic information about this household."
     >
-      {isOwner ? (
+      {canEditDetails ? (
         <AutoSaveField
           label="Household name"
           htmlFor="hh-name"

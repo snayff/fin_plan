@@ -40,6 +40,8 @@ export function HouseholdMembersSection() {
   const currentUserId = user?.id;
   const currentMember = household?.memberProfiles.find((m) => m.userId === currentUserId);
   const isOwner = currentMember?.role === "owner";
+  // Inviting and cancelling invites are household-level changes: owners and admins.
+  const canManageMembers = isOwner || currentMember?.role === "admin";
   const ownerCount = household?.memberProfiles.filter((m) => m.role === "owner").length ?? 0;
   const isSoleOwner = isOwner && ownerCount <= 1;
 
@@ -104,7 +106,7 @@ export function HouseholdMembersSection() {
       )}
 
       {/* Invite form */}
-      {isOwner && (
+      {canManageMembers && (
         <div className="space-y-3">
           <p className="text-sm font-medium">Invite member</p>
           <form onSubmit={handleInvite} className="flex flex-col gap-2 max-w-sm">

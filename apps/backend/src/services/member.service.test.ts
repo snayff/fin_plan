@@ -33,11 +33,28 @@ describe("memberService.createMember", () => {
     expect(result.name).toBe("Alice");
   });
 
-  it("rejects if caller is not owner", async () => {
+  it("rejects if caller is not owner or admin", async () => {
     prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "member" }));
     await expect(
       memberService.createMember("household-1", "non-owner", { name: "Alice" }, ctx)
     ).rejects.toThrow(AuthorizationError);
+  });
+
+  it("allows an admin to create a member", async () => {
+    const member = buildMember({ name: "Alice", userId: null });
+    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "admin" }));
+    prismaMock.member.create.mockResolvedValue(member);
+    prismaMock.giftPerson.create.mockResolvedValue({} as any);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    const result = await memberService.createMember(
+      "household-1",
+      "admin-user",
+      { name: "Alice" },
+      ctx
+    );
+
+    expect(result.name).toBe("Alice");
   });
 });
 
@@ -149,6 +166,95 @@ describe("memberService.updateMember", () => {
       ctx
     );
     expect(result.name).toBe("Alice Smith");
+  });
+
+  it("allows a member to update their own profile without owner/admin rights", async () => {
+    const ctx = { householdId: "hh-1", actorId: "u-self", actorName: "Self" };
+    const own = buildMember({
+      id: "m-self",
+      householdId: "hh-1",
+      userId: "u-self",
+      role: "member",
+    });
+    // A plain-member caller: if the code reached the owner/admin check this would throw.
+    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "member" }));
+    prismaMock.member.findUnique.mockResolvedValue(own);
+    prismaMock.member.update.mockResolvedValue({ ...own, retirementYear: 2055 });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    const result = await memberService.updateMember(
+      "hh-1",
+      "u-self",
+      "m-self",
+      { retirementYear: 2055 },
+      ctx
+    );
+
+    expect(result.retirementYear).toBe(2055);
+  });
+
+  it("allows an admin to update another member's profile", async () => {
+    const ctx = { householdId: "hh-1", actorId: "u-admin", actorName: "Admin" };
+    const target = buildMember({
+      id: "m-other",
+      householdId: "hh-1",
+      userId: "u-other",
+      role: "member",
+    });
+    prismaMock.member.findUnique.mockResolvedValue(target);
+    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "admin" }));
+    prismaMock.member.update.mockResolvedValue({ ...target, name: "Renamed" });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    const result = await memberService.updateMember(
+      "hh-1",
+      "u-admin",
+      "m-other",
+      { name: "Renamed" },
+      ctx
+    );
+
+    expect(result.name).toBe("Renamed");
+  });
+
+  it("rejects a plain member updating another member's profile", async () => {
+    const ctx = { householdId: "hh-1", actorId: "u-member", actorName: "Member" };
+    const target = buildMember({
+      id: "m-other",
+      householdId: "hh-1",
+      userId: "u-other",
+      role: "member",
+    });
+    prismaMock.member.findUnique.mockResolvedValue(target);
+    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "member" }));
+
+    await expect(
+      memberService.updateMember("hh-1", "u-member", "m-other", { name: "Nope" }, ctx)
+    ).rejects.toThrow(AuthorizationError);
+    expect(prismaMock.member.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("memberService.deleteMember capability", () => {
+  const ctx = { householdId: "hh-1", actorId: "u-admin", actorName: "Admin" };
+
+  it("allows an admin to delete a member profile", async () => {
+    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "admin" }));
+    prismaMock.member.findUnique.mockResolvedValue(
+      buildMember({ id: "m-1", householdId: "hh-1", userId: null })
+    );
+    prismaMock.incomeSource.count.mockResolvedValue(0);
+    prismaMock.committedItem.count.mockResolvedValue(0);
+    prismaMock.discretionaryItem.count.mockResolvedValue(0);
+    prismaMock.asset.count.mockResolvedValue(0);
+    prismaMock.account.count.mockResolvedValue(0);
+    prismaMock.giftPerson.updateMany.mockResolvedValue({ count: 0 } as any);
+    prismaMock.member.delete.mockResolvedValue({} as any);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await memberService.deleteMember("hh-1", "u-admin", "m-1", ctx, undefined);
+
+    expect(prismaMock.member.delete).toHaveBeenCalledWith({ where: { id: "m-1" } });
   });
 });
 

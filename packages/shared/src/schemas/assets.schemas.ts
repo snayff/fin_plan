@@ -165,12 +165,6 @@ export const recordAccountBalanceSchema = z.object({
   note: notesSchema.nullable().optional(),
 });
 
-// Member profile (retirement fields)
-export const updateMemberProfileSchema = z.object({
-  dateOfBirth: z.string().datetime().nullable().optional(),
-  retirementYear: z.number().int().min(2000).max(2100).nullable().optional(),
-});
-
 export type AssetType = z.infer<typeof assetTypeSchema>;
 export type AccountType = z.infer<typeof accountTypeSchema>;
 export type CreateAssetInput = z.infer<typeof createAssetSchema>;
@@ -179,7 +173,6 @@ export type RecordAssetBalanceInput = z.infer<typeof recordAssetBalanceSchema>;
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type RecordAccountBalanceInput = z.infer<typeof recordAccountBalanceSchema>;
-export type UpdateMemberProfileInput = z.infer<typeof updateMemberProfileSchema>;
 
 // ISA allowance summary (response schema)
 export const isaMemberPositionSchema = z.object({
