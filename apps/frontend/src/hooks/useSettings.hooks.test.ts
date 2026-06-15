@@ -160,8 +160,9 @@ describe("useSettings mutation hooks", () => {
     await run(renderHook(() => hooks.useInviteMember(), { wrapper: w }).result, {
       householdId: "h1",
       email: "a@b.com",
+      name: "Alex",
     });
-    expect(householdService.inviteMember).toHaveBeenCalledWith("h1", "a@b.com");
+    expect(householdService.inviteMember).toHaveBeenCalledWith("h1", "a@b.com", "Alex");
 
     await run(renderHook(() => hooks.useCancelInvite(), { wrapper: w }).result, {
       householdId: "h1",

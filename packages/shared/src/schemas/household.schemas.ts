@@ -11,6 +11,7 @@ export const renameHouseholdSchema = z.object({
 
 export const createHouseholdInviteSchema = z.object({
   email: z.string().trim().max(EMAIL_MAX).email("A valid email address is required"),
+  name: z.string().trim().min(1, "Name is required for the invited person").max(NAME_MAX),
   role: z.enum(["member", "admin"]).optional().default("member"),
 });
 

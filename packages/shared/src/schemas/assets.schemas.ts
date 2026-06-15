@@ -92,6 +92,26 @@ const isaRefineMessage: { message: string; path: (string | number)[] } = {
   path: ["isISA"],
 };
 
+// Pension helpers
+// A pension is inherently individual, so a Pension-type account must belong to
+// exactly one member. Only meaningful where `type` is present in the payload
+// (create); update payloads omit `type`, so the account form enforces the rule
+// on edit. Existing memberless pensions are untouched (no migration).
+type PensionShape = {
+  type?: "Current" | "Savings" | "Pension" | "StocksAndShares" | "Other";
+  memberId?: string | null;
+};
+
+function pensionRefine(data: PensionShape): boolean {
+  if (data.type !== "Pension") return true;
+  return data.memberId != null;
+}
+
+const pensionRefineMessage: { message: string; path: (string | number)[] } = {
+  message: "Pension accounts must be assigned to a member",
+  path: ["memberId"],
+};
+
 // Account CRUD
 export const createAccountSchema = z
   .object({
@@ -108,7 +128,8 @@ export const createAccountSchema = z
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage)
-  .refine(isaRefine, isaRefineMessage);
+  .refine(isaRefine, isaRefineMessage)
+  .refine(pensionRefine, pensionRefineMessage);
 
 export const updateAccountSchema = z
   .object({

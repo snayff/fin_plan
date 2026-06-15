@@ -61,6 +61,32 @@ describe("householdService.joinViaInvite", () => {
     expect(result).toMatchObject({ id: "hh-invited" });
   });
 
+  it("links the existing placeholder member instead of creating a new one", async () => {
+    prismaMock.householdInvite.findUnique.mockResolvedValue(
+      validInvite({ memberId: "placeholder-1" }) as any
+    );
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: "u-2",
+      email: "bob@example.com",
+      name: "Bob",
+    } as any);
+    prismaMock.member.findFirst.mockResolvedValue(null);
+    prismaMock.member.update.mockResolvedValue({ id: "placeholder-1", userId: "u-2" } as any);
+    prismaMock.user.update.mockResolvedValue({} as any);
+    prismaMock.householdInvite.update.mockResolvedValue({} as any);
+
+    const result = await householdService.joinViaInvite("tok", "u-2", ctx);
+
+    expect(prismaMock.member.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "placeholder-1" },
+        data: expect.objectContaining({ userId: "u-2" }),
+      })
+    );
+    expect(prismaMock.member.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ id: "hh-invited" });
+  });
+
   it("joins via the plain transaction branch when no ctx is provided", async () => {
     prismaMock.householdInvite.findUnique.mockResolvedValue(validInvite() as any);
     prismaMock.user.findUnique.mockResolvedValue({

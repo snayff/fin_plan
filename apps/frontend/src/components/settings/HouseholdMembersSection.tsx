@@ -30,6 +30,7 @@ export function HouseholdMembersSection() {
   const leaveHousehold = useLeaveHousehold();
 
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
   const [inviteResult, setInviteResult] = useState<{
     token: string;
     invitedEmail: string;
@@ -45,11 +46,12 @@ export function HouseholdMembersSection() {
   function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     inviteMember.mutate(
-      { householdId, email: inviteEmail },
+      { householdId, email: inviteEmail, name: inviteName },
       {
         onSuccess: (result) => {
           setInviteResult(result);
           setInviteEmail("");
+          setInviteName("");
           toast.success("Invite created");
         },
         onError: (error) => {
@@ -105,19 +107,29 @@ export function HouseholdMembersSection() {
       {isOwner && (
         <div className="space-y-3">
           <p className="text-sm font-medium">Invite member</p>
-          <form onSubmit={handleInvite} className="flex items-center gap-2 max-w-sm">
+          <form onSubmit={handleInvite} className="flex flex-col gap-2 max-w-sm">
             <Input
-              type="email"
-              placeholder="Email address"
-              className="flex-1"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              type="text"
+              placeholder="Name"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
               required
-              aria-label="Invite email address"
+              aria-label="Invited person's name"
             />
-            <Button type="submit" size="sm" disabled={inviteMember.isPending}>
-              {inviteMember.isPending ? "Creating…" : "Create link"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="email"
+                placeholder="Email address"
+                className="flex-1"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                required
+                aria-label="Invite email address"
+              />
+              <Button type="submit" size="sm" disabled={inviteMember.isPending}>
+                {inviteMember.isPending ? "Creating…" : "Create link"}
+              </Button>
+            </div>
           </form>
 
           {inviteResult && inviteUrl && (

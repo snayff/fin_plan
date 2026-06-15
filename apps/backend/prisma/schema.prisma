@@ -61,6 +61,7 @@ model Member {
   updatedAt      DateTime      @updatedAt @map("updated_at")
   household      Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
   user           User?         @relation("MemberUser", fields: [userId], references: [id], onDelete: SetNull)
+  invite         HouseholdInvite? @relation("InvitePlaceholder")
   assets         Asset[]
   accounts       Account[]
   incomeSources       IncomeSource[]
@@ -84,8 +85,10 @@ model HouseholdInvite {
   createdByUserId String    @map("created_by_user_id")
   createdAt       DateTime  @default(now()) @map("created_at")
   intendedRole    HouseholdRole? @map("intended_role")
+  memberId        String?   @unique @map("member_id")
   household       Household      @relation(fields: [householdId], references: [id], onDelete: Cascade)
   createdBy       User           @relation(fields: [createdByUserId], references: [id])
+  member          Member?        @relation("InvitePlaceholder", fields: [memberId], references: [id], onDelete: SetNull)
 
   @@index([householdId])
   @@map("household_invites")

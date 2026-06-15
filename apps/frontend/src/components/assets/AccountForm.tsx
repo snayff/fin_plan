@@ -108,6 +108,7 @@ export function AccountForm({
   const [rateError, setRateError] = useState<string | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   // Disposal state
   const [disposalOpen, setDisposalOpen] = useState<boolean>(initialDisposedAt != null);
@@ -199,6 +200,14 @@ export function AccountForm({
       if (!isNaN(n) && n >= 0) parsedIsaContrib = n;
     }
 
+    // A pension is inherently individual — it must belong to exactly one member.
+    if (type === "Pension" && !memberId) {
+      setMemberError("Pension accounts must be assigned to a member");
+      valid = false;
+    } else {
+      setMemberError(null);
+    }
+
     const parsedValue = initialValue.trim() === "" ? undefined : parseValue(initialValue);
     const hasInitialValue = mode === "add" && parsedValue !== undefined && !isNaN(parsedValue);
 
@@ -286,20 +295,31 @@ export function AccountForm({
 
         {/* Assigned to */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Assigned to</label>
+          <label className={labelClass}>
+            Assigned to {type === "Pension" && <span className="text-text-muted">*</span>}
+          </label>
           <select
             value={memberId ?? ""}
-            onChange={(e) => setMemberId(e.target.value || null)}
+            onChange={(e) => {
+              setMemberId(e.target.value || null);
+              setMemberError(null);
+            }}
             aria-label="Assigned to"
-            className={inputClass}
+            className={[inputClass, memberError ? "border-attention/60" : ""].join(" ")}
           >
-            <option value="">Household</option>
+            <option value="">{type === "Pension" ? "Select a member…" : "Household"}</option>
             {members?.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.firstName}
               </option>
             ))}
           </select>
+          {memberError && <p className="-mt-0.5 text-xs text-attention">{memberError}</p>}
+          {!memberError && mode === "edit" && type === "Pension" && initialMemberId == null && (
+            <p className="-mt-0.5 text-xs text-text-muted">
+              A pension belongs to a single person — please choose the member who owns it.
+            </p>
+          )}
         </div>
 
         {/* Growth rate override */}

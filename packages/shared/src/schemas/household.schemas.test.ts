@@ -44,28 +44,48 @@ describe("renameHouseholdSchema", () => {
 
 describe("createHouseholdInviteSchema", () => {
   it("rejects missing email", () => {
-    const result = createHouseholdInviteSchema.safeParse({});
+    const result = createHouseholdInviteSchema.safeParse({ name: "Alice" });
     expect(result.success).toBe(false);
   });
 
-  it("accepts a valid email", () => {
-    const result = createHouseholdInviteSchema.safeParse({ email: "alice@example.com" });
+  it("accepts a valid email and name", () => {
+    const result = createHouseholdInviteSchema.safeParse({
+      email: "alice@example.com",
+      name: "Alice",
+    });
     expect(result.success).toBe(true);
   });
 
-  it("trims email values", () => {
-    const result = createHouseholdInviteSchema.safeParse({ email: "  alice@example.com  " });
+  it("trims email and name values", () => {
+    const result = createHouseholdInviteSchema.safeParse({
+      email: "  alice@example.com  ",
+      name: "  Alice  ",
+    });
     expect(result.success).toBe(true);
     expect(result.data?.email).toBe("alice@example.com");
+    expect(result.data?.name).toBe("Alice");
   });
 
   it("rejects blank email", () => {
-    const result = createHouseholdInviteSchema.safeParse({ email: "   " });
+    const result = createHouseholdInviteSchema.safeParse({ email: "   ", name: "Alice" });
     expect(result.success).toBe(false);
   });
 
   it("rejects invalid email", () => {
-    const result = createHouseholdInviteSchema.safeParse({ email: "bad-email" });
+    const result = createHouseholdInviteSchema.safeParse({ email: "bad-email", name: "Alice" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing name", () => {
+    const result = createHouseholdInviteSchema.safeParse({ email: "alice@example.com" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects blank name", () => {
+    const result = createHouseholdInviteSchema.safeParse({
+      email: "alice@example.com",
+      name: "   ",
+    });
     expect(result.success).toBe(false);
   });
 });
