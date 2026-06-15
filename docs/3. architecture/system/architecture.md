@@ -53,6 +53,25 @@ Implemented backend follows:
 - consistent JSON response envelopes per route family
 - route protection with `authMiddleware`
 
+#### Success Status Codes
+
+Routes shape the success status code (the routes layer owns HTTP concerns —
+errors are thrown, never inlined; see [error-handling.md](error-handling.md)).
+Use one rule so 201/204/200 stays consistent across route families:
+
+| Code | When                                                                    |
+| ---- | ----------------------------------------------------------------------- |
+| 201  | Resource **created** — return the created resource in the body          |
+| 204  | **Delete** (and other body-less mutations) — `reply.status(204).send()` |
+| 200  | **Upsert**, **bulk** writes, and all reads — return the result body     |
+
+Notes:
+
+- A create that the client treats as idempotent (upsert) returns **200**, not
+  201, because the row may already have existed.
+- 204 responses must send **no body**. If a delete needs to return data (e.g. a
+  cascade summary), it is a 200, not a 204.
+
 ### Security Baseline in Server
 
 `src/server.ts` registers:

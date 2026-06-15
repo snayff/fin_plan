@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
 import { NotFoundError, ConflictError, ValidationError } from "../utils/errors.js";
 import type {
@@ -169,7 +170,7 @@ export const giftsService = {
   },
 
   async createEvent(householdId: string, data: CreateGiftEventInput, ctx: ActorCtx) {
-    const payload: any = {
+    const payload: Prisma.GiftEventUncheckedCreateInput = {
       householdId,
       name: data.name,
       dateType: data.dateType,

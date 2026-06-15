@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { SecurityActivityQuery, SecurityActivityResponse } from "@finplan/shared";
 import { AuditAction } from "@finplan/shared";
+import { ValidationError } from "../utils/errors.js";
 
 type QueryParams = SecurityActivityQuery & { userId: string };
 
@@ -32,7 +33,7 @@ export async function querySecurityActivity(
 
   if (cursor) {
     const decoded = decodeCursor(cursor);
-    if (!decoded) throw Object.assign(new Error("Invalid cursor"), { statusCode: 400 });
+    if (!decoded) throw new ValidationError("Invalid cursor");
     Object.assign(where, {
       OR: [
         { createdAt: { lt: new Date(decoded.createdAt) } },

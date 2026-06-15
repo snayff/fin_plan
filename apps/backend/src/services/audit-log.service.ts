@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { AuditLogQuery, AuditChange, AuditEntry, AuditLogResponse } from "@finplan/shared";
 import { filterChanges } from "./audit.service";
+import { ValidationError } from "../utils/errors.js";
 
 // Foreign-key fields whose raw UUID values we replace with a human-readable
 // label (usually the target row's name) at read time. Keeping resolution on
@@ -105,7 +106,7 @@ export async function queryAuditLog(
 
   if (cursor) {
     const decoded = decodeCursor(cursor);
-    if (!decoded) throw Object.assign(new Error("Invalid cursor"), { statusCode: 400 });
+    if (!decoded) throw new ValidationError("Invalid cursor");
     const { createdAt, id } = decoded;
     Object.assign(where, {
       OR: [
