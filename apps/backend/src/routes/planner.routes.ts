@@ -8,6 +8,7 @@ import {
   updatePurchaseSchema,
   upsertYearBudgetSchema,
   yearSchema,
+  idParamSchema,
 } from "@finplan/shared";
 
 /**
@@ -42,14 +43,14 @@ export async function plannerRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/purchases/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updatePurchaseSchema.parse(req.body);
     const purchase = await plannerService.updatePurchase(req.householdId!, id, data, actorCtx(req));
     return reply.send(purchase);
   });
 
   fastify.delete("/purchases/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await plannerService.deletePurchase(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
