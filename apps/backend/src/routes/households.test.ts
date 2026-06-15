@@ -440,12 +440,12 @@ describe("POST /api/households/:id/switch", () => {
 });
 
 describe("POST /api/households/:id/invite", () => {
-  it("returns 201 with a token when email is provided", async () => {
+  it("returns 201 with a token when email and name are provided", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: { email: "invitee@example.com" },
+      payload: { email: "invitee@example.com", name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(201);
@@ -458,24 +458,36 @@ describe("POST /api/households/:id/invite", () => {
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: {},
+      payload: { name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(400);
   });
 
-  it("calls service with householdId, userId, and email", async () => {
-    await app.inject({
+  it("returns 400 when name is missing", async () => {
+    const response = await app.inject({
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
       payload: { email: "invitee@example.com" },
     });
 
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("calls service with householdId, userId, email, and name", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/api/households/household-1/invite",
+      headers: authHeaders,
+      payload: { email: "invitee@example.com", name: "Invited Person" },
+    });
+
     expect(householdService.inviteMember).toHaveBeenCalledWith(
       "household-1",
       "user-1",
       "invitee@example.com",
+      "Invited Person",
       "member",
       expect.any(Object)
     );
@@ -491,7 +503,7 @@ describe("POST /api/households/:id/invite", () => {
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: { email: "invitee@example.com" },
+      payload: { email: "invitee@example.com", name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(201);
@@ -504,7 +516,7 @@ describe("POST /api/households/:id/invite", () => {
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: { email: "bad-email" },
+      payload: { email: "bad-email", name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(400);

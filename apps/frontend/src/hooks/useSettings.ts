@@ -148,8 +148,15 @@ export function useRenameHousehold() {
 export function useInviteMember() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ householdId, email }: { householdId: string; email: string }) =>
-      householdService.inviteMember(householdId, email),
+    mutationFn: ({
+      householdId,
+      email,
+      name,
+    }: {
+      householdId: string;
+      email: string;
+      name: string;
+    }) => householdService.inviteMember(householdId, email, name),
     onSuccess: (_data, { householdId }) => {
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
     },

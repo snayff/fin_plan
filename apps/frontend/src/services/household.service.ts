@@ -83,10 +83,12 @@ export const householdService = {
   async inviteMember(
     householdId: string,
     email: string,
+    name: string,
     role?: "member" | "admin"
   ): Promise<CreateInviteResponse> {
     return apiClient.post<CreateInviteResponse>(`/api/households/${householdId}/invite`, {
       email,
+      name,
       ...(role !== undefined ? { role } : {}),
     });
   },
@@ -94,10 +96,11 @@ export const householdService = {
   async regenerateInvite(
     householdId: string,
     inviteId: string,
-    email: string
+    email: string,
+    name: string
   ): Promise<CreateInviteResponse> {
     await this.cancelInvite(householdId, inviteId);
-    return this.inviteMember(householdId, email);
+    return this.inviteMember(householdId, email, name);
   },
 
   async removeMember(householdId: string, memberId: string): Promise<{ success: boolean }> {

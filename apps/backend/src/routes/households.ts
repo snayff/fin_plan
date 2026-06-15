@@ -104,11 +104,12 @@ export async function householdRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = request.user!.userId;
       const { id } = request.params as { id: string };
-      const { email, role } = createHouseholdInviteSchema.parse(request.body ?? {});
+      const { email, name, role } = createHouseholdInviteSchema.parse(request.body ?? {});
       const { token, email: invitedEmail } = await householdService.inviteMember(
         id,
         userId,
         email,
+        name,
         role,
         actorCtx(request)
       );
