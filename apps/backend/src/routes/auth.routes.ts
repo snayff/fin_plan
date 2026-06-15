@@ -1,6 +1,5 @@
 import type {
   FastifyInstance,
-  FastifyReply,
   FastifyRequest,
   RouteShorthandOptions,
   onRequestHookHandler,
@@ -9,8 +8,8 @@ import { z } from "zod";
 import { authService } from "../services/auth.service";
 import { auditEvent } from "../services/audit.service";
 import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
-import { config } from "../config/env";
 import { blacklistToken } from "../utils/tokenBlacklist";
+import { setRefreshTokenCookie, clearRefreshTokenCookie } from "../lib/refresh-cookie";
 import { decodeToken } from "../utils/jwt";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { MAX_PASSWORD_LENGTH } from "../utils/password";
@@ -47,37 +46,6 @@ const loginSchema = z.object({
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100),
 });
-
-/**
- * Set refresh token as httpOnly cookie
- * Provides security by making token inaccessible to JavaScript
- */
-function setRefreshTokenCookie(
-  reply: FastifyReply,
-  refreshToken: string,
-  options?: { rememberMe?: boolean; maxAgeSeconds?: number }
-) {
-  const rememberMe = options?.rememberMe ?? false;
-  const maxAgeSeconds =
-    options?.maxAgeSeconds && options.maxAgeSeconds > 0 ? options.maxAgeSeconds : 7 * 24 * 60 * 60;
-
-  reply.setCookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: config.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/auth/refresh",
-    ...(rememberMe ? { maxAge: maxAgeSeconds } : {}),
-  });
-}
-
-/**
- * Clear refresh token cookie on logout
- */
-function clearRefreshTokenCookie(reply: FastifyReply) {
-  reply.clearCookie("refreshToken", {
-    path: "/api/auth/refresh",
-  });
-}
 
 export async function authRoutes(fastify: FastifyInstance) {
   // Rate limit configurations for auth endpoints
