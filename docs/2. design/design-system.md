@@ -1632,8 +1632,8 @@ The profile avatar is the unified entry point for personal settings and session 
 ```
   ( JS )
   ┌────────────────────────────┐
-  │   Josh Snaith              │
-  │   snaith2@gmail.com        │
+  │   Jane Smith               │
+  │   jane@example.com         │
   │  ────────────────────────  │
   │   👤  Profile settings     │
   │   ↪   Sign out             │
