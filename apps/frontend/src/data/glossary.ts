@@ -74,6 +74,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     appearsIn: ["Overview waterfall", "Discretionary page"],
   },
   {
+    id: "disposal-date",
+    term: "Disposal Date",
+    definition:
+      "The date on which you plan to sell or close this asset or account. From this date onward the item is excluded from your forecast and its projected value is added as a one-off inflow to the chosen target account.",
+    tag: "finplan",
+    relatedConceptIds: ["cashflow-forecasting"],
+    relatedTermIds: ["liquidation", "one-off-income"],
+    appearsIn: ["Asset and Account edit forms", "Cashflow event list"],
+  },
+  {
     id: "equity-value",
     term: "Equity Value",
     definition:
@@ -92,6 +102,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     relatedConceptIds: ["net-worth", "isa-allowances"],
     relatedTermIds: ["net-worth", "isa"],
     appearsIn: ["Wealth page"],
+  },
+  {
+    id: "held-on-behalf-of-badge",
+    term: "Held on Behalf Of Badge",
+    definition:
+      "This account is managed by your household but is owned by [name]. It is excluded from your household net worth.",
+    tag: "finplan",
+    relatedConceptIds: ["net-worth"],
+    relatedTermIds: ["held-on-behalf-of", "net-worth"],
+    appearsIn: ["Wealth page trust savings section"],
   },
   {
     id: "gifts-independent-mode",
@@ -144,6 +164,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     appearsIn: ["Cashflow header", "Linked Accounts popover"],
   },
   {
+    id: "liquidation",
+    term: "Liquidation",
+    definition:
+      "The conversion of an asset or account to cash on its disposal date. finplan projects the item's value up to that date using its growth rate, then transfers the proceeds to the account you selected.",
+    tag: "financial",
+    relatedConceptIds: ["cashflow-forecasting"],
+    relatedTermIds: ["disposal-date", "projection"],
+    appearsIn: ["Cashflow event list", "Forecast page"],
+  },
+  {
     id: "liquidity",
     term: "Liquidity",
     definition:
@@ -162,6 +192,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     relatedConceptIds: [],
     relatedTermIds: [],
     appearsIn: ["Config — Events panel"],
+  },
+  {
+    id: "monthly-contribution-limit",
+    term: "Monthly contribution limit",
+    definition:
+      "The most this account lets you pay in each month. finplan uses this to flag spare capacity and surface higher-rate alternatives among your other savings accounts.",
+    tag: "finplan",
+    relatedConceptIds: [],
+    relatedTermIds: ["isa-allowance"],
+    appearsIn: ["Account form (Savings)", "Account detail panel"],
   },
   {
     id: "net-income",
@@ -254,6 +294,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     appearsIn: ["Review Wizard", "Item rows"],
   },
   {
+    id: "savings-waterfall-link",
+    term: "Savings ↔ Waterfall Link Icon",
+    definition:
+      "This savings account is linked to a waterfall allocation. Contributions from your plan are used for projections on this account.",
+    tag: "finplan",
+    relatedConceptIds: ["waterfall"],
+    relatedTermIds: ["projection", "surplus"],
+    appearsIn: ["Wealth page savings account row", "Waterfall discretionary savings row"],
+  },
+  {
     id: "gifts-shared-date",
     term: "Shared Date Type",
     definition:
@@ -274,6 +324,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     appearsIn: ["Overview timeline", "Snapshot banner"],
   },
   {
+    id: "snapshot-dot",
+    term: "Snapshot Dot (timeline navigator)",
+    definition:
+      "[snapshot name] — [date]. Click to view your waterfall as it was on this date (read-only).",
+    tag: "finplan",
+    relatedConceptIds: ["waterfall"],
+    relatedTermIds: ["snapshot"],
+    appearsIn: ["Timeline navigator above the Overview waterfall"],
+  },
+  {
     id: "gifts-spent",
     term: "Spent (Gifts)",
     definition: "The sum of amounts actually spent on gifts so far this year.",
@@ -291,6 +351,26 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     relatedConceptIds: [],
     relatedTermIds: ["period"],
     appearsIn: ["Item rows", "Review Wizard", "Right panel detail view"],
+  },
+  {
+    id: "staleness-indicator",
+    term: "Staleness Indicator (amber dot ●)",
+    definition:
+      "This value hasn't been reviewed recently — it may no longer be accurate. Click to open the item and confirm it.",
+    tag: "finplan",
+    relatedConceptIds: [],
+    relatedTermIds: ["staleness", "review"],
+    appearsIn: ["Item rows in the right panel", "Right panel detail view"],
+  },
+  {
+    id: "still-correct",
+    term: "Still Correct (checkmark confirm button)",
+    definition:
+      "Confirm this value is still accurate. Updates the last-reviewed date to today without changing the value.",
+    tag: "finplan",
+    relatedConceptIds: [],
+    relatedTermIds: ["review", "staleness"],
+    appearsIn: ["Right panel detail view", "Review Wizard item card"],
   },
   {
     id: "subcategory",
@@ -391,6 +471,16 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     relatedConceptIds: ["amortisation", "cashflow-forecasting"],
     relatedTermIds: ["amortised", "committed-spend", "cashflow"],
     appearsIn: ["Committed page", "Overview waterfall", "Cashflow shortfall indicator"],
+  },
+  {
+    id: "yearly-bill-shortfall",
+    term: "Yearly Bill Cashflow Shortfall Indicator",
+    definition:
+      "One or more yearly bills may not be fully covered in their due month. Open Committed Spend to see the cashflow calendar.",
+    tag: "finplan",
+    relatedConceptIds: ["cashflow-forecasting"],
+    relatedTermIds: ["yearly-bill", "cashflow"],
+    appearsIn: ["Committed Spend tier row (left panel)"],
   },
 ];
 

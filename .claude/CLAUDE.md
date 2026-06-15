@@ -128,7 +128,7 @@ Structural layout is in **Architecture** above. Domain rules:
 - **Auth middleware required:** Every new route must use `authMiddleware` in `preHandler` unless explicitly public
 - **householdId from middleware only:** Never accept householdId from URL params for data scoping — always use `req.householdId!`
 - **Throw, don't inline errors:** Use error class hierarchy (`NotFoundError`, `AuthenticationError`, etc.), never `reply.status().send()` for errors
-- **Audit all actions:** Wrap mutations in `audited()` with `actorCtx(req)`. For mutationless events (login attempts, logout, refresh) use `auditEvent()` from `audit.service.ts`. Never call `prisma.auditLog.create` directly — enforced by ESLint.
+- **Audit all actions:** Wrap mutations in `audited()` with `actorCtx(req)`. For mutationless events (login attempts, logout, refresh) use `auditEvent()` from `audit.service.ts`. Never call `auditLog.create` directly (on `prisma` or a transaction client) — enforced by ESLint.
 - **No `any` in security paths:** Auth middleware, token handling, and API client must be fully typed
 - **Generic auth messages:** Login/register errors must never reveal whether an account exists
 - **Error masking:** Use `NotFoundError` for both "not found" and "not owned" — never reveal resource existence to unauthorised callers
@@ -168,7 +168,7 @@ Before implementing any feature, read the relevant specs in `docs/`:
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`): lint + type-check → test (real postgres service) → build → deploy to Coolify (webhook on push to main).
+GitHub Actions (`.github/workflows/ci.yml`) runs on PRs to `stage` and on pushes to `stage`/`production`: lint + type-check, test (real postgres service), compile check, and security audit run in parallel. **Deploy runs only on push to `production`** — the `deploy` job `needs` lint-and-typecheck + test + check-compile + security-audit, then triggers Coolify over SSH (`environment: PROD`). CodeQL (`.github/workflows/codeql.yml`) scans `main` and PRs into `main`/`stage`.
 
 Frontend perf budgets (bundle size + Lighthouse): see `docs/3. architecture/frontend-perf.md`. Local: `cd apps/frontend && bun run size` (bundle) or `bun run lhci` (Lighthouse, needs full stack running).
 
