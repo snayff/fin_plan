@@ -2,22 +2,17 @@ import type { FastifyInstance } from "fastify";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { prisma } from "../config/database.js";
 import { queryAuditLog } from "../services/audit-log.service.js";
-import { AuthorizationError } from "../utils/errors.js";
+import { assertOwnerOrAdmin } from "../services/household.service.js";
 import { AuditLogQuerySchema } from "@finplan/shared";
 
 export async function auditLogRoutes(app: FastifyInstance) {
   app.get("/audit-log", { preHandler: [authMiddleware] }, async (request, reply) => {
-    const userId = request.user!.userId;
     const householdId = request.householdId!;
 
-    // Verify caller is owner or admin
-    const membership = await prisma.member.findFirst({
-      where: { householdId, userId },
-    });
-
-    if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
-      throw new AuthorizationError("Forbidden");
-    }
+    // The auth middleware has already resolved the caller's role for the active
+    // household (this route is active-household-scoped via request.householdId),
+    // so use it directly rather than issuing a fresh member lookup.
+    assertOwnerOrAdmin(request.user!.role);
 
     const query = AuditLogQuerySchema.parse(request.query);
 

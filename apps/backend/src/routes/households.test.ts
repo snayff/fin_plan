@@ -199,7 +199,7 @@ beforeEach(() => {
     if (!authHeader?.startsWith("Bearer ")) {
       throw new AuthenticationError("No authorization token provided");
     }
-    request.user = { userId: "user-1", email: "test@test.com" };
+    request.user = { userId: "user-1", email: "test@test.com", role: mockCallerMember?.role };
     request.householdId = "household-1";
   });
   (userOnlyAuth as any).mockImplementation(async (request: any) => {

@@ -78,26 +78,28 @@ export async function assertCallerOwnerOrAdmin(householdId: string, userId: stri
 
 type UpdateMemberRoleParams = {
   householdId: string;
-  callerId: string;
+  /**
+   * Caller's role in `householdId`, resolved by the auth middleware. The calling
+   * route must be active-household-scoped (verify the route param matches
+   * `request.householdId`) so this role is the caller's role for this household.
+   */
+  callerRole: string;
   targetUserId: string;
   newRole: "member" | "admin";
 };
 
 export async function updateMemberRole(
   db: PrismaClient,
-  { householdId, callerId, targetUserId, newRole }: UpdateMemberRoleParams,
+  { householdId, callerRole, targetUserId, newRole }: UpdateMemberRoleParams,
   ctx: ActorCtx
 ) {
-  const [caller, target] = await Promise.all([
-    db.member.findFirst({
-      where: { householdId, userId: callerId },
-    }),
-    db.member.findFirst({
-      where: { householdId, userId: targetUserId },
-    }),
-  ]);
+  // The caller's membership + role are already resolved by the auth middleware;
+  // only the target still needs a lookup.
+  const target = await db.member.findFirst({
+    where: { householdId, userId: targetUserId },
+  });
 
-  if (!caller || !target) throw new NotFoundError("Member not found");
+  if (!target) throw new NotFoundError("Member not found");
 
   // Cannot change owner role
   if (target.role === "owner") {
@@ -105,17 +107,17 @@ export async function updateMemberRole(
   }
 
   // Admin cannot act on another admin
-  if (caller.role === "admin" && target.role === "admin") {
+  if (callerRole === "admin" && target.role === "admin") {
     throw new AuthorizationError("Admins cannot change the role of another admin");
   }
 
   // Admin cannot demote — only promote
-  if (caller.role === "admin" && newRole === "member") {
+  if (callerRole === "admin" && newRole === "member") {
     throw new AuthorizationError("Admins can only promote members, not demote");
   }
 
   // Must be owner or admin
-  assertOwnerOrAdmin(caller.role);
+  assertOwnerOrAdmin(callerRole);
 
   return audited({
     db: prisma,
