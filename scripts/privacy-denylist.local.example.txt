@@ -1,0 +1,19 @@
+# Private privacy denylist (EXAMPLE)
+#
+# The email scanner in check-privacy.ts catches real addresses generically.
+# But a real *name* or *production domain* can't be detected without naming it.
+# List those here so the scanner flags them - WITHOUT committing them to the
+# public repo.
+#
+# To activate: copy this file to `privacy-denylist.local.txt` (same folder) and
+# replace the examples with your real values. That file is gitignored, so the
+# literal strings never enter version control. CI can also supply the same list
+# via the PRIVACY_DENYLIST env var (newline- or comma-separated) from a secret.
+#
+# One term per line. Lines starting with `#` are comments. Matching is a
+# case-insensitive substring match.
+#
+# Examples (replace with your own, then delete these):
+Your Real Name
+yourpersonal@gmail.com
+yourproductiondomain.com

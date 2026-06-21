@@ -74,6 +74,10 @@ When using the browser:
 
 All mockup HTML files MUST be written to the `screen_dir` returned by the visual companion server (inside `.superpowers/brainstorm/`). Never write mockup or visual companion HTML files into `apps/`, `packages/`, or `docs/`.
 
+### Privacy in mockups (public repo)
+
+Mockups get copied into `docs/` (a public location) in Step 6. **Never put real personal data in a mockup** — no real name, personal email, or production domain, even when mimicking the live app. Use placeholders: `Jane Smith` / `jane@example.com` / `example.com`. The `privacy:check` gate will reject the commit otherwise (see `docs/3. architecture/issue-workflow.md` → Privacy rules).
+
 ## Design Standard Checks
 
 Throughout Steps 3–5, silently check every requirement, proposal, and decision against the loaded design docs. When a conflict or deviation exists, surface it explicitly before proceeding:

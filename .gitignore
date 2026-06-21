@@ -58,6 +58,9 @@ docker-compose.override.yml
 .superpowers/
 docs/scratch/
 
+# Privacy scanner — private denylist of real personal values (never commit)
+scripts/privacy-denylist.local.txt
+
 # claude
 .claude/skills/*
 !.claude/skills/agent-browser/
