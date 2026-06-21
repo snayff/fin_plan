@@ -3,7 +3,6 @@ import { authMiddleware } from "../middleware/auth.middleware.js";
 import { settingsService } from "../services/settings.service.js";
 import { updateSettingsSchema } from "@finplan/shared";
 import { actorCtx } from "../lib/actor-ctx.js";
-import { prisma } from "../config/database.js";
 import { assertOwnerOrAdmin } from "../services/household.service.js";
 
 export async function settingsRoutes(fastify: FastifyInstance) {
@@ -28,12 +27,10 @@ export async function settingsRoutes(fastify: FastifyInstance) {
     ] as const;
     const hasGrowthRateChange = growthRateFields.some((f) => f in (req.body as object));
     if (hasGrowthRateChange) {
-      const callerId = req.user!.userId;
-      const member = await prisma.member.findFirst({
-        where: { householdId: req.householdId!, userId: callerId },
-        select: { role: true },
-      });
-      assertOwnerOrAdmin(member?.role ?? "member");
+      // This route is active-household-scoped (req.householdId), so the role the
+      // auth middleware attached is the caller's role for this household — use it
+      // directly rather than issuing a fresh member lookup.
+      assertOwnerOrAdmin(req.user!.role);
     }
     const settings = await settingsService.updateSettings(req.householdId!, data, actorCtx(req));
     return reply.send(settings);

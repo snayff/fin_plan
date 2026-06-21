@@ -30,47 +30,22 @@ afterAll(async () => {
   await app.close();
 });
 
-function makeAuthMiddleware(role: string | null = "owner") {
+// The route reads the caller's role from request.user (attached by the auth
+// middleware), so the middleware mock supplies it directly — no prisma lookup.
+function makeAuthMiddleware(role: string = "owner") {
   return async (request: any) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       throw new AuthenticationError("No authorization token provided");
     }
-    request.user = { userId: "user_1", email: "a@b.com", name: "Alice" };
+    request.user = { userId: "user_1", email: "a@b.com", name: "Alice", role };
     request.householdId = "hh_1";
-    // Attach role to request for route's prisma lookup
-    request._mockRole = role;
   };
 }
-
-// Mock prisma to return the role set on request
-mock.module("../config/database", () => ({
-  prisma: {
-    member: {
-      findFirst: mock(async (_args: any) => {
-        // Role is set per-test via mockMember
-        return mockMember;
-      }),
-    },
-  },
-}));
-
-let mockMember: {
-  userId: string;
-  householdId: string;
-  role: string;
-  joinedAt: Date;
-} | null = null;
 
 describe("GET /api/audit-log", () => {
   beforeEach(() => {
     queryAuditLogMock.mockResolvedValue({ entries: [], nextCursor: null });
-    mockMember = {
-      userId: "user_1",
-      householdId: "hh_1",
-      role: "owner",
-      joinedAt: new Date(),
-    };
     (authMiddleware as any).mockImplementation(makeAuthMiddleware("owner"));
   });
 
@@ -95,12 +70,7 @@ describe("GET /api/audit-log", () => {
   });
 
   it("returns 200 for admin", async () => {
-    mockMember = {
-      userId: "user_1",
-      householdId: "hh_1",
-      role: "admin",
-      joinedAt: new Date(),
-    };
+    (authMiddleware as any).mockImplementation(makeAuthMiddleware("admin"));
     const res = await app.inject({
       method: "GET",
       url: "/api/audit-log",
@@ -110,12 +80,7 @@ describe("GET /api/audit-log", () => {
   });
 
   it("returns 403 for member", async () => {
-    mockMember = {
-      userId: "user_1",
-      householdId: "hh_1",
-      role: "member",
-      joinedAt: new Date(),
-    };
+    (authMiddleware as any).mockImplementation(makeAuthMiddleware("member"));
     const res = await app.inject({
       method: "GET",
       url: "/api/audit-log",
