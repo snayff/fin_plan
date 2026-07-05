@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
 import { renderWithProviders } from "@/test/helpers/render";
 import { screen } from "@testing-library/react";
+import { expectNoA11yViolations } from "@/test/helpers/axe";
 import SurplusPage from "./SurplusPage";
 
 mock.module("@/hooks/useSettings", () => ({
@@ -61,6 +62,11 @@ describe("SurplusPage", () => {
     renderWithProviders(<SurplusPage />, { initialEntries: ["/surplus"] });
     const page = screen.getByTestId("surplus-page");
     expect(page.getAttribute("data-page")).toBe("surplus");
+  });
+
+  it("has no serious/critical axe violations", async () => {
+    const { container } = renderWithProviders(<SurplusPage />, { initialEntries: ["/surplus"] });
+    await expectNoA11yViolations(container);
   });
 });
 

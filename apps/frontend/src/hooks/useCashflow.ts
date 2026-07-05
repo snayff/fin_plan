@@ -1,12 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cashflowService } from "@/services/cashflow.service";
-import type { CashflowProjectionQuery, BulkUpdateLinkedAccountsInput } from "@finplan/shared";
+import type { BulkUpdateLinkedAccountsInput, CashflowProjectionQuery } from "@finplan/shared";
 import { showError } from "@/lib/toast";
+import { queryKeys } from "./queryKeys";
 
+/**
+ * Re-exported for existing consumers. Sourced from the central `queryKeys`
+ * module; values are unchanged.
+ */
 export const CASHFLOW_KEYS = {
-  projection: (q: CashflowProjectionQuery) => ["cashflow", "projection", q] as const,
-  month: (year: number, month: number) => ["cashflow", "month", year, month] as const,
-  linkable: ["cashflow", "linkable-accounts"] as const,
+  projection: queryKeys.cashflow.projection,
+  month: queryKeys.cashflow.month,
+  linkable: queryKeys.cashflow.linkable,
 };
 
 export function useCashflowProjection(query: CashflowProjectionQuery = { monthCount: 12 }) {
@@ -60,10 +65,10 @@ export function useUpdateLinkedAccount() {
       showError(error instanceof Error ? error.message : "Failed to update linked account");
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: CASHFLOW_KEYS.linkable });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.linkable });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.projectionAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.monthAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
   });
 }
@@ -93,10 +98,10 @@ export function useBulkUpdateLinkedAccounts() {
       showError(error instanceof Error ? error.message : "Failed to update linked accounts");
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: CASHFLOW_KEYS.linkable });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.linkable });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.projectionAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.monthAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
   });
 }

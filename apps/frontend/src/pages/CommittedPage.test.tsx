@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
 import { renderWithProviders } from "@/test/helpers/render";
 import { screen, waitFor } from "@testing-library/react";
+import { expectNoA11yViolations } from "@/test/helpers/axe";
 import CommittedPage from "./CommittedPage";
 
 mock.module("@/hooks/useWaterfall", () => ({
@@ -29,5 +30,13 @@ describe("CommittedPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Housing").length).toBeGreaterThan(0);
     });
+  });
+
+  it("has no serious/critical axe violations", async () => {
+    const { container } = renderWithProviders(<CommittedPage />, {
+      initialEntries: ["/committed"],
+    });
+    await screen.findByTestId("tier-page-committed");
+    await expectNoA11yViolations(container);
   });
 });

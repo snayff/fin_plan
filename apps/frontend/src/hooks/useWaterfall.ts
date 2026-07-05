@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { waterfallService } from "@/services/waterfall.service";
 import { showError } from "@/lib/toast";
+import { queryKeys } from "./queryKeys";
+import { invalidateWaterfallDependents } from "./invalidation";
 import type {
   CreatePeriodInput,
   UpdatePeriodInput,
@@ -8,11 +10,15 @@ import type {
   IncomeFrequency,
 } from "@finplan/shared";
 
+/**
+ * Re-exported for existing consumers. Keys are sourced from the central
+ * `queryKeys` module — values are unchanged.
+ */
 export const WATERFALL_KEYS = {
-  summary: ["waterfall", "summary"] as const,
-  financialSummary: ["waterfall", "financial-summary"] as const,
-  history: (type: string, id: string) => ["waterfall", "history", type, id] as const,
-  subcategories: (tier: string) => ["waterfall", "subcategories", tier] as const,
+  summary: queryKeys.waterfall.summary,
+  financialSummary: queryKeys.waterfall.financialSummary,
+  history: queryKeys.waterfall.history,
+  subcategories: queryKeys.waterfall.subcategories,
 };
 
 export function useWaterfallSummary() {
@@ -119,12 +125,7 @@ export function useUpdateItem() {
       }
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateWaterfallDependents(queryClient);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update item");
@@ -132,8 +133,12 @@ export function useUpdateItem() {
   });
 }
 
+/**
+ * Re-exported for existing consumers. Values are sourced from the central
+ * `queryKeys` module and are unchanged.
+ */
 export const TIER_ITEM_KEYS = {
-  items: (tier: string) => ["waterfall", "tier-items", tier] as const,
+  items: queryKeys.waterfall.tierItems,
 };
 
 export function useSubcategories(tier: "income" | "committed" | "discretionary") {
@@ -167,12 +172,7 @@ export function useCreateItem(tier: "income" | "committed" | "discretionary") {
       return waterfallService.createDiscretionary(data as any);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateWaterfallDependents(qc);
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
     onError: (error: unknown) => {
@@ -235,12 +235,7 @@ export function useDeleteItem(tier: "income" | "committed" | "discretionary", id
       return waterfallService.deleteDiscretionary(id);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateWaterfallDependents(qc);
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
     onError: (error: unknown) => {
@@ -269,12 +264,7 @@ export function useTierUpdateItem(tier: "income" | "committed" | "discretionary"
       return waterfallService.updateDiscretionary(id, data as any);
     },
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateWaterfallDependents(qc);
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
     onError: (error: unknown) => {
@@ -428,8 +418,12 @@ export function useFullWaterfall() {
 
 // ─── Period hooks ─────────────────────────────────────────────────────────────
 
+/**
+ * Re-exported for existing consumers. Sourced from the central `queryKeys`
+ * module; values are unchanged.
+ */
 export const PERIOD_KEYS = {
-  list: (itemType: string, itemId: string) => ["periods", itemType, itemId] as const,
+  list: queryKeys.periods.list,
 };
 
 export function usePeriods(itemType: string, itemId: string) {
@@ -447,11 +441,11 @@ export function useCreatePeriod(itemType: string, itemId: string) {
       waterfallService.createPeriod({ ...data, itemType, itemId } as CreatePeriodInput),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.waterfall.summary });
+      void qc.invalidateQueries({ queryKey: queryKeys.forecast.all });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.projectionAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.monthAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to create period");
@@ -466,11 +460,11 @@ export function useUpdatePeriod(itemType: string, itemId: string) {
       waterfallService.updatePeriod(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.waterfall.summary });
+      void qc.invalidateQueries({ queryKey: queryKeys.forecast.all });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.projectionAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.monthAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update period");
@@ -484,11 +478,11 @@ export function useDeletePeriod(itemType: string, itemId: string) {
     mutationFn: (periodId: string) => waterfallService.deletePeriod(periodId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.waterfall.summary });
+      void qc.invalidateQueries({ queryKey: queryKeys.forecast.all });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.projectionAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.monthAll });
+      void qc.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to delete period");
@@ -501,12 +495,7 @@ export function useDeleteAllWaterfall() {
   return useMutation({
     mutationFn: () => waterfallService.deleteAll(),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateWaterfallDependents(qc);
     },
   });
 }

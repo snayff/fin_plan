@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
 import { renderWithProviders } from "@/test/helpers/render";
 import { screen, waitFor } from "@testing-library/react";
+import { expectNoA11yViolations } from "@/test/helpers/axe";
 import DiscretionaryPage from "./DiscretionaryPage";
 
 mock.module("@/hooks/useWaterfall", () => ({
@@ -35,5 +36,13 @@ describe("DiscretionaryPage", () => {
     await waitFor(() => {
       expect(screen.getAllByText("Dining Out").length).toBeGreaterThan(0);
     });
+  });
+
+  it("has no serious/critical axe violations", async () => {
+    const { container } = renderWithProviders(<DiscretionaryPage />, {
+      initialEntries: ["/discretionary"],
+    });
+    await screen.findByTestId("tier-page-discretionary");
+    await expectNoA11yViolations(container);
   });
 });
