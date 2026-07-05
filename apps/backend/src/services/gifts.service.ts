@@ -14,11 +14,7 @@ import type {
 import { AuditAction } from "@finplan/shared";
 import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
-
-function assertOwned(item: { householdId: string } | null, householdId: string, label: string) {
-  if (!item) throw new NotFoundError(`${label} not found`);
-  if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
-}
+import { assertOwned } from "./ownership.js";
 
 export const giftsService = {
   async getOrCreateSettings(householdId: string) {

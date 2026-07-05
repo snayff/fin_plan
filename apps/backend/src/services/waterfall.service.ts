@@ -22,6 +22,7 @@ import type {
   IncomeFrequency,
 } from "@finplan/shared";
 import { computeLifecycleState, periodService } from "./period.service.js";
+import { assertOwned, assertMemberInHousehold } from "./ownership.js";
 import type { PrismaClient } from "@prisma/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -61,11 +62,6 @@ async function getSavingsSubcategoryId(householdId: string): Promise<string | nu
   return sub?.id ?? null;
 }
 
-function assertOwned(item: { householdId: string } | null, householdId: string, label: string) {
-  if (!item) throw new NotFoundError(`${label} not found`);
-  if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
-}
-
 async function validateSubcategoryOwnership(
   householdId: string,
   subcategoryId: string,
@@ -94,10 +90,11 @@ function assertNotPlannerOwned(item: { isPlannerOwned?: boolean } | null) {
 }
 
 async function validateMemberOwnership(householdId: string, memberId: string) {
-  const member = await prisma.member.findFirst({
-    where: { householdId, id: memberId },
+  await assertMemberInHousehold(householdId, memberId, {
+    query: "findFirst",
+    error: "NotFoundError",
+    message: "Household member not found",
   });
-  if (!member) throw new NotFoundError("Household member not found");
 }
 
 // ─── Period enrichment helper ────────────────────────────────────────────────
