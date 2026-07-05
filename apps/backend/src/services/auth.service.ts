@@ -13,6 +13,11 @@ import {
   verifyRefreshToken,
 } from "../utils/jwt";
 import {
+  generatePasswordResetToken,
+  verifyPasswordResetToken,
+  peekPasswordResetTokenUserId,
+} from "../utils/password-reset-token";
+import {
   AuthenticationError,
   ConflictError,
   NotFoundError,
@@ -417,6 +422,117 @@ export const authService = {
       where: { userId, isRevoked: false },
       data: { isRevoked: true },
     });
+  },
+
+  /**
+   * Change the password for an authenticated user.
+   *
+   * Verifies the current password, stores the new hash, and revokes every
+   * refresh token for the user so all other sessions are logged out. The
+   * caller (route) is responsible for blacklisting the *current* access token
+   * if it wants the acting session terminated too.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      // Authenticated route, so this is effectively unreachable — treat a
+      // vanished user as an auth failure rather than leaking a 404.
+      throw new AuthenticationError("Invalid credentials");
+    }
+
+    const isCurrentValid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!isCurrentValid) {
+      throw new AuthenticationError("Current password is incorrect");
+    }
+
+    if (newPassword.length < 12) {
+      throw new ValidationError("Password must be at least 12 characters long");
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Log out all other sessions (reuse the logout-everywhere revocation).
+    await this.revokeAllUserTokens(userId);
+  },
+
+  /**
+   * Create a single-use, expiring password-reset token for the given email.
+   *
+   * Returns null when no account matches — the caller MUST return an identical
+   * generic response in both cases to prevent account enumeration. The token is
+   * stateless and self-invalidating (see utils/password-reset-token.ts): it is
+   * bound to a fingerprint of the current password hash, so it stops validating
+   * the moment the password changes.
+   */
+  async createPasswordResetToken(email: string): Promise<{ token: string; email: string } | null> {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+    if (!user) {
+      return null;
+    }
+
+    const token = generatePasswordResetToken(user.id, user.passwordHash);
+    return { token, email: user.email };
+  },
+
+  /**
+   * Complete a password reset using a token from the reset email.
+   *
+   * Validates the token against the user's live password hash (unexpired,
+   * untampered, and not already used — a prior reset would have rotated the
+   * hash and invalidated the token). On success, stores the new hash and
+   * revokes all sessions. Returns the userId for audit attribution.
+   *
+   * All failure modes raise a single generic ValidationError so the endpoint
+   * never reveals whether the token, the account, or the expiry was at fault.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<string> {
+    const genericError = new ValidationError("This reset link is invalid or has expired");
+
+    const peekedUserId = peekPasswordResetTokenUserId(token);
+    if (!peekedUserId) {
+      throw genericError;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: peekedUserId } });
+    if (!user) {
+      throw genericError;
+    }
+
+    const verified = verifyPasswordResetToken(token, user.passwordHash);
+    if (!verified || verified.userId !== user.id) {
+      throw genericError;
+    }
+
+    if (newPassword.length < 12) {
+      throw new ValidationError("Password must be at least 12 characters long");
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    // Reset invalidates every existing session.
+    await this.revokeAllUserTokens(user.id);
+
+    return user.id;
   },
 
   /**

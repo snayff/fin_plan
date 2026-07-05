@@ -87,6 +87,8 @@ export class ApiClient {
       "/api/auth/refresh",
       "/api/auth/csrf-token",
       "/api/auth/me",
+      "/api/auth/forgot-password",
+      "/api/auth/reset-password",
     ];
     const isAuthEndpoint =
       unauthenticated.some((p) => endpoint.startsWith(p)) ||

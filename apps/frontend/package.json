@@ -38,7 +38,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
-    "d3": "^7.9.0",
+    "d3-shape": "^3.2.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.15.0",
     "lucide-react": "^0.563.0",
@@ -63,8 +63,8 @@
       "limit": "146 KB"
     },
     {
-      "name": "Largest shared chunk — AreaChart/recharts (gzip)",
-      "path": "dist/assets/AreaChart-*.js",
+      "name": "Charts vendor chunk — recharts/d3 (gzip)",
+      "path": "dist/assets/charts-*.js",
       "gzip": true,
       "limit": "118 KB"
     }
@@ -78,7 +78,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/d3": "^7.4.3",
+    "@types/d3-shape": "^3.1.7",
     "@types/jest-axe": "^3.5.9",
     "@types/node": "^25.8.0",
     "@types/react": "^18.3.18",

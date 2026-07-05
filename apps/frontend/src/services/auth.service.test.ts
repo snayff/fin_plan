@@ -157,3 +157,103 @@ describe("authService.refreshToken", () => {
     await expect(authService.refreshToken()).rejects.toMatchObject({ statusCode: 401 });
   });
 });
+
+// ─── changePassword ───────────────────────────────────────────────────────────
+
+describe("authService.changePassword", () => {
+  it("resolves with the success message on 200", async () => {
+    server.use(
+      http.post("/api/auth/change-password", () =>
+        HttpResponse.json({ message: "Password changed successfully" })
+      )
+    );
+    const result = await authService.changePassword("mock-access-token", {
+      currentPassword: "old-password-1",
+      newPassword: "brand-new-password-1",
+    });
+    expect(result.message).toBe("Password changed successfully");
+  });
+
+  it("throws on 401 when the current password is wrong", async () => {
+    server.use(
+      http.post("/api/auth/change-password", () =>
+        HttpResponse.json(
+          { error: { code: "AUTH_ERROR", message: "Current password is incorrect" } },
+          { status: 401 }
+        )
+      )
+    );
+    await expect(
+      authService.changePassword("mock-access-token", {
+        currentPassword: "wrong",
+        newPassword: "brand-new-password-1",
+      })
+    ).rejects.toMatchObject({ statusCode: 401 });
+  });
+});
+
+// ─── forgotPassword ───────────────────────────────────────────────────────────
+
+describe("authService.forgotPassword", () => {
+  it("resolves with the generic message on 200", async () => {
+    server.use(
+      http.post("/api/auth/forgot-password", () =>
+        HttpResponse.json({
+          message: "If an account exists for that email, a reset link has been sent.",
+        })
+      )
+    );
+    const result = await authService.forgotPassword("user@example.com");
+    expect(result.message).toContain("reset link");
+  });
+
+  it("throws on 400 for a malformed email", async () => {
+    server.use(
+      http.post("/api/auth/forgot-password", () =>
+        HttpResponse.json(
+          { error: { code: "VALIDATION_ERROR", message: "Invalid email" } },
+          { status: 400 }
+        )
+      )
+    );
+    await expect(authService.forgotPassword("nope")).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+// ─── resetPassword ────────────────────────────────────────────────────────────
+
+describe("authService.resetPassword", () => {
+  it("resolves with the success message on 200", async () => {
+    server.use(
+      http.post("/api/auth/reset-password", () =>
+        HttpResponse.json({
+          message: "Password reset successfully. Please log in with your new password.",
+        })
+      )
+    );
+    const result = await authService.resetPassword({
+      token: "valid-token",
+      newPassword: "brand-new-password-1",
+    });
+    expect(result.message).toContain("reset successfully");
+  });
+
+  it("throws on 400 for an invalid or expired token", async () => {
+    server.use(
+      http.post("/api/auth/reset-password", () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "This reset link is invalid or has expired",
+            },
+          },
+          { status: 400 }
+        )
+      )
+    );
+    await expect(
+      authService.resetPassword({ token: "bad", newPassword: "brand-new-password-1" })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});

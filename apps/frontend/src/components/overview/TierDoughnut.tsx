@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import * as d3 from "d3";
+import { arc as d3Arc, pie as d3Pie, type PieArcDatum } from "d3-shape";
 import type { SubcategoryTotal } from "@finplan/shared";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
@@ -50,12 +50,15 @@ export function TierDoughnut({
 
   const colours = useMemo(() => generateTierColours(tier, sorted.length), [tier, sorted.length]);
 
-  const arc = d3
-    .arc<d3.PieArcDatum<{ value: number }>>()
-    .innerRadius(INNER_R)
-    .outerRadius(OUTER_R)
-    .padAngle(subcategories.length > 1 ? 0.02 : 0)
-    .cornerRadius(2);
+  const arc = useMemo(
+    () =>
+      d3Arc<PieArcDatum<{ value: number }>>()
+        .innerRadius(INNER_R)
+        .outerRadius(OUTER_R)
+        .padAngle(subcategories.length > 1 ? 0.02 : 0)
+        .cornerRadius(2),
+    [subcategories.length]
+  );
 
   // Empty state
   if (subcategories.length === 0) {
@@ -92,8 +95,7 @@ export function TierDoughnut({
       .sort((a, b) => b.amount - a.amount);
 
     const drillColours = generateTierColours(tier, subItems.length);
-    const pieData = d3
-      .pie<{ value: number }>()
+    const pieData = d3Pie<{ value: number }>()
       .sort(null)
       .value((d) => d.value)(subItems.map((it) => ({ value: it.amount })));
 
@@ -150,8 +152,7 @@ export function TierDoughnut({
   }
 
   // Subcategory view
-  const pieData = d3
-    .pie<{ value: number }>()
+  const pieData = d3Pie<{ value: number }>()
     .sort(null)
     .value((d) => d.value)(sorted.map((s) => ({ value: s.monthlyTotal })));
 

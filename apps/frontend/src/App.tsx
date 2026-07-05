@@ -11,6 +11,8 @@ import { ErrorBoundary } from "./components/common/ErrorBoundary";
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const AcceptInvitePage = lazy(() => import("./pages/auth/AcceptInvitePage"));
+const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/auth/ResetPasswordPage"));
 
 // App pages
 const OverviewPage = lazy(() => import("./pages/OverviewPage"));
@@ -130,6 +132,11 @@ function App() {
                   element={isAuthenticated ? <Navigate to="/overview" /> : <RegisterPage />}
                 />
                 <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
+                <Route
+                  path="/forgot-password"
+                  element={isAuthenticated ? <Navigate to="/overview" /> : <ForgotPasswordPage />}
+                />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route
                   path="/*"
                   element={isAuthenticated ? <ProtectedAppRoutes /> : <Navigate to="/login" />}

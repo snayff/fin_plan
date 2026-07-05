@@ -164,6 +164,8 @@ const PAGE_LAYOUT_EXEMPT_FILES = [
   "src/pages/auth/LoginPage.tsx",
   "src/pages/auth/RegisterPage.tsx",
   "src/pages/auth/AcceptInvitePage.tsx",
+  "src/pages/auth/ForgotPasswordPage.tsx",
+  "src/pages/auth/ResetPasswordPage.tsx",
 ];
 
 // Files exempt from the style/stroke/fill colour-literal rules only (className colour rules
