@@ -38,7 +38,7 @@ export async function createIncome(
   if (data.memberId) {
     await validateMemberOwnership(householdId, data.memberId);
   }
-  const { amount: _amount, startDate: _startDate, endDate: _endDate, ...itemData } = data as any;
+  const { amount: _amount, startDate: _startDate, endDate: _endDate, ...itemData } = data;
   return audited({
     db: prisma,
     ctx,

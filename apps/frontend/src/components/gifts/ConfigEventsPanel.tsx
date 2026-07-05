@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState } from "react";
 import { useConfigEvents, useCreateGiftEvent, useDeleteGiftEvent } from "@/hooks/useGifts";
 import GhostAddButton from "@/components/tier/GhostAddButton";
@@ -12,9 +11,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
-import type { GiftDateType } from "@finplan/shared";
+import type { GiftDateType, CreateGiftEventInput } from "@finplan/shared";
 
 type Props = { readOnly: boolean };
+
+/**
+ * Fields of a gift-event config row consumed by this panel. Mirrors the
+ * backend giftEventResponse contract; declared locally because the gifts
+ * service layer is not yet fully typed.
+ */
+interface ConfigEvent {
+  id: string;
+  name: string;
+  isLocked: boolean;
+  dateType: GiftDateType;
+  dateMonth: number | null;
+  dateDay: number | null;
+}
 
 const MONTHS = [
   { value: "1", label: "January" },
@@ -51,12 +64,12 @@ export function ConfigEventsPanel({ readOnly }: Props) {
 
   const submit = () => {
     if (!name.trim()) return;
-    const payload: Record<string, unknown> = { name: name.trim(), dateType };
+    const payload: CreateGiftEventInput = { name: name.trim(), dateType };
     if (dateType === "shared") {
       payload.dateMonth = parseInt(month, 10);
       payload.dateDay = parseInt(day, 10);
     }
-    create.mutate(payload as any);
+    create.mutate(payload);
     setName("");
     setMonth("");
     setDay("");
@@ -76,8 +89,8 @@ export function ConfigEventsPanel({ readOnly }: Props) {
       <PanelError variant="detail" onRetry={() => void refetch()} message="Couldn't load events." />
     );
   if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
-  const locked = data.filter((e: any) => e.isLocked);
-  const custom = data.filter((e: any) => !e.isLocked);
+  const locked = (data as ConfigEvent[]).filter((e) => e.isLocked);
+  const custom = (data as ConfigEvent[]).filter((e) => !e.isLocked);
 
   const labelClass = "label-chart";
   const inputClass =
@@ -103,7 +116,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
             <GlossaryTermMarker entryId="gifts-locked-event">Locked</GlossaryTermMarker>
           </h3>
           <ul className="mt-2 divide-y divide-foreground/5">
-            {locked.map((e: any) => (
+            {locked.map((e) => (
               <li
                 key={e.id}
                 data-testid={`event-row-${e.id}`}
@@ -131,7 +144,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
         <section className="mt-6">
           <h3 className={labelClass}>Custom</h3>
           <ul className="mt-2 divide-y divide-foreground/5">
-            {custom.map((e: any) => (
+            {custom.map((e) => (
               <li
                 key={e.id}
                 data-testid={`event-row-${e.id}`}
@@ -163,9 +176,9 @@ export function ConfigEventsPanel({ readOnly }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 {/* Event name */}
                 <div className="col-span-2 flex flex-col gap-1">
-                  <label className={labelClass}>
+                  <span className={labelClass}>
                     Name <span className="text-text-muted">*</span>
-                  </label>
+                  </span>
                   <input
                     type="text"
                     placeholder="e.g. Halloween, Anniversary"
@@ -179,7 +192,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
 
                 {/* Date type */}
                 <div className="col-span-2 flex flex-col gap-1">
-                  <label className={labelClass}>Date type</label>
+                  <span className={labelClass}>Date type</span>
                   <Select value={dateType} onValueChange={(v) => setDateType(v as GiftDateType)}>
                     <SelectTrigger aria-label="Date type" className={selectTriggerClass}>
                       <SelectValue />
@@ -195,7 +208,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
                 {dateType === "shared" && (
                   <>
                     <div className="flex flex-col gap-1">
-                      <label className={labelClass}>Month</label>
+                      <span className={labelClass}>Month</span>
                       <Select value={month} onValueChange={setMonth}>
                         <SelectTrigger aria-label="Month" className={selectTriggerClass}>
                           <SelectValue placeholder="Month" />
@@ -210,7 +223,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
                       </Select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className={labelClass}>Day</label>
+                      <span className={labelClass}>Day</span>
                       <Select value={day} onValueChange={setDay}>
                         <SelectTrigger aria-label="Day" className={selectTriggerClass}>
                           <SelectValue placeholder="Day" />

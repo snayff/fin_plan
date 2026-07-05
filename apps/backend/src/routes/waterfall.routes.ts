@@ -22,6 +22,7 @@ import {
   createSubcategorySchema,
   idParamSchema,
   idSchema,
+  type PeriodItemType,
 } from "@finplan/shared";
 import { periodService } from "../services/period.service.js";
 import { prisma } from "../config/database.js";
@@ -296,8 +297,8 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.get("/periods/:itemType/:itemId", pre, async (req, reply) => {
     const { itemType, itemId } = periodItemParamsSchema.parse(req.params);
-    await verifyItemOwnership(req.householdId!, itemType, itemId);
-    const periods = await periodService.listPeriods(req.householdId!, itemType, itemId);
+    const narrowedType = await verifyItemOwnership(req.householdId!, itemType, itemId);
+    const periods = await periodService.listPeriods(req.householdId!, narrowedType, itemId);
     return reply.send(periods);
   });
 
@@ -403,28 +404,32 @@ function assertOwned(item: { householdId: string } | null, householdId: string, 
   if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
 }
 
-async function verifyItemOwnership(householdId: string, itemType: string, itemId: string) {
+async function verifyItemOwnership(
+  householdId: string,
+  itemType: string,
+  itemId: string
+): Promise<PeriodItemType> {
   switch (itemType) {
     case "income_source": {
       const item = await prisma.incomeSource.findUnique({
         where: { id: itemId },
       });
       assertOwned(item, householdId, "Income source");
-      break;
+      return "income_source";
     }
     case "committed_item": {
       const item = await prisma.committedItem.findUnique({
         where: { id: itemId },
       });
       assertOwned(item, householdId, "Committed item");
-      break;
+      return "committed_item";
     }
     case "discretionary_item": {
       const item = await prisma.discretionaryItem.findUnique({
         where: { id: itemId },
       });
       assertOwned(item, householdId, "Discretionary item");
-      break;
+      return "discretionary_item";
     }
     default:
       throw new NotFoundError("Unknown item type");

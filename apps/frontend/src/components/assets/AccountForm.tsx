@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels use visual wrapping with aria-label on inputs; needs htmlFor/id refactor */
 import { useState } from "react";
 import type { AccountType } from "@finplan/shared";
 import { useHouseholdMembers, useSettings } from "../../hooks/useSettings.js";
@@ -238,9 +237,9 @@ export function AccountForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Name <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             placeholder={NAME_PLACEHOLDER[type]}
@@ -259,7 +258,7 @@ export function AccountForm({
         {mode === "add" && (
           <>
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>Current value</label>
+              <span className={labelClass}>Current value</span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -273,7 +272,7 @@ export function AccountForm({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>As of</label>
+              <span className={labelClass}>As of</span>
               <input
                 type="date"
                 max={todayISO()}
@@ -295,9 +294,9 @@ export function AccountForm({
 
         {/* Assigned to */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Assigned to {type === "Pension" && <span className="text-text-muted">*</span>}
-          </label>
+          </span>
           <select
             value={memberId ?? ""}
             onChange={(e) => {
@@ -325,7 +324,7 @@ export function AccountForm({
         {/* Growth rate override */}
         {settingKey && (
           <div className="col-span-2 flex flex-col gap-1">
-            <label className={labelClass}>Growth rate override (%)</label>
+            <span className={labelClass}>Growth rate override (%)</span>
             <input
               type="number"
               inputMode="decimal"
@@ -354,7 +353,7 @@ export function AccountForm({
         {type === "Savings" && (
           <>
             <div className="col-span-2 flex flex-col gap-1">
-              <label className={labelClass}>Monthly contribution limit (optional)</label>
+              <span className={labelClass}>Monthly contribution limit (optional)</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -446,7 +445,7 @@ export function AccountForm({
           {disposalOpen && (
             <div className="grid grid-cols-2 gap-3 pl-1">
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Disposal date</label>
+                <span className={labelClass}>Disposal date</span>
                 <input
                   type="date"
                   value={disposedAt}
@@ -459,7 +458,7 @@ export function AccountForm({
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Proceeds go to</label>
+                <span className={labelClass}>Proceeds go to</span>
                 <select
                   value={disposalAccountId ?? ""}
                   onChange={(e) => {

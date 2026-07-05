@@ -4,7 +4,7 @@ import { toGBP, toMonthlyAmount } from "@finplan/shared";
 import type { WaterfallTier, SubcategoryTotal, SpendType, IncomeFrequency } from "@finplan/shared";
 import { computeLifecycleState, periodService } from "../period.service.js";
 import { assertMemberInHousehold } from "../ownership.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, ItemAmountPeriod, WaterfallItemType } from "@prisma/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ export async function validateLinkedAccount(
     where: { id: linkedAccountId, householdId },
   });
   if (!account) throw new NotFoundError("Account not found");
-  if (!LINKABLE_ACCOUNT_TYPES.includes(account.type as any)) {
+  if (!LINKABLE_ACCOUNT_TYPES.includes(account.type as (typeof LINKABLE_ACCOUNT_TYPES)[number])) {
     throw new ValidationError(
       "Linked account must be of type Savings, StocksAndShares, or Pension"
     );
@@ -62,13 +62,13 @@ export async function validateSubcategoryNotPlannerLocked(
     where: { id: subcategoryId, householdId, tier: "discretionary" },
   });
   if (!sub) throw new NotFoundError("Subcategory not found");
-  if ((sub as any).lockedByPlanner) {
+  if (sub.lockedByPlanner) {
     throw new ValidationError("This subcategory is managed by the Gifts planner");
   }
 }
 
 export function assertNotPlannerOwned(item: { isPlannerOwned?: boolean } | null) {
-  if (item && (item as any).isPlannerOwned) {
+  if (item && item.isPlannerOwned) {
     throw new ValidationError("This item is managed by the Gifts planner");
   }
 }
@@ -86,15 +86,15 @@ export async function validateMemberOwnership(householdId: string, memberId: str
 export async function enrichItemsWithPeriods<T extends { id: string }>(
   householdId: string,
   items: T[],
-  itemType: string
-): Promise<Array<T & { amount: number; lifecycleState: string; periods: any[] }>> {
+  itemType: WaterfallItemType
+): Promise<Array<T & { amount: number; lifecycleState: string; periods: ItemAmountPeriod[] }>> {
   if (items.length === 0) return [];
 
   const now = new Date();
   const allPeriods = await prisma.itemAmountPeriod.findMany({
     where: {
       householdId,
-      itemType: itemType as any,
+      itemType,
       itemId: { in: items.map((i) => i.id) },
     },
     orderBy: { startDate: "asc" },

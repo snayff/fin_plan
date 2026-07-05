@@ -1,4 +1,5 @@
 import { prisma } from "../../config/database.js";
+import type { WaterfallItemType } from "@prisma/client";
 import { NotFoundError } from "../../utils/errors.js";
 import { AuditAction } from "@finplan/shared";
 import { auditEventTx } from "../audit.service.js";
@@ -9,21 +10,25 @@ import { assertOwned } from "../ownership.js";
 // ─── History ──────────────────────────────────────────────────────────────────
 
 export async function getHistory(householdId: string, type: string, id: string) {
-  // Verify ownership
+  // Verify ownership and narrow the free-text `type` to the enum.
+  let itemType: WaterfallItemType;
   switch (type) {
     case "income_source": {
       const item = await prisma.incomeSource.findUnique({ where: { id } });
       assertOwned(item, householdId, "Income source");
+      itemType = "income_source";
       break;
     }
     case "committed_item": {
       const item = await prisma.committedItem.findUnique({ where: { id } });
       assertOwned(item, householdId, "Committed item");
+      itemType = "committed_item";
       break;
     }
     case "discretionary_item": {
       const item = await prisma.discretionaryItem.findUnique({ where: { id } });
       assertOwned(item, householdId, "Discretionary item");
+      itemType = "discretionary_item";
       break;
     }
     default:
@@ -34,7 +39,7 @@ export async function getHistory(householdId: string, type: string, id: string) 
   cutoff.setMonth(cutoff.getMonth() - 24);
 
   return prisma.waterfallHistory.findMany({
-    where: { householdId, itemType: type as any, itemId: id, recordedAt: { gte: cutoff } },
+    where: { householdId, itemType, itemId: id, recordedAt: { gte: cutoff } },
     orderBy: { recordedAt: "asc" },
   });
 }

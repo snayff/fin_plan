@@ -45,13 +45,13 @@ export async function createDiscretionary(
 ) {
   await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
   await validateSubcategoryNotPlannerLocked(householdId, data.subcategoryId);
-  if ((data as any).linkedAccountId) {
-    await validateLinkedAccount(householdId, data.subcategoryId, (data as any).linkedAccountId);
+  if (data.linkedAccountId) {
+    await validateLinkedAccount(householdId, data.subcategoryId, data.linkedAccountId);
   }
-  if ((data as any).memberId) {
-    await validateMemberOwnership(householdId, (data as any).memberId);
+  if (data.memberId) {
+    await validateMemberOwnership(householdId, data.memberId);
   }
-  const { amount: _amount, startDate: _startDate, endDate: _endDate, ...itemData } = data as any;
+  const { amount: _amount, startDate: _startDate, endDate: _endDate, ...itemData } = data;
   return audited({
     db: prisma,
     ctx,
@@ -84,19 +84,19 @@ export async function updateDiscretionary(
 ) {
   const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
   assertOwned(existing, householdId, "Discretionary item");
-  assertNotPlannerOwned(existing as any);
+  assertNotPlannerOwned(existing);
   if (data.subcategoryId) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
   }
-  if ((data as any).memberId) {
-    await validateMemberOwnership(householdId, (data as any).memberId);
+  if (data.memberId) {
+    await validateMemberOwnership(householdId, data.memberId);
   }
 
   // Validate linkedAccountId if being set
-  if ((data as any).linkedAccountId) {
+  if (data.linkedAccountId) {
     const targetSubcategoryId = data.subcategoryId ?? existing!.subcategoryId ?? "";
-    await validateLinkedAccount(householdId, targetSubcategoryId, (data as any).linkedAccountId, {
-      isPlannerOwned: !!(existing as any).isPlannerOwned,
+    await validateLinkedAccount(householdId, targetSubcategoryId, data.linkedAccountId, {
+      isPlannerOwned: !!existing!.isPlannerOwned,
     });
   }
 
@@ -144,7 +144,7 @@ export async function updateDiscretionary(
 export async function deleteDiscretionary(householdId: string, id: string, ctx: ActorCtx) {
   const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
   assertOwned(existing, householdId, "Discretionary item");
-  assertNotPlannerOwned(existing as any);
+  assertNotPlannerOwned(existing);
   await audited({
     db: prisma,
     ctx,
@@ -206,13 +206,13 @@ export async function createSavings(
 ) {
   await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
   await validateSubcategoryNotPlannerLocked(householdId, data.subcategoryId);
-  if ((data as any).linkedAccountId) {
-    await validateLinkedAccount(householdId, data.subcategoryId, (data as any).linkedAccountId);
+  if (data.linkedAccountId) {
+    await validateLinkedAccount(householdId, data.subcategoryId, data.linkedAccountId);
   }
-  if ((data as any).memberId) {
-    await validateMemberOwnership(householdId, (data as any).memberId);
+  if (data.memberId) {
+    await validateMemberOwnership(householdId, data.memberId);
   }
-  const { amount: _amount, startDate: _startDate, endDate: _endDate, ...itemData } = data as any;
+  const { amount: _amount, startDate: _startDate, endDate: _endDate, ...itemData } = data;
   return audited({
     db: prisma,
     ctx,
@@ -245,19 +245,19 @@ export async function updateSavings(
 ) {
   const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
   assertOwned(existing, householdId, "Savings allocation");
-  assertNotPlannerOwned(existing as any);
+  assertNotPlannerOwned(existing);
   if (data.subcategoryId) {
     await validateSubcategoryOwnership(householdId, data.subcategoryId, "discretionary");
   }
-  if ((data as any).memberId) {
-    await validateMemberOwnership(householdId, (data as any).memberId);
+  if (data.memberId) {
+    await validateMemberOwnership(householdId, data.memberId);
   }
 
   // Validate linkedAccountId if being set (same guard as the discretionary path)
-  if ((data as any).linkedAccountId) {
+  if (data.linkedAccountId) {
     const targetSubcategoryId = data.subcategoryId ?? existing!.subcategoryId ?? "";
-    await validateLinkedAccount(householdId, targetSubcategoryId, (data as any).linkedAccountId, {
-      isPlannerOwned: !!(existing as any).isPlannerOwned,
+    await validateLinkedAccount(householdId, targetSubcategoryId, data.linkedAccountId, {
+      isPlannerOwned: !!existing!.isPlannerOwned,
     });
   }
 
@@ -295,7 +295,7 @@ export async function updateSavings(
 export async function deleteSavings(householdId: string, id: string, ctx: ActorCtx) {
   const existing = await prisma.discretionaryItem.findUnique({ where: { id } });
   assertOwned(existing, householdId, "Savings allocation");
-  assertNotPlannerOwned(existing as any);
+  assertNotPlannerOwned(existing);
   await audited({
     db: prisma,
     ctx,

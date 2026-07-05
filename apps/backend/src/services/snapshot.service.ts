@@ -1,5 +1,10 @@
 import { prisma } from "../config/database.js";
-import { NotFoundError, ConflictError, AuthorizationError } from "../utils/errors.js";
+import {
+  NotFoundError,
+  ConflictError,
+  AuthorizationError,
+  isUniqueConstraintError,
+} from "../utils/errors.js";
 import { waterfallService } from "./waterfall.service.js";
 import { assetsService } from "./assets.service.js";
 import { audited } from "./audit.service.js";
@@ -25,6 +30,15 @@ async function buildSnapshotData(householdId: string): Promise<object> {
 
 function buildTierSeries(snapshots: Array<{ data: unknown; createdAt: Date }>) {
   type Point = { date: string; value: number };
+  // The persisted snapshot payload is stored as JSON; model the fields this
+  // series reads as an optional nested shape rather than `any`.
+  type SnapshotData = {
+    income?: { total?: number };
+    committed?: { monthlyTotal?: number; monthlyAvg12?: number };
+    discretionary?: { total?: number };
+    surplus?: { amount?: number };
+    assetsTotal?: number;
+  };
   const income: Point[] = [];
   const committed: Point[] = [];
   const discretionary: Point[] = [];
@@ -32,18 +46,17 @@ function buildTierSeries(snapshots: Array<{ data: unknown; createdAt: Date }>) {
   const netWorth: Point[] = [];
 
   for (const snap of snapshots) {
-    const d = snap.data as Record<string, any>;
+    const d = (snap.data ?? {}) as SnapshotData;
     const date = snap.createdAt.toISOString().slice(0, 10);
-    if (d?.income?.total !== undefined) income.push({ date, value: d.income.total as number });
-    if (d?.committed !== undefined) {
-      const ct =
-        ((d.committed.monthlyTotal as number) ?? 0) + ((d.committed.monthlyAvg12 as number) ?? 0);
+    if (d.income?.total !== undefined) income.push({ date, value: d.income.total });
+    if (d.committed !== undefined) {
+      const ct = (d.committed.monthlyTotal ?? 0) + (d.committed.monthlyAvg12 ?? 0);
       committed.push({ date, value: ct });
     }
-    if (d?.discretionary?.total !== undefined)
-      discretionary.push({ date, value: d.discretionary.total as number });
-    if (d?.surplus?.amount !== undefined) surplus.push({ date, value: d.surplus.amount as number });
-    if (typeof d?.assetsTotal === "number") netWorth.push({ date, value: d.assetsTotal as number });
+    if (d.discretionary?.total !== undefined)
+      discretionary.push({ date, value: d.discretionary.total });
+    if (d.surplus?.amount !== undefined) surplus.push({ date, value: d.surplus.amount });
+    if (typeof d.assetsTotal === "number") netWorth.push({ date, value: d.assetsTotal });
   }
 
   return { income, committed, discretionary, surplus, netWorth };
@@ -83,8 +96,8 @@ export const snapshotService = {
             data: { householdId, name: input.name, isAuto: false, data: data as object },
           }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A snapshot with that name already exists");
       }
       throw err;
@@ -110,8 +123,8 @@ export const snapshotService = {
           tx.snapshot.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
         mutation: (tx) => tx.snapshot.update({ where: { id }, data: { name: input.name } }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A snapshot with that name already exists");
       }
       throw err;

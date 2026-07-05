@@ -17,37 +17,44 @@ import type {
   BatchSaveSubcategoriesInput,
   ResetSubcategoriesInput,
   DiscretionaryItemResponse,
+  IncomeSourceResponse,
+  CommittedItemResponse,
+  YearBudgetResponse,
+  WaterfallHistoryResponse,
 } from "@finplan/shared";
 
 export const waterfallService = {
   getSummary: () => apiClient.get<WaterfallSummary>("/api/waterfall"),
 
   // Income
-  listIncome: () => apiClient.get<any[]>("/api/waterfall/income"),
+  listIncome: () => apiClient.get<IncomeSourceResponse[]>("/api/waterfall/income"),
   createIncome: (data: CreateIncomeSourceInput) =>
-    apiClient.post<any>("/api/waterfall/income", data),
+    apiClient.post<IncomeSourceResponse>("/api/waterfall/income", data),
   updateIncome: (id: string, data: UpdateIncomeSourceInput) =>
-    apiClient.patch<any>(`/api/waterfall/income/${id}`, data),
+    apiClient.patch<IncomeSourceResponse>(`/api/waterfall/income/${id}`, data),
   deleteIncome: (id: string) => apiClient.delete<void>(`/api/waterfall/income/${id}`),
-  confirmIncome: (id: string) => apiClient.post<any>(`/api/waterfall/income/${id}/confirm`),
+  confirmIncome: (id: string) =>
+    apiClient.post<IncomeSourceResponse>(`/api/waterfall/income/${id}/confirm`),
 
   // Committed bills
-  listCommitted: () => apiClient.get<any[]>("/api/waterfall/committed"),
+  listCommitted: () => apiClient.get<CommittedItemResponse[]>("/api/waterfall/committed"),
   createCommitted: (data: CreateCommittedItemInput) =>
-    apiClient.post<any>("/api/waterfall/committed", data),
+    apiClient.post<CommittedItemResponse>("/api/waterfall/committed", data),
   updateCommitted: (id: string, data: UpdateCommittedItemInput) =>
-    apiClient.patch<any>(`/api/waterfall/committed/${id}`, data),
+    apiClient.patch<CommittedItemResponse>(`/api/waterfall/committed/${id}`, data),
   deleteCommitted: (id: string) => apiClient.delete<void>(`/api/waterfall/committed/${id}`),
-  confirmCommitted: (id: string) => apiClient.post<any>(`/api/waterfall/committed/${id}/confirm`),
+  confirmCommitted: (id: string) =>
+    apiClient.post<CommittedItemResponse>(`/api/waterfall/committed/${id}/confirm`),
 
-  // Yearly bills
-  listYearly: () => apiClient.get<any[]>("/api/waterfall/yearly"),
+  // Yearly bills (CommittedItem rows with a yearly cadence)
+  listYearly: () => apiClient.get<CommittedItemResponse[]>("/api/waterfall/yearly"),
   createYearly: (data: CreateCommittedItemInput) =>
-    apiClient.post<any>("/api/waterfall/yearly", data),
+    apiClient.post<CommittedItemResponse>("/api/waterfall/yearly", data),
   updateYearly: (id: string, data: UpdateCommittedItemInput) =>
-    apiClient.patch<any>(`/api/waterfall/yearly/${id}`, data),
+    apiClient.patch<CommittedItemResponse>(`/api/waterfall/yearly/${id}`, data),
   deleteYearly: (id: string) => apiClient.delete<void>(`/api/waterfall/yearly/${id}`),
-  confirmYearly: (id: string) => apiClient.post<any>(`/api/waterfall/yearly/${id}/confirm`),
+  confirmYearly: (id: string) =>
+    apiClient.post<CommittedItemResponse>(`/api/waterfall/yearly/${id}/confirm`),
 
   // Discretionary
   listDiscretionary: () =>
@@ -72,7 +79,7 @@ export const waterfallService = {
 
   // History + batch
   getHistory: (type: string, id: string) =>
-    apiClient.get<any[]>(`/api/waterfall/history/${type}/${id}`),
+    apiClient.get<WaterfallHistoryResponse[]>(`/api/waterfall/history/${type}/${id}`),
   confirmBatch: (data: ConfirmBatchInput) =>
     apiClient.post<void>("/api/waterfall/confirm-batch", data),
   deleteAll: () => apiClient.delete<void>("/api/waterfall/all", { confirm: true }),
@@ -97,9 +104,9 @@ export const waterfallService = {
     apiClient.post<{ success: boolean }>("/api/waterfall/subcategories/reset", data),
 
   // Planner year budget (waterfall-adjacent)
-  getYearBudget: (year: number) => apiClient.get<any>(`/api/planner/budget/${year}`),
+  getYearBudget: (year: number) => apiClient.get<YearBudgetResponse>(`/api/planner/budget/${year}`),
   upsertYearBudget: (year: number, data: UpsertYearBudgetInput) =>
-    apiClient.put<any>(`/api/planner/budget/${year}`, data),
+    apiClient.put<YearBudgetResponse>(`/api/planner/budget/${year}`, data),
 
   getFinancialSummary: () => apiClient.get<FinancialSummary>("/api/waterfall/financial-summary"),
 

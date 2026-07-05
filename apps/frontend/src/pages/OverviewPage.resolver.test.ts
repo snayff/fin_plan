@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { WaterfallSummary } from "@finplan/shared";
-import { resolveOverviewView } from "./OverviewPage";
+import { resolveOverviewView } from "./OverviewPage.resolver";
 
 function makeSummary(): WaterfallSummary {
   return {

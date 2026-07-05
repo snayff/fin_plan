@@ -270,4 +270,42 @@ export {
   type SuccessResponse,
   type MessageResponse,
   type ErrorResponse,
+  // Assets / Accounts
+  assetItemResponseSchema,
+  linkedContributionItemResponseSchema,
+  accountItemResponseSchema,
+  assetsSummaryResponseSchema,
+  type BalanceEntryResponse,
+  type AssetItem,
+  type LinkedContributionItem,
+  type AccountItem,
+  type AssetsSummary,
+  // Planner
+  purchaseItemResponseSchema,
+  yearBudgetResponseSchema,
+  type PurchaseItemResponse,
+  type YearBudgetResponse,
+  // Waterfall history
+  waterfallHistoryResponseSchema,
+  type WaterfallHistoryResponse,
+  // Settings
+  stalenessThresholdsResponseSchema,
+  householdSettingsResponseSchema,
+  type HouseholdSettingsResponse,
+  // Snapshots
+  snapshotListItemResponseSchema,
+  snapshotDetailResponseSchema,
+  type SnapshotListItemResponse,
+  type SnapshotDetailResponse,
+  // Gift config
+  giftPersonResponseSchema,
+  giftEventResponseSchema,
+  giftConfigPersonResponseSchema,
+  giftAllocationResponseSchema,
+  giftBudgetSetResponseSchema,
+  type GiftPersonResponse,
+  type GiftEventResponse,
+  type GiftConfigPersonResponse,
+  type GiftAllocationResponse,
+  type GiftBudgetSetResponse,
 } from "./responses";

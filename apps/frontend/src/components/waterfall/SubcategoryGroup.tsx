@@ -54,7 +54,7 @@ export function SubcategoryGroup({
   return (
     <>
       <tr className="bg-foreground/[0.02]">
-        <td colSpan={colSpan} className="label-chart px-3 py-2">
+        <td colSpan={colSpan} className="label-chart px-3 py-2" aria-label={subcategory.name}>
           <div className="flex items-baseline justify-between">
             <span>{subcategory.name}</span>
             <span className="font-numeric text-xs tabular-nums text-text-secondary">

@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for inline add form */
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/utils/format";
@@ -6,12 +5,13 @@ import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import { useCreatePurchase } from "@/hooks/usePlanner";
+import type { Purchase } from "./types";
 
 interface PurchaseListPanelProps {
   year: number;
-  purchases: any[];
+  purchases: Purchase[];
   isReadOnly: boolean;
-  onSelectPurchase: (purchase: any) => void;
+  onSelectPurchase: (purchase: Purchase) => void;
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -45,7 +45,13 @@ function PriorityBadge({ priority }: { priority: string }) {
   return null;
 }
 
-function PurchaseRow({ purchase, onSelect }: { purchase: any; onSelect: (purchase: any) => void }) {
+function PurchaseRow({
+  purchase,
+  onSelect,
+}: {
+  purchase: Purchase;
+  onSelect: (purchase: Purchase) => void;
+}) {
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
   return (
@@ -68,11 +74,10 @@ function PurchaseRow({ purchase, onSelect }: { purchase: any; onSelect: (purchas
 }
 
 interface AddPurchaseFormProps {
-  year: number;
   onCancel: () => void;
 }
 
-function AddPurchaseForm({ year, onCancel }: AddPurchaseFormProps) {
+function AddPurchaseForm({ onCancel }: AddPurchaseFormProps) {
   const [name, setName] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
   const [scheduledThisYear, setScheduledThisYear] = useState(false);
@@ -86,8 +91,7 @@ function AddPurchaseForm({ year, onCancel }: AddPurchaseFormProps) {
         name,
         estimatedCost: parseFloat(estimatedCost) || 0,
         scheduledThisYear,
-        year,
-      } as any,
+      },
       {
         onSuccess: () => {
           toast.success("Purchase added");
@@ -100,8 +104,12 @@ function AddPurchaseForm({ year, onCancel }: AddPurchaseFormProps) {
   return (
     <form onSubmit={handleSubmit} className="p-3 border rounded-lg space-y-3 mt-3">
       <div>
-        <label className="text-xs text-muted-foreground block mb-1">Name</label>
+        <label className="text-xs text-muted-foreground block mb-1" htmlFor="add-purchase-name">
+          Name
+        </label>
         <input
+          id="add-purchase-name"
+          aria-label="Name"
           className="w-full border rounded px-2 py-1 text-sm bg-background"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -110,18 +118,24 @@ function AddPurchaseForm({ year, onCancel }: AddPurchaseFormProps) {
         />
       </div>
       <div>
-        <label className="text-xs text-muted-foreground block mb-1">Estimated cost</label>
+        <label className="text-xs text-muted-foreground block mb-1" htmlFor="add-purchase-cost">
+          Estimated cost
+        </label>
         <input
+          id="add-purchase-cost"
           type="number"
+          aria-label="Estimated cost"
           className="w-full border rounded px-2 py-1 text-sm bg-background"
           value={estimatedCost}
           onChange={(e) => setEstimatedCost(e.target.value)}
           required
         />
       </div>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm" htmlFor="add-purchase-scheduled">
         <input
+          id="add-purchase-scheduled"
           type="checkbox"
+          aria-label="Scheduled this year"
           checked={scheduledThisYear}
           onChange={(e) => setScheduledThisYear(e.target.checked)}
           className="rounded"
@@ -142,8 +156,8 @@ function AddPurchaseForm({ year, onCancel }: AddPurchaseFormProps) {
 
 interface PurchaseGroupProps {
   label: string;
-  purchases: any[];
-  onSelect: (purchase: any) => void;
+  purchases: Purchase[];
+  onSelect: (purchase: Purchase) => void;
 }
 
 function PurchaseGroup({ label, purchases, onSelect }: PurchaseGroupProps) {
@@ -189,7 +203,7 @@ export function PurchaseListPanel({
         )}
       </div>
 
-      {showAddForm && <AddPurchaseForm year={year} onCancel={() => setShowAddForm(false)} />}
+      {showAddForm && <AddPurchaseForm onCancel={() => setShowAddForm(false)} />}
 
       {purchases.length === 0 && !showAddForm && (
         <GhostedListEmpty

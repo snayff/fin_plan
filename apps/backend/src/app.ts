@@ -26,6 +26,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { prisma } from "./config/database";
 import { startRetentionJob } from "./services/retention.service";
 import { startRevocationCleanup } from "./utils/tokenBlacklist";
+import { resolveRateLimitStore } from "./config/rate-limit-store";
 
 export async function buildApp(opts?: { logger?: boolean | object }): Promise<FastifyInstance> {
   const server = Fastify({
@@ -80,7 +81,12 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
   // suite reaches the backend through the Vite proxy from a single source IP, which would
   // otherwise exhaust the per-IP auth caps (register 10/h, login 5/15m) and fail the suite.
   if (config.RATE_LIMIT_ENABLED) {
+    // Store selection: with RATE_LIMIT_REDIS_URL set, counters live in a shared
+    // Redis so caps hold across replicas; otherwise the plugin's in-memory
+    // (per-process) store is used. See config/rate-limit-store.ts.
+    const store = await resolveRateLimitStore();
     await server.register(rateLimit, {
+      ...store,
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_TIME_WINDOW,
       allowList: (req: { url: string }) => req.url === "/health",

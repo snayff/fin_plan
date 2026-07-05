@@ -17,7 +17,7 @@ describe("AutoSaveField", () => {
   it("shows saved flash when status is saved", () => {
     renderWithProviders(
       <AutoSaveField label="Name" status="saved" errorMessage={null}>
-        <input />
+        <input aria-label="Name" />
       </AutoSaveField>
     );
     expect(screen.getByText(/saved/i)).toBeTruthy();
@@ -26,7 +26,7 @@ describe("AutoSaveField", () => {
   it("shows inline error text when status is error", () => {
     renderWithProviders(
       <AutoSaveField label="Name" status="error" errorMessage="Couldn't save — try again">
-        <input />
+        <input aria-label="Name" />
       </AutoSaveField>
     );
     const err = screen.getByRole("alert");
@@ -36,7 +36,7 @@ describe("AutoSaveField", () => {
   it("applies data-status attribute for pulse styling", () => {
     const { container } = renderWithProviders(
       <AutoSaveField label="Name" status="saved" errorMessage={null}>
-        <input />
+        <input aria-label="Name" />
       </AutoSaveField>
     );
     const wrap = container.querySelector('[data-status="saved"]');

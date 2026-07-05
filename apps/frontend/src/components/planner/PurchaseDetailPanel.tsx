@@ -1,15 +1,16 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; inputs already have aria-label */
 import { useState } from "react";
 import type React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import type { PurchasePriority, PurchaseStatus } from "@finplan/shared";
 import { useUpdatePurchase, useDeletePurchase } from "@/hooks/usePlanner";
 import { PRIORITY_LABELS, STATUS_LABELS, FUNDING_SOURCE_LABELS } from "./PurchaseListPanel";
+import type { Purchase } from "./types";
 
 const FUNDING_SOURCES = Object.keys(FUNDING_SOURCE_LABELS) as string[];
 
 interface PurchaseDetailPanelProps {
-  purchase: any;
+  purchase: Purchase;
   isReadOnly: boolean;
   onBack: () => void;
 }
@@ -17,9 +18,9 @@ interface PurchaseDetailPanelProps {
 interface EditFormState {
   name: string;
   estimatedCost: string;
-  priority: string;
+  priority: PurchasePriority;
   scheduledThisYear: boolean;
-  status: string;
+  status: PurchaseStatus;
   comment: string;
   fundingSources: string[];
 }
@@ -47,11 +48,11 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
         data: {
           name: form.name,
           estimatedCost: parseFloat(form.estimatedCost) || 0,
-          priority: form.priority as any,
+          priority: form.priority,
           scheduledThisYear: form.scheduledThisYear,
-          status: form.status as any,
+          status: form.status,
           comment: form.comment || undefined,
-          fundingSources: form.fundingSources as any,
+          fundingSources: form.fundingSources,
         },
       },
       {
@@ -110,8 +111,15 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
           <form onSubmit={handleSave} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Name</label>
+                <label
+                  className="text-xs text-muted-foreground block mb-1"
+                  htmlFor="edit-purchase-name"
+                >
+                  Name
+                </label>
                 <input
+                  id="edit-purchase-name"
+                  aria-label="Name"
                   className="w-full border rounded px-2 py-1 text-sm bg-background"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -119,9 +127,16 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Estimated cost</label>
+                <label
+                  className="text-xs text-muted-foreground block mb-1"
+                  htmlFor="edit-purchase-cost"
+                >
+                  Estimated cost
+                </label>
                 <input
+                  id="edit-purchase-cost"
                   type="number"
+                  aria-label="Estimated cost"
                   className="w-full border rounded px-2 py-1 text-sm bg-background"
                   value={form.estimatedCost}
                   onChange={(e) => setForm((f) => ({ ...f, estimatedCost: e.target.value }))}
@@ -132,11 +147,19 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Priority</label>
+                <label
+                  className="text-xs text-muted-foreground block mb-1"
+                  htmlFor="edit-purchase-priority"
+                >
+                  Priority
+                </label>
                 <select
+                  id="edit-purchase-priority"
                   className="w-full border rounded px-2 py-1 text-sm bg-background"
                   value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, priority: e.target.value as PurchasePriority }))
+                  }
                 >
                   {Object.entries(PRIORITY_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>
@@ -146,11 +169,19 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
                 </select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Status</label>
+                <label
+                  className="text-xs text-muted-foreground block mb-1"
+                  htmlFor="edit-purchase-status"
+                >
+                  Status
+                </label>
                 <select
+                  id="edit-purchase-status"
                   className="w-full border rounded px-2 py-1 text-sm bg-background"
                   value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, status: e.target.value as PurchaseStatus }))
+                  }
                 >
                   {Object.entries(STATUS_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>
@@ -161,9 +192,11 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm" htmlFor="edit-purchase-scheduled">
               <input
+                id="edit-purchase-scheduled"
                 type="checkbox"
+                aria-label="Scheduled this year"
                 checked={form.scheduledThisYear}
                 onChange={(e) => setForm((f) => ({ ...f, scheduledThisYear: e.target.checked }))}
                 className="rounded"
@@ -172,7 +205,7 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
             </label>
 
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Funding sources</label>
+              <span className="text-xs text-muted-foreground block mb-1">Funding sources</span>
               <div className="flex flex-wrap gap-3">
                 {FUNDING_SOURCES.map((source) => (
                   <label key={source} className="flex items-center gap-1.5 text-sm">
@@ -181,6 +214,7 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
                       checked={form.fundingSources.includes(source)}
                       onChange={() => toggleFundingSource(source)}
                       className="rounded"
+                      aria-label={FUNDING_SOURCE_LABELS[source]}
                     />
                     {FUNDING_SOURCE_LABELS[source]}
                   </label>
@@ -189,8 +223,15 @@ export function PurchaseDetailPanel({ purchase, isReadOnly, onBack }: PurchaseDe
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Comment</label>
+              <label
+                className="text-xs text-muted-foreground block mb-1"
+                htmlFor="edit-purchase-comment"
+              >
+                Comment
+              </label>
               <textarea
+                id="edit-purchase-comment"
+                aria-label="Comment"
                 className="w-full border rounded px-2 py-1 text-sm bg-background resize-none"
                 rows={2}
                 value={form.comment}
