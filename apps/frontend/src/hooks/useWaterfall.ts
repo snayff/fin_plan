@@ -77,10 +77,11 @@ export function useConfirmItem() {
       }
     },
     onSuccess: () => {
+      // Confirming only bumps lastReviewedAt — no monetary value changes — so we
+      // refresh the review-state surfaces only. Invalidating financial-summary,
+      // forecast, or cashflow here would trigger needless refetches of unchanged
+      // data (see PERF-3).
       void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to confirm item");
@@ -121,6 +122,8 @@ export function useUpdateItem() {
       void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
       void queryClient.invalidateQueries({ queryKey: ["forecast"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
     onError: (error: unknown) => {
@@ -167,6 +170,8 @@ export function useCreateItem(tier: "income" | "committed" | "discretionary") {
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
@@ -210,10 +215,11 @@ export function useConfirmWaterfallItem(
       showError(error instanceof Error ? error.message : "Failed to confirm item");
     },
     onSettled: () => {
+      // Confirming only bumps lastReviewedAt — no monetary value changes — so we
+      // refresh the review-state surfaces only (summary + the tier-items row).
+      // financial-summary/forecast/cashflow are intentionally left untouched
+      // (see PERF-3).
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
   });
@@ -232,6 +238,8 @@ export function useDeleteItem(tier: "income" | "committed" | "discretionary", id
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
@@ -264,6 +272,8 @@ export function useTierUpdateItem(tier: "income" | "committed" | "discretionary"
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
       void qc.invalidateQueries({ queryKey: TIER_ITEM_KEYS.items(tier) });
     },
@@ -439,6 +449,8 @@ export function useCreatePeriod(itemType: string, itemId: string) {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
     onError: (error: unknown) => {
@@ -456,6 +468,8 @@ export function useUpdatePeriod(itemType: string, itemId: string) {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
     onError: (error: unknown) => {
@@ -472,6 +486,8 @@ export function useDeletePeriod(itemType: string, itemId: string) {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
     onError: (error: unknown) => {
@@ -488,6 +504,8 @@ export function useDeleteAllWaterfall() {
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
       void qc.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
       void qc.invalidateQueries({ queryKey: ["forecast"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "projection"] });
+      void qc.invalidateQueries({ queryKey: ["cashflow", "month"] });
       void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
     },
   });

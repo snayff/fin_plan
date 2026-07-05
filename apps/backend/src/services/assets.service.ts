@@ -138,11 +138,11 @@ export const assetsService = {
     const [assets, accounts] = await Promise.all([
       prisma.asset.findMany({
         where: { householdId, ...activeWhere() },
-        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] } },
+        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
       }),
       prisma.account.findMany({
         where: { householdId, ...activeWhere() },
-        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] } },
+        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
       }),
     ]);
 
@@ -184,7 +184,7 @@ export const assetsService = {
     const assets = await prisma.asset.findMany({
       where: { householdId, type, ...(opts.includeDisposed ? {} : activeWhere()) },
       include: {
-        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
       },
       orderBy: { createdAt: "asc" },
     });

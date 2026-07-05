@@ -35,6 +35,9 @@ export const ResourceSlugEnum = z.enum([
   "account-balance",
   "session",
   "subcategory",
+  // waterfall-wide delete + item amount-period mutations
+  "waterfall",
+  "item-period",
 ]);
 export type ResourceSlug = z.infer<typeof ResourceSlugEnum>;
 
@@ -83,6 +86,12 @@ export const AuditAction = {
   // Mutationless "confirm" (review-touch) of a waterfall item — covers
   // income/committed/yearly/discretionary/savings confirms and confirm-batch.
   CONFIRM_WATERFALL_ITEM: "CONFIRM_WATERFALL_ITEM",
+  // Owner/admin-only destructive wipe of the entire household waterfall.
+  DELETE_ALL_WATERFALL: "DELETE_ALL_WATERFALL",
+  // Item amount-period mutations (POST/PATCH/DELETE /waterfall/periods*).
+  CREATE_ITEM_PERIOD: "CREATE_ITEM_PERIOD",
+  UPDATE_ITEM_PERIOD: "UPDATE_ITEM_PERIOD",
+  DELETE_ITEM_PERIOD: "DELETE_ITEM_PERIOD",
 
   // Wealth
   CREATE_WEALTH_ACCOUNT: "CREATE_WEALTH_ACCOUNT",

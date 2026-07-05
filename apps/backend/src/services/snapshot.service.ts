@@ -10,6 +10,11 @@ import type { CreateSnapshotInput, RenameSnapshotInput, FinancialSummary } from 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Upper bound on auto-snapshots pulled for the financial-summary sparklines.
+// Auto-snapshots accrue ~1/day, so ~2 years of history is a generous window
+// while keeping the (potentially large) JSON `data` blob read bounded.
+const SPARKLINE_SNAPSHOT_LIMIT = 730;
+
 async function buildSnapshotData(householdId: string): Promise<object> {
   const [waterfall, assets] = await Promise.all([
     waterfallService.getWaterfallSummary(householdId),
@@ -173,17 +178,23 @@ export const snapshotService = {
   },
 
   async getFinancialSummary(householdId: string): Promise<FinancialSummary> {
-    const [summary, assets, autoSnapshots] = await Promise.all([
+    const [summary, assets, autoSnapshotsDesc] = await Promise.all([
       waterfallService.getWaterfallSummary(householdId),
       assetsService.getSummary(householdId),
+      // Sparklines only need a bounded, recent window of auto-snapshots. Auto-
+      // snapshots accrue roughly one per day, so cap at ~2 years to keep the
+      // blob read bounded regardless of household age. Fetch most-recent-first
+      // so the cap keeps the newest points, then reverse for chronological order.
       prisma.snapshot.findMany({
         where: { householdId, isAuto: true },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
+        take: SPARKLINE_SNAPSHOT_LIMIT,
         select: { data: true, createdAt: true },
       }),
     ]);
 
     const netWorth: number | null = assets.grandTotal > 0 ? assets.grandTotal : null;
+    const autoSnapshots = [...autoSnapshotsDesc].reverse();
     const tierSeries = buildTierSeries(autoSnapshots);
 
     return FinancialSummarySchema.parse({

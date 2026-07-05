@@ -24,6 +24,7 @@ import {
 import { periodService } from "../services/period.service.js";
 import { prisma } from "../config/database.js";
 import { NotFoundError } from "../utils/errors.js";
+import { assertOwnerOrAdmin } from "../services/household.service.js";
 
 export async function waterfallRoutes(fastify: FastifyInstance) {
   const pre = {
@@ -271,7 +272,11 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
 
   fastify.delete("/all", preMutation, async (req, reply) => {
     deleteAllWaterfallSchema.parse(req.body);
-    await waterfallService.deleteAll(req.householdId!);
+    // Destructive whole-household wipe — restrict to owner/admin. This route is
+    // active-household-scoped (req.householdId), so the role the auth middleware
+    // attached is the caller's role for this household — use it directly.
+    assertOwnerOrAdmin(req.user!.role);
+    await waterfallService.deleteAll(req.householdId!, actorCtx(req));
     return reply.status(204).send();
   });
 
@@ -287,7 +292,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   fastify.post("/periods", preMutation, async (req, reply) => {
     const data = createPeriodSchema.parse(req.body);
     await verifyItemOwnership(req.householdId!, data.itemType, data.itemId);
-    const period = await periodService.createPeriod(req.householdId!, data);
+    const period = await periodService.createPeriod(req.householdId!, data, actorCtx(req));
     return reply.status(201).send(period);
   });
 
@@ -298,7 +303,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
     const existing = await prisma.itemAmountPeriod.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError("Period not found");
     await verifyItemOwnership(req.householdId!, existing.itemType, existing.itemId);
-    const period = await periodService.updatePeriod(req.householdId!, id, data);
+    const period = await periodService.updatePeriod(req.householdId!, id, data, actorCtx(req));
     return reply.send(period);
   });
 
@@ -308,7 +313,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
     const existing = await prisma.itemAmountPeriod.findUnique({ where: { id } });
     if (!existing) throw new NotFoundError("Period not found");
     await verifyItemOwnership(req.householdId!, existing.itemType, existing.itemId);
-    const result = await periodService.deletePeriod(req.householdId!, id);
+    const result = await periodService.deletePeriod(req.householdId!, id, actorCtx(req));
     if (result?.deleteItem) {
       switch (result.itemType) {
         case "income_source":

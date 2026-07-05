@@ -87,6 +87,28 @@ describe("assetsService.getSummary", () => {
     // Property 200000 + Savings 10000 + S&S 5000 = 215000 (pension 50000 excluded).
     expect(result.grandTotal).toBe(215000);
   });
+
+  it("fetches only the latest balance per asset/account (take:1, ordered date desc)", async () => {
+    prismaMock.asset.findMany.mockResolvedValue([] as any);
+    prismaMock.account.findMany.mockResolvedValue([] as any);
+
+    await assetsService.getSummary(HOUSEHOLD_ID);
+
+    expect(prismaMock.asset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        },
+      })
+    );
+    expect(prismaMock.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        },
+      })
+    );
+  });
 });
 
 describe("assetsService.listAssetsByType", () => {
@@ -128,6 +150,20 @@ describe("assetsService.listAssetsByType", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.currentBalance).toBe(185000);
     expect(result[0]!.currentBalanceDate).toEqual(new Date("2026-03-01"));
+  });
+
+  it("fetches only the latest balance per asset (take:1, ordered date desc)", async () => {
+    prismaMock.asset.findMany.mockResolvedValue([] as any);
+
+    await assetsService.listAssetsByType(HOUSEHOLD_ID, "Property");
+
+    expect(prismaMock.asset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        },
+      })
+    );
   });
 });
 

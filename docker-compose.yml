@@ -28,6 +28,13 @@ services:
       CSRF_SECRET: ${CSRF_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
       NODE_ENV: production
+    healthcheck:
+      # /health pings the DB, so this only reports healthy when the app can serve traffic.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     networks:
       - coolify
     restart: unless-stopped
@@ -43,6 +50,13 @@ services:
       - "3000"
     depends_on:
       - backend
+    healthcheck:
+      # nginx serves the built SPA on 3000; a 200 on the root means the container is up.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - coolify
     restart: unless-stopped

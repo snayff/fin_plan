@@ -89,8 +89,19 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
     });
   }
 
-  // Health check endpoint
-  server.get("/health", async () => {
+  // Health check endpoint — pings the DB so orchestrators only route to
+  // instances that can actually serve requests. Returns 503 (never leaking
+  // error detail) when the database is unreachable.
+  server.get("/health", async (_req, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+    } catch {
+      return reply.status(503).send({
+        status: "unavailable",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      });
+    }
     return {
       status: "ok",
       timestamp: new Date().toISOString(),

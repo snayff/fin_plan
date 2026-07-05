@@ -643,6 +643,69 @@ describe("POST /api/waterfall/confirm-batch", () => {
   });
 });
 
+// ─── Delete all (SEC-1: owner/admin only + audited) ─────────────────────────────
+
+describe("DELETE /api/waterfall/all", () => {
+  // Re-arm the auth middleware to attach a specific household role so the
+  // route's owner/admin gate can be exercised.
+  function armRole(role: "owner" | "admin" | "member") {
+    (authMiddleware as any).mockImplementation(async (request: any) => {
+      const authHeader = request.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        throw new AuthenticationError("No authorization token provided");
+      }
+      request.user = { userId: "user-1", email: "test@test.com", name: "Tester", role };
+      request.householdId = "hh-1";
+    });
+  }
+
+  it("returns 401 without auth token", async () => {
+    const res = await app.inject({ method: "DELETE", url: "/api/waterfall/all", payload: {} });
+    expect(res.statusCode).toBe(401);
+    expect(waterfallServiceMock.deleteAll).not.toHaveBeenCalled();
+  });
+
+  it("rejects a plain member with 403 and does not delete", async () => {
+    armRole("member");
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/waterfall/all",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { confirm: true },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(waterfallServiceMock.deleteAll).not.toHaveBeenCalled();
+  });
+
+  it("allows an owner and forwards an actor context to the service", async () => {
+    armRole("owner");
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/waterfall/all",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { confirm: true },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(waterfallServiceMock.deleteAll).toHaveBeenCalledTimes(1);
+    // deleteAll(householdId, actorCtx)
+    const call = waterfallServiceMock.deleteAll.mock.calls.at(-1)!;
+    expect(call[0]).toBe("hh-1");
+    expect(call[1]).toBeDefined();
+  });
+
+  it("allows an admin", async () => {
+    armRole("admin");
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/waterfall/all",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { confirm: true },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(waterfallServiceMock.deleteAll).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ─── Subcategories ────────────────────────────────────────────────────────────
 
 describe("GET /api/waterfall/subcategories/:tier", () => {

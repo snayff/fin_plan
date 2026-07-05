@@ -1278,13 +1278,26 @@ export const waterfallService = {
 
   // ─── Delete all ───────────────────────────────────────────────────────────────
 
-  async deleteAll(householdId: string) {
+  async deleteAll(householdId: string, ctx: ActorCtx) {
     await prisma.$transaction(async (tx) => {
       await tx.itemAmountPeriod.deleteMany({ where: { householdId } });
       await tx.incomeSource.deleteMany({ where: { householdId } });
       await tx.committedItem.deleteMany({ where: { householdId } });
       await tx.discretionaryItem.deleteMany({ where: { householdId } });
       await tx.subcategory.deleteMany({ where: { householdId } });
+
+      // One durable audit row for the whole-household wipe, committed atomically
+      // with the deletes (SEC-1).
+      await auditEventTx(tx, {
+        householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_ALL_WATERFALL,
+        resource: "waterfall",
+        resourceId: householdId,
+      });
     });
   },
 };

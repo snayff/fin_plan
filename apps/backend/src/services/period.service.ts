@@ -1,7 +1,10 @@
 import { prisma } from "../config/database.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CreatePeriodInput, UpdatePeriodInput, ItemLifecycleState } from "@finplan/shared";
+import { AuditAction } from "@finplan/shared";
 import { ConflictError, NotFoundError, ValidationError } from "../utils/errors.js";
+import { auditEventTx } from "./audit.service.js";
+import type { ActorCtx } from "./audit.service.js";
 
 /** Narrow a thrown value to a Prisma unique-constraint (P2002) error. */
 function isUniqueViolation(err: unknown): boolean {
@@ -172,9 +175,23 @@ export const periodService = {
     });
   },
 
-  async createPeriod(householdId: string, data: CreatePeriodInput) {
+  async createPeriod(householdId: string, data: CreatePeriodInput, ctx: ActorCtx) {
     try {
-      return await prisma.$transaction((tx) => this.createPeriodTx(tx, householdId, data));
+      return await prisma.$transaction(async (tx) => {
+        const period = await this.createPeriodTx(tx, householdId, data);
+        await auditEventTx(tx, {
+          householdId,
+          actorId: ctx.actorId,
+          actorName: ctx.actorName,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          action: AuditAction.CREATE_ITEM_PERIOD,
+          resource: "item-period",
+          resourceId: period.id,
+          metadata: { itemType: data.itemType, itemId: data.itemId },
+        });
+        return period;
+      });
     } catch (err) {
       if (isUniqueViolation(err)) {
         throw new ConflictError("A period already starts on that date");
@@ -183,7 +200,7 @@ export const periodService = {
     }
   },
 
-  async updatePeriod(householdId: string, id: string, data: UpdatePeriodInput) {
+  async updatePeriod(householdId: string, id: string, data: UpdatePeriodInput, ctx: ActorCtx) {
     try {
       return await prisma.$transaction(async (tx) => {
         const period = await tx.itemAmountPeriod.findFirst({ where: { id, householdId } });
@@ -237,7 +254,24 @@ export const periodService = {
           }
         }
 
-        return tx.itemAmountPeriod.update({ where: { id, householdId }, data: updateData });
+        const updated = await tx.itemAmountPeriod.update({
+          where: { id, householdId },
+          data: updateData,
+        });
+
+        await auditEventTx(tx, {
+          householdId,
+          actorId: ctx.actorId,
+          actorName: ctx.actorName,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          action: AuditAction.UPDATE_ITEM_PERIOD,
+          resource: "item-period",
+          resourceId: id,
+          metadata: { itemType: period.itemType, itemId: period.itemId },
+        });
+
+        return updated;
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
@@ -249,7 +283,8 @@ export const periodService = {
 
   async deletePeriod(
     householdId: string,
-    id: string
+    id: string,
+    ctx: ActorCtx
   ): Promise<{ deleteItem: boolean; itemType?: string; itemId?: string } | void> {
     return prisma.$transaction(async (tx) => {
       const period = await tx.itemAmountPeriod.findFirst({ where: { id, householdId } });
@@ -278,6 +313,18 @@ export const periodService = {
       }
 
       await tx.itemAmountPeriod.delete({ where: { id, householdId } });
+
+      await auditEventTx(tx, {
+        householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_ITEM_PERIOD,
+        resource: "item-period",
+        resourceId: id,
+        metadata: { itemType: period.itemType, itemId: period.itemId },
+      });
     });
   },
 };

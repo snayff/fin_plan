@@ -7,9 +7,11 @@ mock.module("../config/database.js", () => ({ prisma: prismaMock }));
 const { periodService } = await import("./period.service.js");
 
 const HH = "hh-1";
+const CTX = { householdId: HH, actorId: "user-1", actorName: "Test" };
 
 beforeEach(() => {
   resetPrismaMocks();
+  prismaMock.auditLog.create.mockResolvedValue({} as any);
 });
 
 describe("periodService.listPeriods", () => {
@@ -187,12 +189,16 @@ describe("periodService.createPeriod", () => {
     });
     prismaMock.itemAmountPeriod.update.mockResolvedValue({});
 
-    const result = await periodService.createPeriod(HH, {
-      itemType: "committed_item",
-      itemId: "item-1",
-      startDate: new Date("2026-10-01"),
-      amount: 9,
-    });
+    const result = await periodService.createPeriod(
+      HH,
+      {
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-10-01"),
+        amount: 9,
+      },
+      CTX
+    );
 
     // Should only consider this household's periods
     expect(prismaMock.itemAmountPeriod.findMany).toHaveBeenCalledWith({
@@ -236,12 +242,16 @@ describe("periodService.createPeriod", () => {
     prismaMock.itemAmountPeriod.findMany.mockResolvedValue(existingPeriods);
     prismaMock.itemAmountPeriod.create.mockResolvedValue({ id: "p2", amount: 9 } as any);
 
-    await periodService.createPeriod(HH, {
-      itemType: "committed_item",
-      itemId: "item-1",
-      startDate: new Date("2026-10-01"),
-      amount: 9,
-    });
+    await periodService.createPeriod(
+      HH,
+      {
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-10-01"),
+        amount: 9,
+      },
+      CTX
+    );
 
     // The already-closed gap period must not be touched.
     expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
@@ -253,13 +263,17 @@ describe("periodService.createPeriod", () => {
     prismaMock.itemAmountPeriod.findMany.mockResolvedValue([]);
 
     await expect(
-      periodService.createPeriod(HH, {
-        itemType: "committed_item",
-        itemId: "item-1",
-        startDate: new Date("2026-10-01"),
-        endDate: new Date("2026-10-01"),
-        amount: 9,
-      })
+      periodService.createPeriod(
+        HH,
+        {
+          itemType: "committed_item",
+          itemId: "item-1",
+          startDate: new Date("2026-10-01"),
+          endDate: new Date("2026-10-01"),
+          amount: 9,
+        },
+        CTX
+      )
     ).rejects.toThrow("end date must be after");
     expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
   });
@@ -279,13 +293,17 @@ describe("periodService.createPeriod", () => {
     prismaMock.itemAmountPeriod.findMany.mockResolvedValue(existingPeriods);
 
     await expect(
-      periodService.createPeriod(HH, {
-        itemType: "committed_item",
-        itemId: "item-1",
-        startDate: new Date("2026-10-01"),
-        endDate: new Date("2027-06-01"), // past the next period's start
-        amount: 9,
-      })
+      periodService.createPeriod(
+        HH,
+        {
+          itemType: "committed_item",
+          itemId: "item-1",
+          startDate: new Date("2026-10-01"),
+          endDate: new Date("2027-06-01"), // past the next period's start
+          amount: 9,
+        },
+        CTX
+      )
     ).rejects.toThrow("overlaps the following period");
     expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
   });
@@ -296,12 +314,16 @@ describe("periodService.createPeriod", () => {
     prismaMock.itemAmountPeriod.create.mockRejectedValue({ code: "P2002" });
 
     await expect(
-      periodService.createPeriod(HH, {
-        itemType: "committed_item",
-        itemId: "item-1",
-        startDate: new Date("2026-10-01"),
-        amount: 9,
-      })
+      periodService.createPeriod(
+        HH,
+        {
+          itemType: "committed_item",
+          itemId: "item-1",
+          startDate: new Date("2026-10-01"),
+          amount: 9,
+        },
+        CTX
+      )
     ).rejects.toThrow("already starts on that date");
   });
 });
@@ -311,7 +333,7 @@ describe("periodService.updatePeriod", () => {
     // findFirst is scoped by householdId — a foreign period resolves to null
     prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(null);
 
-    await expect(periodService.updatePeriod(HH, "p-foreign", { amount: 1 })).rejects.toThrow(
+    await expect(periodService.updatePeriod(HH, "p-foreign", { amount: 1 }, CTX)).rejects.toThrow(
       "Period not found"
     );
 
@@ -334,7 +356,7 @@ describe("periodService.updatePeriod", () => {
     prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
     prismaMock.itemAmountPeriod.update.mockResolvedValue({ ...period, amount: 11 });
 
-    const result = await periodService.updatePeriod(HH, "p1", { amount: 11 });
+    const result = await periodService.updatePeriod(HH, "p1", { amount: 11 }, CTX);
 
     expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
       where: { id: "p1", householdId: HH },
@@ -357,7 +379,7 @@ describe("periodService.updatePeriod", () => {
     prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
 
     await expect(
-      periodService.updatePeriod(HH, "p1", { startDate: new Date("2025-07-01") })
+      periodService.updatePeriod(HH, "p1", { startDate: new Date("2025-07-01") }, CTX)
     ).rejects.toThrow("end date must be after");
     expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
   });
@@ -391,7 +413,7 @@ describe("periodService.updatePeriod", () => {
 
     await expect(
       // Push p2's start to 2026-06-01, past p3's start → overlap.
-      periodService.updatePeriod(HH, "p2", { startDate: new Date("2026-06-01") })
+      periodService.updatePeriod(HH, "p2", { startDate: new Date("2026-06-01") }, CTX)
     ).rejects.toThrow("overlaps the following period");
     expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
   });
@@ -410,7 +432,7 @@ describe("periodService.updatePeriod", () => {
     prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
     prismaMock.itemAmountPeriod.update.mockRejectedValue({ code: "P2002" });
 
-    await expect(periodService.updatePeriod(HH, "p1", { amount: 11 })).rejects.toThrow(
+    await expect(periodService.updatePeriod(HH, "p1", { amount: 11 }, CTX)).rejects.toThrow(
       "already starts on that date"
     );
   });
@@ -443,7 +465,7 @@ describe("periodService.deletePeriod", () => {
     prismaMock.itemAmountPeriod.delete.mockResolvedValue({});
     prismaMock.itemAmountPeriod.update.mockResolvedValue({});
 
-    await periodService.deletePeriod(HH, "p2");
+    await periodService.deletePeriod(HH, "p2", CTX);
 
     expect(prismaMock.itemAmountPeriod.delete).toHaveBeenCalledWith({
       where: { id: "p2", householdId: HH },
@@ -468,7 +490,7 @@ describe("periodService.deletePeriod", () => {
     prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
     prismaMock.itemAmountPeriod.findMany.mockResolvedValue([period]);
 
-    const result = await periodService.deletePeriod(HH, "p1");
+    const result = await periodService.deletePeriod(HH, "p1", CTX);
 
     expect(result).toEqual({ deleteItem: true, itemType: "committed_item", itemId: "item-1" });
   });
@@ -476,7 +498,9 @@ describe("periodService.deletePeriod", () => {
   it("rejects periods that belong to another household", async () => {
     prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(null);
 
-    await expect(periodService.deletePeriod(HH, "p-foreign")).rejects.toThrow("Period not found");
+    await expect(periodService.deletePeriod(HH, "p-foreign", CTX)).rejects.toThrow(
+      "Period not found"
+    );
 
     expect(prismaMock.itemAmountPeriod.findFirst).toHaveBeenCalledWith({
       where: { id: "p-foreign", householdId: HH },
@@ -578,5 +602,133 @@ describe("periodService.setCurrentAmount", () => {
         amount: 200,
       },
     });
+  });
+});
+
+// ─── SEC-3: period mutations are audited ────────────────────────────────────────
+
+describe("periodService audits every mutation", () => {
+  it("createPeriod writes a CREATE_ITEM_PERIOD audit row", async () => {
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([]);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({
+      id: "p-new",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2026-10-01"),
+      endDate: null,
+      amount: 9,
+    });
+
+    await periodService.createPeriod(
+      HH,
+      {
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2026-10-01"),
+        amount: 9,
+      },
+      CTX
+    );
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "CREATE_ITEM_PERIOD",
+          resource: "item-period",
+          resourceId: "p-new",
+          actorId: "user-1",
+        }),
+      })
+    );
+  });
+
+  it("updatePeriod writes an UPDATE_ITEM_PERIOD audit row", async () => {
+    const period = {
+      id: "p1",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2025-01-01"),
+      endDate: null,
+      amount: 7,
+    };
+    prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({ ...period, amount: 11 });
+
+    await periodService.updatePeriod(HH, "p1", { amount: 11 }, CTX);
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "UPDATE_ITEM_PERIOD",
+          resource: "item-period",
+          resourceId: "p1",
+          actorId: "user-1",
+        }),
+      })
+    );
+  });
+
+  it("deletePeriod writes a DELETE_ITEM_PERIOD audit row when a period is removed", async () => {
+    const periods = [
+      {
+        id: "p1",
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2020-01-01"),
+        endDate: new Date("2025-01-01"),
+        amount: 7,
+      },
+      {
+        id: "p2",
+        householdId: HH,
+        itemType: "committed_item",
+        itemId: "item-1",
+        startDate: new Date("2025-01-01"),
+        endDate: null,
+        amount: 9,
+      },
+    ];
+    prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(periods[1]);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue(periods);
+    prismaMock.itemAmountPeriod.delete.mockResolvedValue({});
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({});
+
+    await periodService.deletePeriod(HH, "p2", CTX);
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "DELETE_ITEM_PERIOD",
+          resource: "item-period",
+          resourceId: "p2",
+          actorId: "user-1",
+        }),
+      })
+    );
+  });
+
+  it("deletePeriod does NOT audit when it delegates to item deletion (last period)", async () => {
+    // When only one period remains, deletePeriod signals item deletion and the
+    // route deletes the item (which is separately audited) — no period-delete
+    // audit row is written here.
+    const period = {
+      id: "p1",
+      householdId: HH,
+      itemType: "committed_item",
+      itemId: "item-1",
+      startDate: new Date("2020-01-01"),
+      endDate: null,
+      amount: 7,
+    };
+    prismaMock.itemAmountPeriod.findFirst.mockResolvedValue(period);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([period]);
+
+    const result = await periodService.deletePeriod(HH, "p1", CTX);
+
+    expect(result).toEqual({ deleteItem: true, itemType: "committed_item", itemId: "item-1" });
+    expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
   });
 });
