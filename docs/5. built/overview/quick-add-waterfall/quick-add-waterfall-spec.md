@@ -2,8 +2,8 @@
 feature: quick-add-waterfall
 design_doc: docs/4. planning/quick-add-waterfall/quick-add-waterfall-design.md
 creation_date: 2026-04-18
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Quick-Add Waterfall

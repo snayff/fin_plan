@@ -1,10 +1,10 @@
 ---
 feature: wealth-accounts
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 8
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Wealth — Accounts

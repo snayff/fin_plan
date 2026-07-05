@@ -326,6 +326,20 @@ describe("assetsService.listAccountsByType", () => {
     expect(result[0]!.linkedItems).toEqual([]);
   });
 
+  it("fetches only the latest balance per account (take:1, ordered date desc)", async () => {
+    prismaMock.account.findMany.mockResolvedValue([] as any);
+
+    await assetsService.listAccountsByType(HOUSEHOLD_ID, "Pension");
+
+    expect(prismaMock.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        }),
+      })
+    );
+  });
+
   it("derives monthlyContribution from active ItemAmountPeriods of linked items", async () => {
     const ITEM_ID_1 = "item-1";
     const ITEM_ID_2 = "item-2";

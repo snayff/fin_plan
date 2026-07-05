@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { waterfallService } from "../services/waterfall.service.js";
 import { actorCtx } from "../lib/actor-ctx.js";
@@ -20,11 +21,22 @@ import {
   resetSubcategoriesSchema,
   createSubcategorySchema,
   idParamSchema,
+  idSchema,
 } from "@finplan/shared";
 import { periodService } from "../services/period.service.js";
 import { prisma } from "../config/database.js";
 import { NotFoundError } from "../utils/errors.js";
 import { assertOwnerOrAdmin } from "../services/household.service.js";
+
+// Route-param schemas — bound the free-text id segments so a malformed id
+// surfaces as a consistent 400 instead of reaching Prisma raw (#SEC-6). The
+// `type` / `itemType` / `tier` segments are validated separately downstream
+// (typed switch / WaterfallTierEnum.parse).
+const historyParamsSchema = z.object({ type: z.string().min(1), id: idSchema });
+const periodItemParamsSchema = z.object({
+  itemType: z.string().min(1),
+  itemId: idSchema,
+});
 
 export async function waterfallRoutes(fastify: FastifyInstance) {
   const pre = {
@@ -257,7 +269,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   // ─── History ──────────────────────────────────────────────────────────────
 
   fastify.get("/history/:type/:id", pre, async (req, reply) => {
-    const { type, id } = req.params as { type: string; id: string };
+    const { type, id } = historyParamsSchema.parse(req.params);
     const history = await waterfallService.getHistory(req.householdId!, type, id);
     return reply.send(history);
   });
@@ -283,7 +295,7 @@ export async function waterfallRoutes(fastify: FastifyInstance) {
   // ─── Periods ──────────────────────────────────────────────────────────────
 
   fastify.get("/periods/:itemType/:itemId", pre, async (req, reply) => {
-    const { itemType, itemId } = req.params as { itemType: string; itemId: string };
+    const { itemType, itemId } = periodItemParamsSchema.parse(req.params);
     await verifyItemOwnership(req.householdId!, itemType, itemId);
     const periods = await periodService.listPeriods(req.householdId!, itemType, itemId);
     return reply.send(periods);

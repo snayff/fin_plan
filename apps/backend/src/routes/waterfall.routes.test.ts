@@ -1036,3 +1036,42 @@ describe("POST /api/waterfall/subcategories/reset", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe("route param validation (#SEC-6)", () => {
+  const oversized = "x".repeat(65); // exceeds ID_MAX (64) → idSchema rejects
+  const auth = { authorization: "Bearer valid-token" };
+
+  it("GET /history/:type/:id returns 400 for a malformed id", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/history/income/${oversized}`,
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(waterfallServiceMock.getHistory).not.toHaveBeenCalled();
+  });
+
+  it("GET /periods/:itemType/:itemId returns 400 for a malformed itemId", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/periods/income_source/${oversized}`,
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(periodServiceMock.listPeriods).not.toHaveBeenCalled();
+  });
+
+  it("GET /history/:type/:id still accepts a well-formed id", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/waterfall/history/income/clh7x9a2b0000abcd1234efgh",
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(waterfallServiceMock.getHistory).toHaveBeenCalledWith(
+      "hh-1",
+      "income",
+      "clh7x9a2b0000abcd1234efgh"
+    );
+  });
+});

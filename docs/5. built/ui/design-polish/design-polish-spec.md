@@ -1,11 +1,11 @@
 ---
 feature: design-polish
 design_doc: docs/plans/2026-03-24-design-polish-design.md
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase:
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Design Polish

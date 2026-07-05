@@ -37,6 +37,43 @@ describe("legacy setup-session removal", () => {
   });
 });
 
+describe("response compression (PERF-7)", () => {
+  it("gzip-compresses a large JSON response when the client accepts gzip", async () => {
+    const app = await buildApp({ logger: false });
+    // Register a route returning a payload well above the compression threshold.
+    app.get("/__compress-test", async () => ({
+      data: "x".repeat(50_000),
+    }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/__compress-test",
+      headers: { "accept-encoding": "gzip" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-encoding"]).toBe("gzip");
+    await app.close();
+  });
+
+  it("does not compress a tiny response below the threshold", async () => {
+    const app = await buildApp({ logger: false });
+    app.get("/__tiny-test", async () => ({ ok: true }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/__tiny-test",
+      headers: { "accept-encoding": "gzip" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-encoding"]).toBeUndefined();
+    await app.close();
+  });
+});
+
 describe("/health route", () => {
   beforeEach(() => resetPrismaMocks());
 

@@ -36,10 +36,21 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
       throw new AuthenticationError("Token has been revoked");
     }
 
-    // Resolve active household from the database
+    // Resolve the user AND their household memberships in a single query. The
+    // membership check and stale-activeHouseholdId fallback are then derived
+    // from this one live read — no extra round-trips, and no caching, so role
+    // and revocation stay immediately consistent.
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, name: true, activeHouseholdId: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        activeHouseholdId: true,
+        memberProfiles: {
+          select: { householdId: true, role: true, joinedAt: true },
+        },
+      },
     });
 
     if (!user) {
@@ -50,22 +61,17 @@ export async function authMiddleware(request: FastifyRequest, _reply: FastifyRep
       throw new AuthenticationError("No active household — please contact support");
     }
 
-    // Zero Trust: verify user is still a member of the active household
-    const membership = await prisma.member.findFirst({
-      where: {
-        householdId: user.activeHouseholdId,
-        userId: payload.userId,
-      },
-      select: { role: true },
-    });
+    // Zero Trust: verify user is still a member of the active household using
+    // the memberships fetched above.
+    const membership = user.memberProfiles.find((m) => m.householdId === user.activeHouseholdId);
 
     if (!membership) {
-      // Clear stale activeHouseholdId and reject
-      const fallback = await prisma.member.findFirst({
-        where: { userId: payload.userId },
-        orderBy: { joinedAt: "asc" },
-        select: { householdId: true },
-      });
+      // Clear stale activeHouseholdId — fall back to the earliest-joined
+      // remaining membership (matching the prior `orderBy: joinedAt asc`), or
+      // null if the user belongs to no households.
+      const fallback = [...user.memberProfiles].sort(
+        (a, b) => a.joinedAt.getTime() - b.joinedAt.getTime()
+      )[0];
       await prisma.user.update({
         where: { id: payload.userId },
         data: { activeHouseholdId: fallback?.householdId ?? null },

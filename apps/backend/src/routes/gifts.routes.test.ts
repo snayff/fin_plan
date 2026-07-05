@@ -64,9 +64,11 @@ mock.module("../lib/actor-ctx.js", () => ({
 }));
 
 const { giftsRoutes } = await import("./gifts.routes.js");
+const { errorHandler } = await import("../middleware/errorHandler.js");
 
 async function buildApp() {
   const app = Fastify();
+  app.setErrorHandler(errorHandler);
   await app.register(giftsRoutes, { prefix: "/api/gifts" });
   return app;
 }
@@ -144,5 +146,49 @@ describe("gifts.routes", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(giftsServiceMock.setMode).toHaveBeenCalled();
+  });
+
+  it("GET /people/:id returns 400 for a malformed (over-length) id", async () => {
+    const app = await buildApp();
+    const oversized = "x".repeat(65);
+    const res = await app.inject({ method: "GET", url: `/api/gifts/people/${oversized}` });
+    expect(res.statusCode).toBe(400);
+    expect(giftsServiceMock.getPersonDetail).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /people/:id returns 400 for a malformed (over-length) id", async () => {
+    const app = await buildApp();
+    const oversized = "x".repeat(65);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/api/gifts/people/${oversized}`,
+      payload: { name: "New" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(giftsServiceMock.updatePerson).not.toHaveBeenCalled();
+  });
+
+  it("GET /config/people returns 400 for an invalid filter value", async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/gifts/config/people?filter=bogus",
+    });
+    expect(res.statusCode).toBe(400);
+    expect(giftsServiceMock.listPeopleForConfig).not.toHaveBeenCalled();
+  });
+
+  it("GET /config/people accepts a valid filter value", async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/gifts/config/people?filter=household",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(giftsServiceMock.listPeopleForConfig).toHaveBeenCalledWith(
+      "hh-1",
+      "household",
+      new Date().getFullYear()
+    );
   });
 });

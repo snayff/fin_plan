@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import csrf from "@fastify/csrf-protection";
 import helmet from "@fastify/helmet";
+import compress from "@fastify/compress";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config/env";
 import { verifyAccessToken } from "./utils/jwt";
@@ -62,6 +63,16 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
 
   await server.register(helmet, {
     contentSecurityPolicy: config.NODE_ENV === "production",
+  });
+
+  // Global response compression. Only payloads above ~1KB are compressed
+  // (below that, gzip/brotli framing overhead outweighs the saving), so tiny
+  // responses like /health stay uncompressed. Both gzip and brotli are offered;
+  // the client's Accept-Encoding decides which (or none).
+  await server.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ["br", "gzip"],
   });
 
   // Rate limiting is opt-out via RATE_LIMIT_ENABLED. It stays on in production (and any

@@ -6,6 +6,7 @@ import { queryClient } from "./lib/queryClient";
 import { useAuthStore } from "./stores/authStore";
 import Layout from "./components/layout/Layout";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { installGlobalErrorHandlers } from "./lib/errorReporter";
 
 // Auth pages
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
@@ -61,7 +62,7 @@ export function ProtectedAppRoutes() {
         element={
           <NewUserRedirect>
             <Layout>
-              <ErrorBoundary>
+              <ErrorBoundary label="app-content">
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/" element={<Navigate to="/overview" replace />} />
@@ -104,6 +105,12 @@ function App() {
   const isAuthenticated = authStatus === "authenticated";
 
   useEffect(() => {
+    // Install once so otherwise-unhandled errors/rejections are reported (RES-6).
+    const uninstall = installGlobalErrorHandlers();
+    return uninstall;
+  }, []);
+
+  useEffect(() => {
     if (isDesignRenewPage) return;
     void initializeAuth();
   }, [initializeAuth, isDesignRenewPage]);
@@ -121,28 +128,30 @@ function App() {
       ) : (
         <>
           <BrowserRouter>
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route
-                  path="/login"
-                  element={isAuthenticated ? <Navigate to="/overview" /> : <LoginPage />}
-                />
-                <Route
-                  path="/register"
-                  element={isAuthenticated ? <Navigate to="/overview" /> : <RegisterPage />}
-                />
-                <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
-                <Route
-                  path="/forgot-password"
-                  element={isAuthenticated ? <Navigate to="/overview" /> : <ForgotPasswordPage />}
-                />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route
-                  path="/*"
-                  element={isAuthenticated ? <ProtectedAppRoutes /> : <Navigate to="/login" />}
-                />
-              </Routes>
-            </Suspense>
+            <ErrorBoundary label="auth">
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route
+                    path="/login"
+                    element={isAuthenticated ? <Navigate to="/overview" /> : <LoginPage />}
+                  />
+                  <Route
+                    path="/register"
+                    element={isAuthenticated ? <Navigate to="/overview" /> : <RegisterPage />}
+                  />
+                  <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
+                  <Route
+                    path="/forgot-password"
+                    element={isAuthenticated ? <Navigate to="/overview" /> : <ForgotPasswordPage />}
+                  />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  <Route
+                    path="/*"
+                    element={isAuthenticated ? <ProtectedAppRoutes /> : <Navigate to="/login" />}
+                  />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </BrowserRouter>
           <ReactQueryDevtools initialIsOpen={false} />
         </>

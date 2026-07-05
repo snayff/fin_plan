@@ -3,8 +3,8 @@ feature: data_export_import
 category: infrastructure
 spec: docs/4. planning/data_export_import/data_export_import-spec.md
 creation_date: 2026-04-06
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Data Export & Import — Implementation Plan

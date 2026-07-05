@@ -972,6 +972,61 @@ describe("DELETE /api/households/:id/member-profiles/:memberId", () => {
   });
 });
 
+describe("route param validation (#SEC-6)", () => {
+  const oversized = "x".repeat(65); // exceeds ID_MAX (64) → idSchema rejects
+
+  it("GET /api/households/:id returns 400 for a malformed (over-length) id", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/households/${oversized}`,
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(householdService.getHouseholdDetails).not.toHaveBeenCalled();
+  });
+
+  it("POST /api/households/:id/switch returns 400 for a malformed id", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/households/${oversized}/switch`,
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(householdService.switchHousehold).not.toHaveBeenCalled();
+  });
+
+  it("DELETE /api/households/:id/members/:memberId returns 400 for a malformed memberId", async () => {
+    const response = await app.inject({
+      method: "DELETE",
+      url: `/api/households/household-1/members/${oversized}`,
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(householdService.removeMember).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /api/households/:householdId/members/:userId/role returns 400 for a malformed userId", async () => {
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/households/household-1/members/${oversized}/role`,
+      headers: authHeaders,
+      payload: { role: "member" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("still accepts a well-formed id (valid path unchanged)", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/households/household-1",
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(householdService.getHouseholdDetails).toHaveBeenCalledWith("household-1", "user-1");
+  });
+});
+
 describe("export/import route co-location", () => {
   // The household URL-space is defined in one module: registering householdRoutes
   // alone must expose the export/import household routes (sub-registered), with the

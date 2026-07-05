@@ -1,11 +1,11 @@
 ---
 feature: overview-snapshot-timeline
 design_doc: docs/plans/2026-03-25-overview-snapshot-timeline-design.md
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 10
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Overview — Snapshot Timeline

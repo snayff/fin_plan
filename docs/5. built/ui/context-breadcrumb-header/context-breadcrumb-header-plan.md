@@ -3,8 +3,8 @@ feature: context-breadcrumb-header
 category: ui
 spec: docs/superpowers/specs/2026-04-19-context-breadcrumb-header-design.md
 creation_date: 2026-04-19
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Context Breadcrumb Header — Implementation Plan

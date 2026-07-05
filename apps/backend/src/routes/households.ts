@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { householdService, updateMemberRole } from "../services/household.service";
 import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
 import { prisma } from "../config/database.js";
@@ -11,7 +12,16 @@ import {
   createMemberSchema,
   updateMemberSchema,
   deleteMemberSchema,
+  idParamSchema,
+  idSchema,
 } from "@finplan/shared";
+
+// Route-param schemas — malformed ids surface as a consistent 400 via the shared
+// error handler instead of an untyped `request.params as { … }` cast reaching the
+// service/Prisma layer (#SEC-6).
+const memberParamsSchema = z.object({ id: idSchema, memberId: idSchema });
+const inviteParamsSchema = z.object({ id: idSchema, inviteId: idSchema });
+const memberRoleParamsSchema = z.object({ householdId: idSchema, userId: idSchema });
 import { AuthorizationError, NotFoundError } from "../utils/errors.js";
 import { actorCtx } from "../lib/actor-ctx.js";
 import { exportImportRoutes } from "./export-import.routes.js";
@@ -55,7 +65,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       await householdService.switchHousehold(userId, id);
       return reply.send({ success: true });
     }
@@ -64,7 +74,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
   // Get household details (members + pending invites)
   fastify.get("/households/:id", { preHandler: [authMiddleware] }, async (request, reply) => {
     const userId = request.user!.userId;
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     const household = await householdService.getHouseholdDetails(id, userId);
     return reply.send({ household });
   });
@@ -72,7 +82,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
   // Rename household (owner only)
   fastify.patch("/households/:id", { preHandler: [authMiddleware] }, async (request, reply) => {
     const userId = request.user!.userId;
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     const { name } = renameHouseholdSchema.parse(request.body);
     const household = await householdService.renameHousehold(id, userId, name, actorCtx(request));
     return reply.send({ household });
@@ -102,7 +112,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       const { email, name, role } = createHouseholdInviteSchema.parse(request.body ?? {});
       const { token, email: invitedEmail } = await householdService.inviteMember(
         id,
@@ -122,7 +132,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, memberId } = request.params as { id: string; memberId: string };
+      const { id, memberId } = memberParamsSchema.parse(request.params);
       await householdService.removeMember(id, userId, memberId, actorCtx(request));
       return reply.send({ success: true });
     }
@@ -134,7 +144,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, inviteId } = request.params as { id: string; inviteId: string };
+      const { id, inviteId } = inviteParamsSchema.parse(request.params);
       await householdService.cancelInvite(id, userId, inviteId, actorCtx(request));
       return reply.send({ success: true });
     }
@@ -146,7 +156,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       await householdService.leaveHousehold(id, userId, actorCtx(request));
       return reply.send({ success: true });
     }
@@ -157,10 +167,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     "/households/:householdId/members/:userId/role",
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const { householdId, userId: targetUserId } = request.params as {
-        householdId: string;
-        userId: string;
-      };
+      const { householdId, userId: targetUserId } = memberRoleParamsSchema.parse(request.params);
 
       // Security: caller must belong to the active household matching the route
       // param. This guard also makes the route active-household-scoped, so the
@@ -185,7 +192,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     "/households/:id/member-profiles",
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       assertActiveHousehold(id, request.householdId);
       const members = await memberService.listMembers(request.householdId!);
       return reply.send({ members });
@@ -198,7 +205,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       assertActiveHousehold(id, request.householdId);
       const data = createMemberSchema.parse(request.body);
       const member = await memberService.createMember(
@@ -217,7 +224,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, memberId } = request.params as { id: string; memberId: string };
+      const { id, memberId } = memberParamsSchema.parse(request.params);
       assertActiveHousehold(id, request.householdId);
       const data = updateMemberSchema.parse(request.body);
       const member = await memberService.updateMember(
@@ -237,7 +244,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, memberId } = request.params as { id: string; memberId: string };
+      const { id, memberId } = memberParamsSchema.parse(request.params);
       assertActiveHousehold(id, request.householdId);
       const { reassignToMemberId } = deleteMemberSchema.parse(request.body ?? {});
       await memberService.deleteMember(

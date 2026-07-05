@@ -2,8 +2,8 @@
 feature: universal-search
 status: approved
 creation_date: 2026-04-19
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Universal Search — Design

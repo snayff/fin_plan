@@ -2,8 +2,8 @@
 feature: savings-contribution-limit
 status: draft
 creation_date: 2026-04-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Savings Contribution Limit — Design

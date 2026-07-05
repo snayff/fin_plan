@@ -3,8 +3,8 @@ feature: richer-audit-logging
 category: infrastructure
 spec: docs/4. planning/richer-audit-logging/richer-audit-logging-spec.md
 creation_date: 2026-04-18
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Richer Audit Logging — Implementation Plan

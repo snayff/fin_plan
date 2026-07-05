@@ -341,7 +341,7 @@ export const assetsService = {
     const accounts = await prisma.account.findMany({
       where: { householdId, type, ...(opts.includeDisposed ? {} : activeWhere()) },
       include: {
-        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
         linkedItems: { select: { id: true, name: true, spendType: true } },
       },
       orderBy: { createdAt: "asc" },

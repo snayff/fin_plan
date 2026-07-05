@@ -3,8 +3,8 @@ feature: gifts
 category: discretionary
 spec: docs/4. planning/gifts/gifts-spec.md
 creation_date: 2026-04-11
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Gifts — Implementation Plan
