@@ -12,10 +12,12 @@ Measures the gzip size of the built `dist/assets/` chunks against hard limits de
 
 Two entries are tracked:
 
-- **Entry JS** — `dist/assets/index-*.js` (all entry chunks combined, gzip). Current limit: **144 KB**.
-- **Largest shared chunk** — `dist/assets/AreaChart-*.js` (recharts + D3, the heaviest lazy chunk). Current limit: **118 KB**.
+- **Entry JS** — `dist/assets/index-*.js` (all entry chunks combined, gzip). Current limit: **146 KB**.
+- **Charts vendor chunk** — `dist/assets/charts-*.js` (recharts + d3, isolated via `build.rollupOptions.output.manualChunks` in `vite.config.ts`). Current limit: **118 KB**.
 
 These limits were set at ~baseline + 10% headroom. They are floors, not targets.
+
+The manual vendor split keeps the heavy chart stack (`recharts` + `d3-shape`) and the React runtime (`react`, `react-dom`, `react-router-dom`) in their own long-lived chunks, so a change to app code does not invalidate the large, rarely-changing chart bundle.
 
 ### Lighthouse — `@lhci/cli`
 
@@ -65,8 +67,8 @@ Reports are written to `apps/frontend/.lighthouseci/` (gitignored). Open the HTM
 
 ```
 Package size limit has exceeded by 12.3 kB
-Size limit: 144 kB
-Size:       156.3 kB  gzipped
+Size limit: 146 kB
+Size:       158.3 kB  gzipped
 ```
 
 Find the regression with `bun run build` and inspect `dist/assets/` to identify the new/changed chunk.

@@ -13,6 +13,11 @@ mock.module("@/services/waterfall.service", () => ({
     confirmYearly: mock(async () => ({ id: "x" })),
     confirmDiscretionary: mock(async () => ({ id: "x" })),
     confirmSavings: mock(async () => ({ id: "x" })),
+    updateIncome: mock(async () => ({ id: "x" })),
+    updateCommitted: mock(async () => ({ id: "x" })),
+    updateYearly: mock(async () => ({ id: "x" })),
+    updateDiscretionary: mock(async () => ({ id: "x" })),
+    updateSavings: mock(async () => ({ id: "x" })),
   },
 }));
 
@@ -21,7 +26,30 @@ mock.module("@/lib/toast", () => ({
   showSuccess: mock(() => {}),
 }));
 
-const { useConfirmItem } = await import("./useWaterfall");
+const { useConfirmItem, useUpdateItem, useConfirmWaterfallItem, useTierUpdateItem } =
+  await import("./useWaterfall");
+
+/** Build a QueryClient whose invalidateQueries records every invalidated key. */
+function makeSpyClient() {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const keys: unknown[][] = [];
+  const orig = qc.invalidateQueries.bind(qc);
+  qc.invalidateQueries = ((arg: any) => {
+    if (arg?.queryKey) keys.push(arg.queryKey);
+    return orig(arg);
+  }) as typeof qc.invalidateQueries;
+  return { qc, keys };
+}
+
+/** True if `keys` contains an entry deep-equal to (or prefix-matching) `key`. */
+function hasKey(keys: unknown[][], key: unknown[]): boolean {
+  return keys.some(
+    (k) =>
+      k.length >= key.length && key.every((seg, i) => JSON.stringify(k[i]) === JSON.stringify(seg))
+  );
+}
 
 function wrapper({ children }: { children: any }) {
   const qc = new QueryClient({
@@ -93,5 +121,85 @@ describe("useConfirmWaterfallItem optimistic", () => {
 
     resolveConfirm!({});
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+});
+
+describe("useWaterfall cache invalidation (PERF-3)", () => {
+  it("edit mutation invalidates the full cashflow set (projection + month + shortfall)", async () => {
+    const { qc, keys } = makeSpyClient();
+    const localWrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result } = renderHook(() => useUpdateItem(), { wrapper: localWrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ type: "income_source", id: "i1", data: { name: "New" } });
+    });
+
+    // Under-invalidation fix: editing income/bills must refresh the cashflow
+    // projection and month views, not just the shortfall.
+    expect(hasKey(keys, ["cashflow", "projection"])).toBe(true);
+    expect(hasKey(keys, ["cashflow", "month"])).toBe(true);
+    expect(hasKey(keys, ["cashflow", "shortfall"])).toBe(true);
+    // Existing waterfall/forecast invalidations still fire.
+    expect(hasKey(keys, ["waterfall", "summary"])).toBe(true);
+    expect(hasKey(keys, ["forecast"])).toBe(true);
+  });
+
+  it("tier edit mutation invalidates the full cashflow set", async () => {
+    const { qc, keys } = makeSpyClient();
+    const localWrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result } = renderHook(() => useTierUpdateItem("committed", "c1"), {
+      wrapper: localWrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ name: "New" });
+    });
+
+    expect(hasKey(keys, ["cashflow", "projection"])).toBe(true);
+    expect(hasKey(keys, ["cashflow", "month"])).toBe(true);
+    expect(hasKey(keys, ["cashflow", "shortfall"])).toBe(true);
+  });
+
+  it("confirm mutation (useConfirmItem) does NOT invalidate forecast/financial-summary/cashflow", async () => {
+    const { qc, keys } = makeSpyClient();
+    const localWrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result } = renderHook(() => useConfirmItem(), { wrapper: localWrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ type: "income_source", id: "i1" });
+    });
+
+    // Over-invalidation fix: confirm only touches lastReviewedAt — no numbers
+    // change, so downstream projections must NOT be invalidated.
+    expect(hasKey(keys, ["forecast"])).toBe(false);
+    expect(hasKey(keys, ["waterfall", "financial-summary"])).toBe(false);
+    expect(hasKey(keys, ["cashflow", "shortfall"])).toBe(false);
+    expect(hasKey(keys, ["cashflow", "projection"])).toBe(false);
+    expect(hasKey(keys, ["cashflow", "month"])).toBe(false);
+    // The review-state surfaces still refresh.
+    expect(hasKey(keys, ["waterfall", "summary"])).toBe(true);
+  });
+
+  it("confirm mutation (useConfirmWaterfallItem) does NOT invalidate forecast/financial-summary/cashflow", async () => {
+    const { qc, keys } = makeSpyClient();
+    const localWrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const { result } = renderHook(() => useConfirmWaterfallItem("income", "i1"), {
+      wrapper: localWrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    expect(hasKey(keys, ["forecast"])).toBe(false);
+    expect(hasKey(keys, ["waterfall", "financial-summary"])).toBe(false);
+    expect(hasKey(keys, ["cashflow", "shortfall"])).toBe(false);
+    // Review-state surfaces (summary + the tier-items row) still refresh.
+    expect(hasKey(keys, ["waterfall", "summary"])).toBe(true);
+    expect(hasKey(keys, ["waterfall", "tier-items", "income"])).toBe(true);
   });
 });

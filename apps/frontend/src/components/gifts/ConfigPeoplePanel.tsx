@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState, useMemo } from "react";
 import { useConfigPeople, useCreateGiftPerson, useDeleteGiftPerson } from "@/hooks/useGifts";
 import GhostAddButton from "@/components/tier/GhostAddButton";
@@ -85,13 +84,14 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
         {!readOnly && showAddInput && (
           <div className="border-t border-foreground/5 bg-foreground/[0.02] py-3 pr-4 flex flex-col gap-3 border-l-2 border-tier-discretionary pl-[30px]">
             <div className="flex flex-col gap-1">
-              <label className="label-chart">
+              <span className="label-chart">
                 Name <span className="text-text-muted">*</span>
-              </label>
+              </span>
               <input
                 autoFocus
                 type="text"
                 placeholder="e.g. Mum, Best friend"
+                aria-label="Person name"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);

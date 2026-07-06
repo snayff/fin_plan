@@ -2,8 +2,8 @@
 feature: tier-page-entry-animation
 design_doc: docs/4. planning/tier-page-entry-animation/tier-page-entry-animation-design.md
 creation_date: 2026-03-28
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Tier Page Entry Animation

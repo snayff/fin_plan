@@ -28,6 +28,13 @@ services:
       CSRF_SECRET: ${CSRF_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
       NODE_ENV: production
+    healthcheck:
+      # /health pings the DB, so this only reports healthy when the app can serve traffic.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     networks:
       - coolify
     restart: unless-stopped
@@ -43,6 +50,13 @@ services:
       - "3000"
     depends_on:
       - backend
+    healthcheck:
+      # nginx serves the built SPA on 3000; a 200 on the root means the container is up.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - coolify
     restart: unless-stopped
@@ -52,6 +66,34 @@ services:
       - "traefik.http.routers.finplan-frontend.entrypoints=http"
       - "traefik.http.services.finplan-frontend.loadbalancer.server.port=3000"
 
+  # Scheduled database backup — runs pg_dump on a sleep-loop schedule.
+  # Uses postgres:16-alpine purely for the client tools (pg_dump/pg_restore);
+  # it never opens a listener and exposes no ports. Dumps land in the named
+  # `finplan_backups` volume. See docs/3. architecture/system/backup-recovery.md.
+  backup:
+    image: postgres:16-alpine
+    depends_on:
+      - migrate
+    environment:
+      # Reuse the app's connection string; backup.sh decomposes it into PG* vars.
+      DATABASE_URL: ${DATABASE_URL}
+      BACKUP_DIR: /backups
+      # Prune dumps older than this many days (0 keeps everything).
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      # Interval between backups, seconds (default 24h).
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - finplan_backups:/backups
+      # Backup/restore scripts are mounted read-only from the repo.
+      - ./apps/backend/scripts/backup:/opt/backup:ro
+    entrypoint: ["bash", "/opt/backup/entrypoint.sh"]
+    networks:
+      - coolify
+    restart: unless-stopped
+
 networks:
   coolify:
     external: true
+
+volumes:
+  finplan_backups:

@@ -2,8 +2,8 @@
 feature: tier-content-max-width
 design_doc: docs/4. planning/tier-content-max-width/tier-content-max-width-design.md
 creation_date: 2026-03-29
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Tier Content Max-Width

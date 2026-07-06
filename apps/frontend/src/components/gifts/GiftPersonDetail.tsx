@@ -103,6 +103,7 @@ function AllocationCard({
             type="number"
             min={0}
             disabled={readOnly}
+            aria-label="Planned amount"
             value={planned}
             onChange={(e) => setPlanned(e.target.value)}
             onBlur={() => onPlanned(parseFloat(planned) || 0)}
@@ -116,6 +117,7 @@ function AllocationCard({
             type="number"
             min={0}
             disabled={readOnly}
+            aria-label="Spent amount"
             value={spent}
             onChange={(e) => setSpent(e.target.value)}
             onBlur={() => onSpent(spent === "" ? null : parseFloat(spent))}

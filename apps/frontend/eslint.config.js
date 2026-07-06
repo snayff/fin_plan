@@ -164,6 +164,8 @@ const PAGE_LAYOUT_EXEMPT_FILES = [
   "src/pages/auth/LoginPage.tsx",
   "src/pages/auth/RegisterPage.tsx",
   "src/pages/auth/AcceptInvitePage.tsx",
+  "src/pages/auth/ForgotPasswordPage.tsx",
+  "src/pages/auth/ResetPasswordPage.tsx",
 ];
 
 // Files exempt from the style/stroke/fill colour-literal rules only (className colour rules
@@ -195,7 +197,7 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       ...jsxA11yWarnRules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
@@ -237,6 +239,13 @@ export default tseslint.config(
     files: COLOUR_ATTR_EXEMPT_FILES,
     rules: {
       "no-restricted-syntax": ["error", ...classNameColourRules],
+    },
+  },
+  // Test files legitimately stub Fastify/Prisma/DOM internals with `any`.
+  {
+    files: ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**/*.ts", "src/test/**/*.tsx"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
   {

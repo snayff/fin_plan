@@ -33,6 +33,8 @@ const EXEMPT_PAGES = new Set<string>([
   "auth/LoginPage.tsx",
   "auth/RegisterPage.tsx",
   "auth/AcceptInvitePage.tsx",
+  "auth/ForgotPasswordPage.tsx",
+  "auth/ResetPasswordPage.tsx",
 ]);
 
 function normalise(p: string): string {

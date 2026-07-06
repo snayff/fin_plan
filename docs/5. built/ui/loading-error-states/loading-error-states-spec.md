@@ -1,11 +1,11 @@
 ---
 feature: loading-error-states
 design_doc: docs/plans/2026-03-24-loading-error-states-design.md
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase:
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Loading & Error States

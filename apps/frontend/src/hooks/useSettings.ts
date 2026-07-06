@@ -9,13 +9,18 @@ import { fetchAuditLog, updateMemberRole } from "@/services/auditLog.service";
 import { fetchSecurityActivity } from "@/services/securityActivity.service";
 import { purgeStaleQueries } from "@/lib/queryClient";
 import { showError } from "@/lib/toast";
+import { queryKeys } from "./queryKeys";
 
+/**
+ * Re-exported for existing consumers/tests. Sourced from the central
+ * `queryKeys` module; values are unchanged.
+ */
 export const SETTINGS_KEYS = {
-  settings: ["settings"] as const,
-  snapshots: ["snapshots"] as const,
-  snapshot: (id: string) => ["snapshots", id] as const,
-  household: (id: string) => ["household", id] as const,
-  members: (id: string) => ["household", id, "members"] as const,
+  settings: queryKeys.settings.settings,
+  snapshots: queryKeys.settings.snapshots,
+  snapshot: queryKeys.settings.snapshot,
+  household: queryKeys.settings.household,
+  members: queryKeys.settings.members,
 };
 
 export function useSettings() {
@@ -59,7 +64,7 @@ export function useUpdateSettings() {
     mutationFn: (data: UpdateSettingsInput) => settingsService.updateSettings(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.settings });
-      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forecast.all });
     },
     onError: (err: Error) => {
       showError(err.message ?? "Failed to save settings");
@@ -137,7 +142,7 @@ export function useRenameHousehold() {
       householdService.renameHousehold(id, name),
     onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(id) });
-      void queryClient.invalidateQueries({ queryKey: ["households"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.householdsList });
     },
     onError: (err: Error) => {
       showError(err.message ?? "Failed to rename household");
@@ -246,7 +251,7 @@ export function useDeleteHousehold() {
 
 export function useAuditLog(filters: Omit<AuditLogQuery, "cursor" | "limit">) {
   return useInfiniteQuery({
-    queryKey: ["audit-log", filters],
+    queryKey: queryKeys.settings.auditLog(filters),
     queryFn: ({ pageParam }) =>
       fetchAuditLog({
         ...filters,
@@ -260,7 +265,7 @@ export function useAuditLog(filters: Omit<AuditLogQuery, "cursor" | "limit">) {
 
 export function useSecurityActivity() {
   return useInfiniteQuery({
-    queryKey: ["security-activity"],
+    queryKey: queryKeys.settings.securityActivity,
     queryFn: ({ pageParam }) =>
       fetchSecurityActivity({ cursor: pageParam as string | undefined, limit: 50 }),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,

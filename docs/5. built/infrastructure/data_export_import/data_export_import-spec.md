@@ -2,8 +2,8 @@
 feature: data_export_import
 design_doc: docs/4. planning/data_export_import/data_export_import-design.md
 creation_date: 2026-04-06
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Data Export & Import

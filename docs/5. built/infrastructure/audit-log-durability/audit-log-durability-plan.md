@@ -3,8 +3,8 @@ feature: audit-log-durability
 category: infrastructure
 spec: docs/4. planning/audit-log-durability/audit-log-durability-spec.md
 creation_date: 2026-05-17
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Audit Log Durability — Implementation Plan

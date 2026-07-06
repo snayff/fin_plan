@@ -142,7 +142,7 @@ export function WaterfallTierTable({
                   /month
                 </InfoTip>
               </th>
-              <th className="w-8" />
+              <th className="w-8" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>

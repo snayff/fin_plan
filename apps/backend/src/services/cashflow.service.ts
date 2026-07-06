@@ -1,4 +1,10 @@
 import { prisma } from "../config/database.js";
+import type {
+  IncomeSource,
+  CommittedItem,
+  DiscretionaryItem,
+  ItemAmountPeriod,
+} from "@prisma/client";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { audited, auditEventTx, computeDiff } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
@@ -136,7 +142,7 @@ function startOfMonth(y: number, m: number): Date {
   return new Date(Date.UTC(y, m - 1, 1));
 }
 
-function periodActiveOn(periods: Array<any>, date: Date): number {
+function periodActiveOn(periods: ItemAmountPeriod[], date: Date): number {
   const eff = findEffectivePeriod(periods, date);
   return eff?.amount ?? 0;
 }
@@ -144,10 +150,10 @@ function periodActiveOn(periods: Array<any>, date: Date): number {
 function buildEvents(
   from: Date,
   to: Date,
-  income: Array<any>,
-  committed: Array<any>,
-  discretionary: Array<any>,
-  periodsByKey: Map<string, any[]>,
+  income: IncomeSource[],
+  committed: CommittedItem[],
+  discretionary: DiscretionaryItem[],
+  periodsByKey: Map<string, ItemAmountPeriod[]>,
   disposalSources: DisposalSource[] = [],
   linkedAccountIds: Set<string> = new Set(),
   now: Date = new Date()
@@ -155,7 +161,7 @@ function buildEvents(
   const events: ProjectionEvent[] = [];
 
   function expandRecurring(
-    item: any,
+    item: IncomeSource | CommittedItem,
     itemType: "income_source" | "committed_item",
     sign: 1 | -1,
     frequencyKey: "monthly" | "annual" | "yearly" | "one_off" | "weekly" | "quarterly"
@@ -403,8 +409,8 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
 }
 
 function computeMonthlyDiscretionaryBaseline(
-  discretionary: Array<any>,
-  periodsByKey: Map<string, any[]>,
+  discretionary: DiscretionaryItem[],
+  periodsByKey: Map<string, ItemAmountPeriod[]>,
   refDate: Date
 ): number {
   let total = 0;
@@ -425,21 +431,21 @@ async function loadPlanContext(householdId: string) {
     loadDisposalSources(householdId),
   ]);
   const allRefs = [
-    ...income.map((i) => ({ type: "income_source", id: i.id })),
-    ...committed.map((c) => ({ type: "committed_item", id: c.id })),
-    ...discretionary.map((d) => ({ type: "discretionary_item", id: d.id })),
+    ...income.map((i) => ({ type: "income_source" as const, id: i.id })),
+    ...committed.map((c) => ({ type: "committed_item" as const, id: c.id })),
+    ...discretionary.map((d) => ({ type: "discretionary_item" as const, id: d.id })),
   ];
   const periods =
     allRefs.length > 0
       ? await prisma.itemAmountPeriod.findMany({
           where: {
             householdId,
-            OR: allRefs.map((r) => ({ itemType: r.type as any, itemId: r.id })),
+            OR: allRefs.map((r) => ({ itemType: r.type, itemId: r.id })),
           },
           orderBy: { startDate: "asc" },
         })
       : [];
-  const periodsByKey = new Map<string, any[]>();
+  const periodsByKey = new Map<string, ItemAmountPeriod[]>();
   for (const p of periods) {
     const k = `${p.itemType}:${p.itemId}`;
     const arr = periodsByKey.get(k) ?? [];

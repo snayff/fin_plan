@@ -7,12 +7,14 @@ import {
 import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
 import { ProfileSection } from "@/components/settings/ProfileSection";
 import { DisplaySection } from "@/components/settings/DisplaySection";
+import { ChangePasswordSection } from "@/components/settings/ChangePasswordSection";
 import { SecurityActivitySection } from "@/components/settings/SecurityActivitySection";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 const ITEMS: SettingsNavItem[] = [
   { id: "account", label: "Account" },
   { id: "display", label: "Display" },
+  { id: "change-password", label: "Change password" },
   { id: "security-activity", label: "Security activity" },
 ];
 
@@ -52,6 +54,7 @@ export default function ProfileSettingsPage() {
           >
             <ProfileSection />
             <DisplaySection />
+            <ChangePasswordSection />
             <SecurityActivitySection />
           </SettingsRightPanel>
         }

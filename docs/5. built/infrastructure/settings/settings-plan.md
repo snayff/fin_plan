@@ -1,10 +1,10 @@
 ---
 feature: settings
-status: backlog
+status: implemented
 priority: medium
 deferred: false
 phase: 12
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Settings

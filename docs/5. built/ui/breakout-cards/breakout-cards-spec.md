@@ -1,11 +1,11 @@
 ---
 feature: breakout-cards
-status: backlog
+status: implemented
 priority: medium
 deferred: false
 phase: post-15
 design_doc: docs/plans/2026-03-24-breakout-cards-design.md
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Breakout Cards

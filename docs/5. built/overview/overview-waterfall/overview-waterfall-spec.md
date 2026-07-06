@@ -1,10 +1,10 @@
 ---
 feature: overview-waterfall
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 5
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Overview — Waterfall Display

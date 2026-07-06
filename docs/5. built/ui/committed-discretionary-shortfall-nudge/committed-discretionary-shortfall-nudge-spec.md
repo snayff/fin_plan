@@ -2,8 +2,8 @@
 feature: committed-discretionary-shortfall-nudge
 design_doc: docs/4. planning/committed-discretionary-shortfall-nudge/committed-discretionary-shortfall-nudge-design.md
 creation_date: 2026-04-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Committed / Discretionary Shortfall Nudge

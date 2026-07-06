@@ -1,18 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { giftsApi } from "@/services/gifts.service";
 import { showError } from "@/lib/toast";
-import { WATERFALL_KEYS } from "@/hooks/useWaterfall";
+import { queryKeys } from "@/hooks/queryKeys";
 
+/**
+ * Re-exported for existing consumers/tests. Sourced from the central
+ * `queryKeys` module; values are unchanged.
+ */
 export const GIFTS_KEYS = {
-  all: ["gifts"] as const,
-  state: (year: number) => ["gifts", "state", year] as const,
-  person: (id: string, year: number) => ["gifts", "person", id, year] as const,
-  upcoming: (year: number) => ["gifts", "upcoming", year] as const,
-  years: () => ["gifts", "years"] as const,
-  configPeople: (filter: string, year: number) => ["gifts", "configPeople", filter, year] as const,
-  configEvents: () => ["gifts", "configEvents"] as const,
-  quickAddMatrix: (year: number) => ["gifts", "quickAddMatrix", year] as const,
-  settings: () => ["gifts", "settings"] as const,
+  all: queryKeys.gifts.all,
+  state: queryKeys.gifts.state,
+  person: queryKeys.gifts.person,
+  upcoming: queryKeys.gifts.upcoming,
+  years: queryKeys.gifts.years,
+  configPeople: queryKeys.gifts.configPeople,
+  configEvents: queryKeys.gifts.configEvents,
+  quickAddMatrix: queryKeys.gifts.quickAddMatrix,
+  settings: queryKeys.gifts.settings,
 };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -83,11 +87,11 @@ export function useCreateGiftPerson() {
   return useMutation({
     mutationFn: (data: Parameters<typeof giftsApi.createPerson>[0]) => giftsApi.createPerson(data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "configPeople"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.configPeoplePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
       // Adding a person changes the upcoming-gifts view (prefix matches all years).
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.upcomingPrefix });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to add person");
@@ -102,12 +106,12 @@ export function useUpdateGiftPerson() {
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof giftsApi.updatePerson>[1] }) =>
       giftsApi.updatePerson(id, data),
     onSuccess: (_data, { id }) => {
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "configPeople"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "person", id] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.configPeoplePrefix });
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.gifts.personPrefix, id] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
       // Renaming a person updates how they appear in the upcoming-gifts view.
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.upcomingPrefix });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update person");
@@ -121,10 +125,10 @@ export function useDeleteGiftPerson() {
   return useMutation({
     mutationFn: (id: string) => giftsApi.deletePerson(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "configPeople"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.configPeoplePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.upcomingPrefix });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to delete person");
@@ -141,8 +145,8 @@ export function useCreateGiftEvent() {
     mutationFn: (data: Parameters<typeof giftsApi.createEvent>[0]) => giftsApi.createEvent(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.configEvents() });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to add event");
@@ -158,9 +162,9 @@ export function useUpdateGiftEvent() {
       giftsApi.updateEvent(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.configEvents() });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.upcomingPrefix });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update event");
@@ -175,9 +179,9 @@ export function useDeleteGiftEvent() {
     mutationFn: (id: string) => giftsApi.deleteEvent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.configEvents() });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.upcomingPrefix });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to delete event");
@@ -256,10 +260,10 @@ export function useBulkUpsertAllocations() {
       showError(error instanceof Error ? error.message : "Failed to update allocations");
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "quickAddMatrix"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "person"] });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "upcoming"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.quickAddMatrixPrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.personPrefix });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.upcomingPrefix });
     },
   });
 }
@@ -281,10 +285,10 @@ export function useSetGiftBudget() {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.state(year) });
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.quickAddMatrix(year) });
       // Gift budget feeds the discretionary waterfall; refresh dependent caches.
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.waterfall.summary });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.waterfall.financialSummary });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forecast.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update budget");
@@ -317,13 +321,13 @@ export function useSetGiftMode() {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.settings() });
-      void queryClient.invalidateQueries({ queryKey: ["gifts", "state"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.gifts.statePrefix });
       void queryClient.invalidateQueries({ queryKey: GIFTS_KEYS.years() });
       // Mode (synced vs manual) changes how gifts feed discretionary spend.
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.summary });
-      void queryClient.invalidateQueries({ queryKey: WATERFALL_KEYS.financialSummary });
-      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.waterfall.summary });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.waterfall.financialSummary });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forecast.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
     },
   });
 }

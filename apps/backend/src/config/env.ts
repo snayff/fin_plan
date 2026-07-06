@@ -73,6 +73,12 @@ const envSchema = z.object({
     .transform((v) => v !== "false"),
   RATE_LIMIT_MAX: z.string().default("500").transform(Number),
   RATE_LIMIT_TIME_WINDOW: z.string().default("15m"),
+  // Optional shared store for rate-limit counters. The default @fastify/rate-limit
+  // store is in-memory and therefore per-process, so under N replicas each auth
+  // cap effectively multiplies by N. Set this to a redis:// (or rediss://) URL to
+  // back the limiter with Redis and enforce one global bucket across instances.
+  // When unset, the in-memory store is used (unchanged single-process behaviour).
+  RATE_LIMIT_REDIS_URL: z.string().url().optional(),
 
   // Email (SMTP)
   SMTP_HOST: z.string().optional(),

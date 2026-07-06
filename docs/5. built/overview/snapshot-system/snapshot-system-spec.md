@@ -1,10 +1,10 @@
 ---
 feature: snapshot-system
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 10
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Snapshot System

@@ -3,8 +3,8 @@ feature: universal-search
 category: ui
 spec: docs/4. planning/universal-search/universal-search-spec.md
 creation_date: 2026-04-19
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Universal Search — Implementation Plan
