@@ -22,7 +22,7 @@ mock.module("../services/auth.service", () => ({ authService }));
 const decodeExp = mock((_t: string) => null as number | null);
 mock.module("./jwt", () => ({ decodeAccessTokenExpMs: decodeExp }));
 
-const { ApiClient } = await import("./api");
+const { ApiClient, ApiError } = await import("./api");
 
 // ─── Fetch routing ────────────────────────────────────────────────────────────
 
@@ -137,6 +137,15 @@ describe("ApiClient error handling", () => {
       code: "BAD",
       statusCode: 400,
     });
+  });
+
+  it("throws a real Error so `instanceof Error` call sites keep the server message", async () => {
+    mainQueue.push(res({ error: { message: "Managed elsewhere", code: "VALIDATION" } }, 400));
+    const client = new ApiClient("");
+    const err = await client.delete("/api/data/1").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as Error).message).toBe("Managed elsewhere");
   });
 
   it("maps a thrown network failure to a statusCode 0 ApiError", async () => {

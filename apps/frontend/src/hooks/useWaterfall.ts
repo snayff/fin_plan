@@ -293,6 +293,8 @@ export interface TierItemRow {
   /** Populated for discretionary items in the Savings subcategory. */
   linkedAccountId?: string | null;
   linkedAccount?: { id: string; name: string; type: string } | null;
+  /** Synced from a planner (e.g. the Gift Planner) — read-only in the tier UI. */
+  isPlannerOwned?: boolean;
 }
 
 function normaliseIncomeFrequency(frequency: string): SpendType {
@@ -332,6 +334,7 @@ function mapTierItem(r: any, spendType: string): TierItemRow {
     nextPeriod,
     linkedAccountId: r.linkedAccountId ?? null,
     linkedAccount: r.linkedAccount ?? null,
+    isPlannerOwned: r.isPlannerOwned === true,
   };
 }
 

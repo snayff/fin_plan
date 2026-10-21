@@ -195,3 +195,38 @@ describe("ItemArea — Gifts subcategory (Gift Planner independent)", () => {
     expect(screen.queryByText(/managed in the gift planner/i)).toBeNull();
   });
 });
+
+describe("ItemArea — planner-owned item", () => {
+  const plannerItem = {
+    id: "item-gifts",
+    name: "Gifts",
+    amount: 1200,
+    spendType: "yearly" as const,
+    subcategoryId: "sub-gifts",
+    notes: null,
+    lastReviewedAt: new Date("2026-01-01"),
+    sortOrder: 0,
+    isPlannerOwned: true,
+  };
+
+  it("expands read-only: no Edit button, links to the Gift Planner instead", async () => {
+    renderGifts({ synced: true, itemList: [plannerItem] });
+    fireEvent.click(screen.getByTestId("item-row-item-gifts"));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /managed in gift planner/i })).toBeTruthy()
+    );
+    expect(
+      screen.getByRole("link", { name: /managed in gift planner/i }).getAttribute("href")
+    ).toBe("/gifts");
+    expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
+  });
+
+  it("stays read-only even before planner settings resolve", async () => {
+    renderGifts({ synced: false, itemList: [plannerItem] });
+    fireEvent.click(screen.getByTestId("item-row-item-gifts"));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: /managed in gift planner/i })).toBeTruthy()
+    );
+    expect(screen.queryByRole("button", { name: /^edit$/i })).toBeNull();
+  });
+});
