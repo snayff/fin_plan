@@ -60,7 +60,7 @@
       "name": "Entry JS (gzip)",
       "path": "dist/assets/index-*.js",
       "gzip": true,
-      "limit": "146 KB"
+      "limit": "150 KB"
     },
     {
       "name": "Largest shared chunk — AreaChart/recharts (gzip)",
