@@ -8,6 +8,7 @@ import { searchService } from "./search.service.js";
 describe("searchService.search (database)", () => {
   let householdId: string;
   let otherHouseholdId: string;
+  let subcategoryId: string;
 
   beforeAll(async () => {
     householdId = (await createTestHousehold()).id;
@@ -24,9 +25,21 @@ describe("searchService.search (database)", () => {
     await prisma.giftPerson.create({ data: { householdId, name: "Payroll bonus" } });
     await prisma.giftPerson.create({ data: { householdId, name: "Pay" } });
     await prisma.giftPerson.create({ data: { householdId: otherHouseholdId, name: "Pay" } });
+
+    const sub = await prisma.subcategory.create({
+      data: { householdId, tier: "discretionary", name: "Holidays", sortOrder: 0 },
+    });
+    subcategoryId = sub.id;
+    await prisma.discretionaryItem.create({
+      data: { householdId, subcategoryId, name: "Scoped trip" },
+    });
+    await prisma.account.create({ data: { householdId, name: "Scoped ISA", type: "Savings" } });
   });
 
   afterAll(async () => {
+    await prisma.discretionaryItem.deleteMany({ where: { householdId } });
+    await prisma.subcategory.deleteMany({ where: { householdId } });
+    await prisma.account.deleteMany({ where: { householdId } });
     await prisma.giftPerson.deleteMany({
       where: { householdId: { in: [householdId, otherHouseholdId] } },
     });
@@ -44,6 +57,16 @@ describe("searchService.search (database)", () => {
   it("only returns rows from the caller's household", async () => {
     const res = await searchService.search(otherHouseholdId, "pay");
     expect(res.results.map((r) => r.name)).toEqual(["Pay"]);
+  });
+
+  it("returns the subcategory for tier items and the type for accounts", async () => {
+    const res = await searchService.search(householdId, "scoped");
+    expect(res.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "discretionary_item", name: "Scoped trip", subcategoryId }),
+        expect.objectContaining({ kind: "account", name: "Scoped ISA", type: "Savings" }),
+      ])
+    );
   });
 
   it("treats LIKE wildcards in the query literally", async () => {

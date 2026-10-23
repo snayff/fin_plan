@@ -37,14 +37,9 @@ export default function AssetsPage() {
   useAddParam((_kind) => {
     // add param consumed — initialIsAdding prop handles modal
   });
-  useFocusParam((id) => {
-    const el = document.querySelector(`[data-search-focus="${id}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("search-focus-pulse");
-      setTimeout(() => el.classList.remove("search-focus-pulse"), 1200);
-    }
-  });
+  // Rows load inside the per-type item area, so start immediately and let the
+  // hook wait for the row; search deep links also set ?type= to select it.
+  useFocusParam({ ready: true });
 
   const isAssetType = ASSET_TYPES.includes(selected as AssetType);
 

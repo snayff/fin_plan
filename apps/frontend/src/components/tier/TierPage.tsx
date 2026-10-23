@@ -63,14 +63,9 @@ export default function TierPage({ tier }: TierPageProps) {
   useAddParam((_kind) => {
     // add param consumed — ItemArea initialIsAdding prop handles opening
   });
-  useFocusParam((id) => {
-    const el = document.querySelector(`[data-search-focus="${id}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("search-focus-pulse");
-      setTimeout(() => el.classList.remove("search-focus-pulse"), 1200);
-    }
-  });
+  // Search deep links arrive with ?subcategory= (selects the panel) and ?focus=
+  // (the row); wait for both lists before looking for the row.
+  useFocusParam({ ready: !subsLoading && !itemsLoading });
 
   // Group items by subcategoryId and compute monthly totals
   const subcategoryTotals = useMemo<Record<string, SubcategorySummary>>(() => {
