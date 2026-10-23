@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import { useCreatePurchase } from "@/hooks/usePlanner";
 import type { Purchase } from "./types";
+import { STATUS_LABELS } from "./purchaseLabels";
 
 interface PurchaseListPanelProps {
   year: number;
@@ -13,27 +14,6 @@ interface PurchaseListPanelProps {
   isReadOnly: boolean;
   onSelectPurchase: (purchase: Purchase) => void;
 }
-
-const PRIORITY_LABELS: Record<string, string> = {
-  lowest: "Lowest",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
-  done: "Done",
-};
-
-const FUNDING_SOURCE_LABELS: Record<string, string> = {
-  savings: "Savings",
-  bonus: "Bonus",
-  purchasing_budget: "Purchasing budget",
-};
-
-export { PRIORITY_LABELS, STATUS_LABELS, FUNDING_SOURCE_LABELS };
 
 function PriorityBadge({ priority }: { priority: string }) {
   if (priority === "high") {

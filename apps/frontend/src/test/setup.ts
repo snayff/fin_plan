@@ -1,6 +1,4 @@
-import { GlobalRegistrator } from "@happy-dom/global-registrator";
-GlobalRegistrator.register();
-
+// happy-dom globals are registered by ./happydom.ts, preloaded before this file.
 import { afterAll, afterEach, beforeAll, expect } from "bun:test";
 import * as matchers from "@testing-library/jest-dom/matchers";
 expect.extend(matchers);

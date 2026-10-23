@@ -89,7 +89,7 @@ export async function login(page: Page, user: Pick<TestUser, "email" | "password
 }
 
 export async function logout(page: Page) {
-  // ProfileAvatar has aria-label="Profile menu" button — click it to open the dropdown
+  // ProfileAvatar's button is labelled "<initials>, profile menu" — click it to open the dropdown
   await page.getByRole("button", { name: /profile menu/i }).click();
   // The dropdown contains a menuitem "Sign out"
   await page.getByRole("menuitem", { name: /sign out/i }).click();

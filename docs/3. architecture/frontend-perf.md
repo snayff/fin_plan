@@ -12,7 +12,7 @@ Measures the gzip size of the built `dist/assets/` chunks against hard limits de
 
 Two entries are tracked:
 
-- **Entry JS** — `dist/assets/index-*.js` (all entry chunks combined, gzip). Current limit: **146 KB**.
+- **Entry JS** — `dist/assets/index-*.js` (all entry chunks combined, gzip). Current limit: **150 KB**.
 - **Charts vendor chunk** — `dist/assets/charts-*.js` (recharts + d3, isolated via `build.rollupOptions.output.manualChunks` in `vite.config.ts`). Current limit: **118 KB**.
 
 These limits were set at ~baseline + 10% headroom. They are floors, not targets.

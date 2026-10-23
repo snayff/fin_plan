@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { PurchasePriority, PurchaseStatus } from "@finplan/shared";
 import { useUpdatePurchase, useDeletePurchase } from "@/hooks/usePlanner";
-import { PRIORITY_LABELS, STATUS_LABELS, FUNDING_SOURCE_LABELS } from "./PurchaseListPanel";
+import { PRIORITY_LABELS, STATUS_LABELS, FUNDING_SOURCE_LABELS } from "./purchaseLabels";
 import type { Purchase } from "./types";
 
 const FUNDING_SOURCES = Object.keys(FUNDING_SOURCE_LABELS) as string[];
