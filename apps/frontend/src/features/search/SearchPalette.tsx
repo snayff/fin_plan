@@ -86,9 +86,11 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-background/60 backdrop-blur-[1px]" />
-        {/* Mobile: full-viewport overlay (Decision 10). Desktop: top-anchored
+        {/* Mobile: full-viewport overlay. Desktop: top-anchored
             command-palette card. Both flow input → results so the iOS/Android
-            keyboard expansion doesn't reorder content. */}
+            keyboard expansion doesn't reorder content. See
+            docs/5. built/ui/universal-search/universal-search-spec.md
+            § Mobile (amended). */}
         <Dialog.Content
           className="fixed left-0 right-0 top-0 z-50 mx-auto h-[100dvh] w-screen max-w-none md:h-auto md:max-w-3xl"
           aria-describedby={undefined}

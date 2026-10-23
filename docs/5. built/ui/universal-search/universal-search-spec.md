@@ -60,7 +60,7 @@ Typed queries resolve three fixed-order result categories — **Data → Help �
 - [ ] When a non-empty query returns zero results across all three categories, the palette shows a single "No results" empty state.
 - [ ] All colours, borders, typography, and motion use design-system tokens — no hex values, no `rgba()`, no dashed borders.
 - [ ] All icons are Lucide; no emoji.
-- [ ] Feature is desktop-only for v1 — mobile trigger and layout are explicitly out of scope.
+- [ ] Feature is desktop-only for v1 — mobile trigger and layout are explicitly out of scope. _(Amended: a mobile layout shipped later — see [Mobile (amended)](#mobile-amended).)_
 
 ## Open Questions
 
@@ -81,11 +81,20 @@ All product-level decisions were resolved in the approved design doc. Spec-level
 - [x] ~~Empty state (no query)?~~ **3 most recent selections labelled "Recent"** (design doc).
 - [x] ~~Debounce?~~ **150 ms** (design doc).
 - [x] ~~Libraries?~~ **`cmdk` + Radix `Dialog`** (design doc).
-- [x] ~~Mobile?~~ **Out of scope for v1** (design doc).
+- [x] ~~Mobile?~~ **Out of scope for v1** (design doc). _Superseded — see [Mobile (amended)](#mobile-amended)._
 - [x] **URL param strip behaviour** — `?focus` and `?add` are stripped via `history.replaceState` after the page consumes them. (Inference; prevents browser-back re-trigger.)
 - [x] **Recents dedupe** — dedupe by `(kind, id)`; re-select moves to top. (Inference; standard MRU.)
 - [x] **Recents storage scope** — localStorage key namespaced by user id; cleared on logout. (Inference.)
 - [x] **Subtitle format for non-waterfall entities** — "Wealth · Account/Asset", "Gifts · Person/Event", "Goals · Purchase item". (Inference; parallels design doc's waterfall examples.)
+
+## Mobile (amended)
+
+v1 was specified desktop-only (Acceptance Criteria; design doc § Out of Scope). Mobile support shipped afterwards as part of the mobile-accessibility pass, whose decisions live in [`docs/4. planning/mobile-accessibility/plan.md`](../../../4.%20planning/mobile-accessibility/plan.md). This section records what shipped for search so this spec matches the code.
+
+- **Layout** — plan § Cross-cutting decisions → _10. Search palette on mobile_. Below `md` the palette is a full-viewport overlay (`h-[100dvh]`): input at the top, results filling the screen, the on-screen keyboard below — matching platform search conventions; a bottom sheet would invert that order. From `md` up it remains the top-anchored card.
+- **Desktop-only destinations** — plan § _1. Mobile scope_ (which pages soft-block) and Phase 3a _Discoverability_ (badge rather than hide). Routes that soft-block on mobile carry `desktopOnly: true` in the action registry (`features/search/actions.ts`: Goals, Gifts, Help, Household Settings), and Help results are always flagged. On a mobile viewport those rows show a "desktop only" badge instead of being hidden; selecting one still navigates and lands on `MobileUnsupportedNotice`. Rationale: keep the mobile scope honest without making features undiscoverable.
+- **Entry point — known gap.** The visible trigger (`SearchTriggerIcon`) sits in the desktop nav, which is hidden below `lg`; the only other way in is the Ctrl/⌘+K hotkey. Phones therefore have no way to open the palette today, so the mobile layout above is unreachable there. Tracked as a follow-up.
+- **Known gap.** Gift results (person, event) and the "Add gift recipient / event" actions route to `/gifts`, which soft-blocks on mobile, but are not badged.
 
 ---
 
@@ -148,4 +157,4 @@ Help and Actions are **purely client-side** — no new backend operations.
 - **Design system** — palette background, input, rows, headers, scrim, and empty-state styling use tokens from `docs/2. design/design-system.md`. No hex, no `rgba()`, no dashed borders. Icons are Lucide; no emoji.
 - **Audit logging** — search is read-only; no audit entries are written. No PII is logged server-side beyond the standard request metadata.
 - **Household safety** — because the endpoint uses `req.householdId!` directly, cross-household leakage is structurally prevented. Defence-in-depth note only.
-- **Out of scope (from design doc):** mobile entry, fuzzy match, cross-household search, Snapshot + Member entities, notes/subcategory matching, overflow / show-more, parameterised commands.
+- **Out of scope (from design doc):** mobile entry (since amended — see [Mobile (amended)](#mobile-amended)), fuzzy match, cross-household search, Snapshot + Member entities, notes/subcategory matching, overflow / show-more, parameterised commands.
