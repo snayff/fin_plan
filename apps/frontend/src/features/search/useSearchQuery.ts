@@ -45,7 +45,9 @@ export function useSearchQuery(query: string) {
 
   return {
     groups,
-    isPending: dataQuery.isFetching,
+    /** True while typing is debouncing or the data request is in flight. */
+    isPending: q !== debounced || (debounced.length > 0 && dataQuery.isFetching),
     error: dataQuery.error,
+    retry: () => void dataQuery.refetch(),
   };
 }
