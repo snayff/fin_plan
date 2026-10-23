@@ -247,7 +247,7 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: "gifts-personal-date",
     term: "Personal Date Type",
     definition:
-      "The date differs for each person — for example, each person has their own birthday. You set the date per person in the Gifts tab.",
+      "The date differs for each person — for example, each person has their own birthday. To set it, open the person under Gifts → People and enter the day and month on that event's card.",
     tag: "finplan",
     relatedConceptIds: [],
     relatedTermIds: ["gifts-shared-date"],

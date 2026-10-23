@@ -374,7 +374,7 @@ _Note: the tooltip is dynamic — it shows the actual snapshot name and date on 
 
 **Appears in**: Config → Events panel, Add Event form
 
-**Tooltip**: The date differs for each person — for example, each person has their own birthday. You set the date per person in the Gifts tab.
+**Tooltip**: The date differs for each person — for example, each person has their own birthday. To set it, open the person under Gifts → People and enter the day and month on that event's card.
 
 ---
 
