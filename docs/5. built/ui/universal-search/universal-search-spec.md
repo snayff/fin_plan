@@ -60,7 +60,7 @@ Typed queries resolve three fixed-order result categories — **Data → Help �
 - [ ] When a non-empty query returns zero results across all three categories, the palette shows a single "No results" empty state.
 - [ ] All colours, borders, typography, and motion use design-system tokens — no hex values, no `rgba()`, no dashed borders.
 - [ ] All icons are Lucide; no emoji.
-- [ ] Feature is desktop-only for v1 — mobile trigger and layout are explicitly out of scope. _(Amended: a mobile layout shipped later — see [Mobile (amended)](#mobile-amended).)_
+- [ ] Feature is desktop-only for v1 — mobile trigger and layout are explicitly out of scope. _(Amended: a mobile layout and trigger shipped later — see [Mobile (amended)](#mobile-amended).)_
 
 ## Open Questions
 
@@ -93,8 +93,8 @@ v1 was specified desktop-only (Acceptance Criteria; design doc § Out of Scope).
 
 - **Layout** — plan § Cross-cutting decisions → _10. Search palette on mobile_. Below `md` the palette is a full-viewport overlay (`h-[100dvh]`): input at the top, results filling the screen, the on-screen keyboard below — matching platform search conventions; a bottom sheet would invert that order. From `md` up it remains the top-anchored card.
 - **Desktop-only destinations** — plan § _1. Mobile scope_ (which pages soft-block) and Phase 3a _Discoverability_ (badge rather than hide). Routes that soft-block on mobile carry `desktopOnly: true` in the action registry (`features/search/actions.ts`: Goals, Gifts, Help, Household Settings), and Help results are always flagged. On a mobile viewport those rows show a "desktop only" badge instead of being hidden; selecting one still navigates and lands on `MobileUnsupportedNotice`. Rationale: keep the mobile scope honest without making features undiscoverable.
-- **Entry point — known gap.** The visible trigger (`SearchTriggerIcon`) sits in the desktop nav, which is hidden below `lg`; the only other way in is the Ctrl/⌘+K hotkey. Phones therefore have no way to open the palette today, so the mobile layout above is unreachable there. Tracked as a follow-up.
-- **Known gap.** Gift results (person, event) and the "Add gift recipient / event" actions route to `/gifts`, which soft-blocks on mobile, but are not badged.
+- **Entry point** — plan § Cross-cutting decisions → _8. Touch target sizing_. Below `lg` the desktop nav (and its `SearchTriggerIcon`) is hidden, so the mobile header carries its own search button at the right edge, mirroring the hamburger's 44px (`h-11 w-11`) target. It opens the same palette as the desktop icon and the Ctrl/⌘+K hotkey.
+- **Gift destinations** — the "Add gift recipient / event" actions carry `desktopOnly: true`, and data results and recents are badged by where they land (`isDesktopOnlyRoute` in `features/search/actions.ts`, derived from the nav actions' flags), so gift person and event results show the badge too, since `/gifts` soft-blocks on mobile. An `actions.test.ts` contract test fails if an action routing to a desktop-only page is left unflagged.
 
 ---
 

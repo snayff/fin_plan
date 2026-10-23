@@ -56,7 +56,7 @@ Implementation reuses two already-installed but unused libraries: **`cmdk`** (ke
 
 ## Out of Scope
 
-- **Mobile entry point** — v1 is desktop-only. Mobile will need its own design pass (full-screen search sheet vs. slide-down vs. something else). Explicit follow-up. _Amended: the mobile layout shipped with the mobile-accessibility pass — see the spec's [Mobile (amended)](universal-search-spec.md#mobile-amended) section._
+- **Mobile entry point** — v1 is desktop-only. Mobile will need its own design pass (full-screen search sheet vs. slide-down vs. something else). Explicit follow-up. _Amended: the mobile layout shipped with the mobile-accessibility pass, and a mobile header trigger followed — see the spec's [Mobile (amended)](universal-search-spec.md#mobile-amended) section._
 - **Expanding Data match to `notes` and subcategory** — planned follow-up after v1 ships, informed by usage.
 - **Fuzzy matching / typo tolerance** — overkill for v1; substring is predictable enough.
 - **Cross-household search** — palette only surfaces items in the active household, per the app's standard scoping rule. No "search across all my households" affordance.
