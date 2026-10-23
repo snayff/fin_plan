@@ -6,7 +6,7 @@ import { SearchResultRow } from "./SearchResultRow";
 import { SearchResultGroup } from "./SearchResultGroup";
 import { useSearchQuery } from "./useSearchQuery";
 import { useSearchRecents, type RecentEntry } from "./useSearchRecents";
-import type { PaletteAction } from "./actions";
+import { isDesktopOnlyRoute, type PaletteAction } from "./actions";
 import type { SearchResult } from "@finplan/shared";
 import { destinationFor } from "./destinations";
 
@@ -132,6 +132,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                         title={r.label}
                         subtitle={r.subtitle}
                         onSelect={() => selectRecent(r)}
+                        desktopOnly={isDesktopOnlyRoute(r.route)}
                       />
                     ))}
                   </SearchResultGroup>
@@ -165,6 +166,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                         title={r.name}
                         subtitle={r.subtitle}
                         onSelect={() => selectData(r)}
+                        desktopOnly={isDesktopOnlyRoute(destinationFor(r).route)}
                       />
                     ))}
                   </SearchResultGroup>

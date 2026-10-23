@@ -1,5 +1,6 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, afterEach } from "bun:test";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import Layout from "./Layout";
@@ -68,5 +69,55 @@ describe("TopNav", () => {
     const helpLink = screen.getByRole("link", { name: "Help" });
     expect(helpLink).toBeTruthy();
     expect(helpLink.getAttribute("href")).toContain("/help");
+  });
+});
+
+describe("mobile search trigger", () => {
+  type MqlListener = (e: MediaQueryListEvent) => void;
+  const originalMatchMedia = window.matchMedia;
+
+  function setViewport(mobile: boolean) {
+    const listeners = new Set<MqlListener>();
+    window.matchMedia = (query: string): MediaQueryList =>
+      ({
+        matches: mobile,
+        media: query,
+        onchange: null,
+        addEventListener: (event: string, listener: MqlListener) => {
+          if (event === "change") listeners.add(listener);
+        },
+        removeEventListener: (event: string, listener: MqlListener) => {
+          if (event === "change") listeners.delete(listener);
+        },
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList;
+  }
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it("shows a 44px search button in the mobile header that opens the palette", async () => {
+    setViewport(true);
+    const user = userEvent.setup();
+    renderLayout();
+
+    const trigger = screen.getByRole("button", { name: "Search" });
+    // Hidden from lg up, where the desktop nav's trigger takes over.
+    expect(trigger.className).toContain("lg:hidden");
+    expect(trigger.className).toContain("h-11");
+    expect(trigger.className).toContain("w-11");
+    expect(screen.queryByRole("combobox")).toBeNull();
+
+    await user.click(trigger);
+    expect(await screen.findByRole("combobox")).toBeTruthy();
+  });
+
+  it("keeps the desktop search trigger", () => {
+    setViewport(false);
+    renderLayout();
+    expect(screen.getByRole("button", { name: "Search (Ctrl+K)" })).toBeTruthy();
   });
 });

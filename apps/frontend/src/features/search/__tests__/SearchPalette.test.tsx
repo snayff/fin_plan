@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -198,5 +198,96 @@ describe("SearchPalette — error and loading states", () => {
     await user.type(screen.getByRole("combobox"), "zzz-no-match");
     const status = await screen.findByText(/No results/i);
     expect(status.closest("[aria-live]")).not.toBeNull();
+  });
+});
+
+describe("SearchPalette — desktop-only badges on mobile", () => {
+  type MqlListener = (e: MediaQueryListEvent) => void;
+  const originalMatchMedia = window.matchMedia;
+
+  function setViewport(mobile: boolean) {
+    const listeners = new Set<MqlListener>();
+    window.matchMedia = (query: string): MediaQueryList =>
+      ({
+        matches: mobile,
+        media: query,
+        onchange: null,
+        addEventListener: (event: string, listener: MqlListener) => {
+          if (event === "change") listeners.add(listener);
+        },
+        removeEventListener: (event: string, listener: MqlListener) => {
+          if (event === "change") listeners.delete(listener);
+        },
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }) as unknown as MediaQueryList;
+  }
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  const giftResults = [
+    result({
+      kind: "gift_person",
+      id: "gp1",
+      focusId: "gp1",
+      name: "Gift recipient match",
+      subtitle: "Gifts · Person",
+      route: "/gifts",
+    }),
+    result({
+      kind: "gift_event",
+      id: "ge1",
+      focusId: "ge1",
+      name: "Gift event match",
+      subtitle: "Gifts · Event",
+      route: "/gifts",
+    }),
+    result({ id: "d1", focusId: "d1", name: "Gift wrap budget" }),
+  ];
+
+  const rowFor = async (title: string) => {
+    const row = (await screen.findByText(title)).closest<HTMLElement>("[cmdk-item]");
+    if (!row) throw new Error(`no palette row for ${title}`);
+    return row;
+  };
+
+  it("badges gift results and gift actions, but not mobile-ready results", async () => {
+    setViewport(true);
+    server.use(
+      http.get("http://localhost:3001/api/search", () =>
+        HttpResponse.json({ results: giftResults })
+      )
+    );
+    const user = userEvent.setup();
+    renderPalette(true);
+    await user.type(screen.getByRole("combobox"), "gift");
+
+    for (const title of [
+      "Gift recipient match",
+      "Gift event match",
+      "Add gift recipient",
+      "Add gift event",
+      "Go to Gifts",
+    ]) {
+      expect(within(await rowFor(title)).queryByText(/desktop only/i)).not.toBeNull();
+    }
+    expect(within(await rowFor("Gift wrap budget")).queryByText(/desktop only/i)).toBeNull();
+  });
+
+  it("does not badge gift destinations on desktop", async () => {
+    setViewport(false);
+    server.use(
+      http.get("http://localhost:3001/api/search", () =>
+        HttpResponse.json({ results: giftResults })
+      )
+    );
+    const user = userEvent.setup();
+    renderPalette(true);
+    await user.type(screen.getByRole("combobox"), "gift");
+    await screen.findByText("Gift recipient match");
+    expect(screen.queryByText(/desktop only/i)).toBeNull();
   });
 });

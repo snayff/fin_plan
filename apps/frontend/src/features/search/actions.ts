@@ -74,6 +74,7 @@ export const CREATE_ACTIONS: PaletteAction[] = [
     kind: "create",
     route: "/gifts",
     addParam: "person",
+    desktopOnly: true,
   },
   {
     id: "create.gift-event",
@@ -81,7 +82,17 @@ export const CREATE_ACTIONS: PaletteAction[] = [
     kind: "create",
     route: "/gifts",
     addParam: "event",
+    desktopOnly: true,
   },
 ];
 
 export const ALL_ACTIONS: PaletteAction[] = [...NAV_ACTIONS, ...CREATE_ACTIONS];
+
+/**
+ * `true` when `route` soft-blocks on mobile, per the nav actions' flags. Data
+ * results and recents have no flag of their own, so the palette badges them
+ * by where they land.
+ */
+export function isDesktopOnlyRoute(route: string): boolean {
+  return NAV_ACTIONS.some((a) => a.desktopOnly === true && a.route === route);
+}
