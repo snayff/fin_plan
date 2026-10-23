@@ -18,9 +18,11 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**
  * Nav item config. `desktopOnly: true` marks routes that soft-block on mobile
- * (FullWaterfall, Goals, Gifts, Help, Household Settings — see Decision 1).
+ * (FullWaterfall, Goals, Gifts, Help, Household Settings).
  * On mobile, the hamburger nav renders these with a "(desktop only)" badge;
- * tapping still navigates and shows the soft-block notice (Item 2 amendment).
+ * tapping still navigates and shows the soft-block notice. See
+ * docs/4. planning/mobile-accessibility/plan.md § 1 (Mobile scope) and
+ * Phase 3a (Discoverability).
  */
 type NavItem = {
   to: string;

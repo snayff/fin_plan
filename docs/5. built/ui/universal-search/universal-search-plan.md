@@ -2080,4 +2080,4 @@ git commit -m "feat(frontend): wire ?focus/?add params on multi-entity pages"
 - [ ] Feature shipped: cross-app search is now available on desktop.
 - [ ] `?focus=<id>` and `?add=<kind>` URL conventions are now established — future features can reuse them.
 - [ ] Help-page match logic is now shared via `helpMatch.ts` — `HelpSidebar` can be refactored to consume this helper as a later tidy-up.
-- [ ] Unblocks future mobile pass (separate spec) — backend + registries + hooks are platform-agnostic; only the trigger surface needs new design.
+- [ ] Unblocks future mobile pass (separate spec) — backend + registries + hooks are platform-agnostic; only the trigger surface needs new design. _Amended: done in the mobile-accessibility pass — see the spec's [Mobile (amended)](universal-search-spec.md#mobile-amended) section (the mobile trigger is still an open gap)._

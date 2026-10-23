@@ -7,7 +7,7 @@ export type PaletteAction = {
   /**
    * `true` when the route is soft-blocked on mobile. The palette renders a
    * "(desktop only)" badge alongside such entries; tapping still navigates,
-   * which lands on the MobileUnsupportedNotice. Decision 1 + Item 2 amendment.
+   * which lands on the MobileUnsupportedNotice. See docs/5. built/ui/universal-search/universal-search-spec.md § Mobile (amended).
    */
   desktopOnly?: boolean;
 };
