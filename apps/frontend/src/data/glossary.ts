@@ -237,11 +237,11 @@ export const GLOSSARY_ENTRIES: GlossaryEntry[] = [
     id: "period",
     term: "Period",
     definition:
-      "A span of time during which an item has a specific planned amount. An item's value history is a sequence of periods, each with an effective date and amount. The current period determines the item's active amount; past periods form the historical record; future periods represent scheduled changes.",
+      "A span of time during which an item has a specific planned amount. An item's amount history is a sequence of periods, each with an effective date and amount. The current period determines the item's active amount; past periods form the historical record; future periods represent scheduled changes.",
     tag: "finplan",
     relatedConceptIds: [],
     relatedTermIds: ["snapshot"],
-    appearsIn: ["Value history sparkline", "Edit mode period list"],
+    appearsIn: ["Amount history sparkline", "Edit mode period list"],
   },
   {
     id: "gifts-personal-date",

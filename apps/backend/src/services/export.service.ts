@@ -156,6 +156,7 @@ export const exportService = {
             startDate: toDateString(p.startDate),
             endDate: p.endDate ? toDateString(p.endDate) : null,
             amount: p.amount,
+            dueDate: p.dueDate ? toDateString(p.dueDate) : null,
           }));
         }
 
@@ -237,6 +238,7 @@ export const exportService = {
             startDate: toDateString(p.startDate),
             endDate: p.endDate ? toDateString(p.endDate) : null,
             amount: p.amount,
+            dueDate: p.dueDate ? toDateString(p.dueDate) : null,
           })),
           waterfallHistory: history.map((h) => ({
             itemType: h.itemType,
