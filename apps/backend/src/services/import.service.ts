@@ -311,6 +311,7 @@ export const importService = {
                   startDate: new Date(p.startDate),
                   endDate: p.endDate ? new Date(p.endDate) : null,
                   amount: p.amount,
+                  dueDate: p.dueDate ? new Date(p.dueDate) : null,
                 },
               });
             }
@@ -348,6 +349,7 @@ export const importService = {
                   startDate: new Date(p.startDate),
                   endDate: p.endDate ? new Date(p.endDate) : null,
                   amount: p.amount,
+                  dueDate: p.dueDate ? new Date(p.dueDate) : null,
                 },
               });
             }
@@ -385,6 +387,7 @@ export const importService = {
                   startDate: new Date(p.startDate),
                   endDate: p.endDate ? new Date(p.endDate) : null,
                   amount: p.amount,
+                  dueDate: p.dueDate ? new Date(p.dueDate) : null,
                 },
               });
             }

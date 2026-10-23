@@ -1,6 +1,7 @@
 import { describe, it, expect, mock } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import { TierRow } from "./TierRow";
+import { columnCount } from "./tierRowFormat";
 
 const mockItem = {
   id: "inc-1",
@@ -95,7 +96,7 @@ describe("TierRow (income)", () => {
     expect(row.querySelector('[data-testid="row-delete-btn"]')).toBeInTheDocument();
   });
 
-  it("displays '—' in Due column for monthly cadence (committed tier)", () => {
+  it("displays '—' in Due column when no due date is set", () => {
     render(
       <table>
         <tbody>
@@ -113,5 +114,57 @@ describe("TierRow (income)", () => {
     );
     const dueCell = screen.getByTestId("cell-due");
     expect(dueCell.textContent?.trim()).toBe("—");
+  });
+
+  function renderRow(tier: "income" | "committed" | "discretionary", overrides: object) {
+    return render(
+      <table>
+        <tbody>
+          <TierRow
+            tier={tier}
+            item={{ ...mockItem, ...overrides } as any}
+            members={[]}
+            showPence={false}
+            onSaveName={mock(() => Promise.resolve())}
+            onSaveAmount={mock(() => Promise.resolve())}
+            onDelete={mock(() => Promise.resolve())}
+          />
+        </tbody>
+      </table>
+    );
+  }
+
+  it("does not divide monthly amounts again in the /month column", () => {
+    renderRow("committed", { amount: 1200, spendType: "monthly" });
+    expect(screen.getByTestId("cell-monthly").textContent).toBe("£1,200");
+  });
+
+  it("divides yearly amounts by 12 in the /month column", () => {
+    renderRow("committed", { amount: 1200, spendType: "yearly" });
+    expect(screen.getByTestId("cell-monthly").textContent).toBe("£100");
+  });
+
+  it("converts non-monthly income to a monthly equivalent", () => {
+    renderRow("income", { amount: 12000, spendType: "yearly" });
+    expect(screen.getByTestId("cell-monthly").textContent).toBe("£1,000");
+  });
+
+  it("shows a due date for every cadence, not just yearly", () => {
+    const due = new Date(2026, 2, 15);
+    const { unmount } = renderRow("committed", { spendType: "monthly", dueDate: due });
+    expect(screen.getByTestId("cell-due").textContent).toBe("15th");
+    unmount();
+    renderRow("committed", { spendType: "yearly", dueDate: due });
+    expect(screen.getByTestId("cell-due").textContent).toBe("15 Mar");
+  });
+
+  it("renders cells in header order: name, type, cadence, due, member, amount, /month", () => {
+    const { container } = renderRow("income", { incomeType: "salary", spendType: "monthly" });
+    const cells = Array.from(container.querySelectorAll("tr:first-child > td"));
+    expect(cells).toHaveLength(columnCount("income"));
+    expect(cells[1]!.textContent).toBe("Salary");
+    expect(cells[2]!.textContent).toBe("Monthly");
+    expect(cells[4]!.textContent).toBe("Household");
+    expect(cells[5]!.querySelector("input")?.getAttribute("aria-label")).toBe("Amount");
   });
 });
