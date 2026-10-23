@@ -100,7 +100,7 @@ export default function ItemAccordion({
         )}
       </div>
 
-      {/* Value history sparkline */}
+      {/* Amount history sparkline */}
       {item.periods && (
         <ValueSparkline
           periods={item.periods.map((p) => ({

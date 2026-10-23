@@ -549,6 +549,9 @@ export const waterfallService = {
           where: { id },
           data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (itemData.dueDate instanceof Date) {
+          await periodService.syncCurrentDueDate(tx, householdId, "income_source", id, itemData.dueDate);
+        }
         if (amount !== undefined) {
           await periodService.setCurrentAmount(tx, householdId, "income_source", id, amount);
           return { ...updated, amount };
@@ -681,6 +684,9 @@ export const waterfallService = {
           where: { id },
           data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (itemData.dueDate instanceof Date) {
+          await periodService.syncCurrentDueDate(tx, householdId, "committed_item", id, itemData.dueDate);
+        }
         if (amount !== undefined) {
           await periodService.setCurrentAmount(tx, householdId, "committed_item", id, amount);
           return { ...updated, amount };
@@ -813,6 +819,9 @@ export const waterfallService = {
           where: { id },
           data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (itemData.dueDate instanceof Date) {
+          await periodService.syncCurrentDueDate(tx, householdId, "committed_item", id, itemData.dueDate);
+        }
         if (amount !== undefined) {
           await periodService.setCurrentAmount(tx, householdId, "committed_item", id, amount);
           return { ...updated, amount };
@@ -982,6 +991,9 @@ export const waterfallService = {
           where: { id },
           data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (itemData.dueDate instanceof Date) {
+          await periodService.syncCurrentDueDate(tx, householdId, "discretionary_item", id, itemData.dueDate);
+        }
         if (amount !== undefined) {
           await periodService.setCurrentAmount(tx, householdId, "discretionary_item", id, amount);
           return { ...updated, amount };
@@ -1140,6 +1152,9 @@ export const waterfallService = {
           where: { id },
           data: { ...itemData, lastReviewedAt: new Date() },
         });
+        if (itemData.dueDate instanceof Date) {
+          await periodService.syncCurrentDueDate(tx, householdId, "discretionary_item", id, itemData.dueDate);
+        }
         if (amount !== undefined) {
           await periodService.setCurrentAmount(tx, householdId, "discretionary_item", id, amount);
           return { ...updated, amount };

@@ -193,7 +193,13 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
               isSavingEdit={updateAsset.isPending}
               isSavingRecord={recordBalance.isPending}
               isSavingConfirm={confirmAsset.isPending}
-              onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+              onToggle={() => {
+                // Moving to another row abandons any in-progress edit/record — otherwise
+                // that row stays in edit mode and its header ignores clicks.
+                if (editingId !== null && editingId !== item.id) setEditingId(null);
+                if (recordingId !== null && recordingId !== item.id) setRecordingId(null);
+                setExpandedId(expandedId === item.id ? null : item.id);
+              }}
               onStartEdit={() => {
                 setEditingId(item.id);
                 setExpandedId(item.id);
