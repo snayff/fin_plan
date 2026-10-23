@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, setSystemTime } from "bun:test";
 import { mock } from "bun:test";
 import { prismaMock, resetPrismaMocks } from "../test/mocks/prisma";
 import { NotFoundError, ValidationError } from "../utils/errors";
@@ -629,6 +629,10 @@ describe("cashflowService.getProjection — quarterly expansion", () => {
 // ── Disposal liquidation events ───────────────────────────────────────────────
 
 describe("cashflowService.getProjection — disposal liquidation events", () => {
+  afterEach(() => {
+    setSystemTime(); // restore the real clock after any test that pinned it
+  });
+
   it("asset disposal within window targeting a linked account adds positive netChange", async () => {
     // Linked Current account — balance recorded 2026-05-01 (anchor)
     prismaMock.account.findMany.mockResolvedValue([
@@ -718,6 +722,9 @@ describe("cashflowService.getProjection — disposal liquidation events", () => 
   });
 
   it("account disposal proceeds include monthly contribution accrual (#128)", async () => {
+    // Accrual runs from "now" to the disposal date, so pin "now" before it —
+    // otherwise the test silently stops accruing once the real date passes it.
+    setSystemTime(new Date("2026-07-01T00:00:00Z"));
     // Disposing Savings account: £10k @ 5%, £200pm linked contribution, balance
     // recorded 2026-05-01, disposed 2026-08-01 (~3 months forward). Proceeds must
     // include both growth AND contribution accrual (shared computeDisposalProceeds).
