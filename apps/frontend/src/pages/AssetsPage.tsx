@@ -50,9 +50,7 @@ export default function AssetsPage() {
   return (
     <TwoPanelLayout
       selectedKey={urlSelected}
-      left={
-        <AssetsLeftPanel summary={summary} selected={selected} onSelect={setSelected} />
-      }
+      left={<AssetsLeftPanel summary={summary} selected={selected} onSelect={setSelected} />}
       right={
         selected.kind === "asset" ? (
           <AssetItemArea
