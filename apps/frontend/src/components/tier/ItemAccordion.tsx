@@ -81,7 +81,7 @@ export default function ItemAccordion({ item, config, onEdit, now, stalenessMont
         </button>
       </div>
 
-      {/* Value history sparkline */}
+      {/* Amount history sparkline */}
       {item.periods && (
         <ValueSparkline
           periods={item.periods.map((p) => ({

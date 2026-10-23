@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useRef, useEffect, useState, useCallback, useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useGlossaryPopover } from "./GlossaryPopoverContext";
@@ -15,7 +15,10 @@ interface Props {
 
 export function GlossaryTermMarker({ entryId, children }: Props) {
   const { openId, openPopover, closePopover } = useGlossaryPopover();
-  const isOpen = openId === entryId;
+  // Key the open state per marker instance, not per entry — several markers for
+  // the same term can be on screen at once and only the hovered one should open.
+  const popoverKey = `${entryId}:${useId()}`;
+  const isOpen = openId === popoverKey;
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -51,7 +54,7 @@ export function GlossaryTermMarker({ entryId, children }: Props) {
 
   const scheduleOpen = () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    openTimerRef.current = setTimeout(() => openPopover(entryId), 150);
+    openTimerRef.current = setTimeout(() => openPopover(popoverKey), 150);
   };
 
   const scheduleClose = () => {
@@ -98,7 +101,7 @@ export function GlossaryTermMarker({ entryId, children }: Props) {
         className="border-b border-dotted border-current cursor-help"
         onMouseEnter={scheduleOpen}
         onMouseLeave={scheduleClose}
-        onFocus={() => openPopover(entryId)}
+        onFocus={() => openPopover(popoverKey)}
         onBlur={scheduleClose}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -106,7 +109,7 @@ export function GlossaryTermMarker({ entryId, children }: Props) {
             if (isOpen) {
               closePopover();
             } else {
-              openPopover(entryId);
+              openPopover(popoverKey);
             }
           }
         }}

@@ -415,6 +415,8 @@ export const createPeriodSchema = z
     startDate: boundedDate,
     endDate: boundedDate.optional(),
     amount: positiveMoneySchema,
+    /** Moves the payment date from this period on; omit/null keeps the item's dueDate. */
+    dueDate: boundedDate.nullable().optional(),
   })
   .refine(endAfterStart, endAfterStartMessage);
 
@@ -423,6 +425,7 @@ export const updatePeriodSchema = z
     startDate: boundedDate.optional(),
     endDate: boundedDate.nullable().optional(),
     amount: positiveMoneySchema.optional(),
+    dueDate: boundedDate.nullable().optional(),
   })
   .refine(endAfterStart, endAfterStartMessage);
 
@@ -438,6 +441,7 @@ export interface PeriodRow {
   startDate: Date;
   endDate: Date | null;
   amount: number;
+  dueDate: Date | null;
   createdAt: Date;
 }
 

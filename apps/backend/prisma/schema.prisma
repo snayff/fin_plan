@@ -347,6 +347,8 @@ model ItemAmountPeriod {
   startDate   DateTime          @db.Date
   endDate     DateTime?         @db.Date
   amount      Float
+  /// Payment date from this period on; null keeps the item's own dueDate.
+  dueDate     DateTime?         @db.Date
   createdAt   DateTime          @default(now())
   household   Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
