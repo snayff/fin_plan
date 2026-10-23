@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, mock } from "bun:test";
 import { Prisma } from "@prisma/client";
+import { SearchResultKindEnum } from "@finplan/shared";
 import { prismaMock, resetPrismaMocks } from "../test/mocks/prisma.js";
 
 mock.module("../config/database.js", () => ({ prisma: prismaMock }));
@@ -36,10 +37,10 @@ beforeEach(() => {
 });
 
 describe("searchService.search", () => {
-  it("queries each of the 8 kinds once, scoped to the household", async () => {
+  it("queries each searchable kind once, scoped to the household", async () => {
     await searchService.search("hh-1", "mortgage");
 
-    expect(calls()).toHaveLength(8);
+    expect(calls()).toHaveLength(SearchResultKindEnum.options.length);
     for (const [, ...values] of calls()) {
       expect(values).toContain("hh-1");
       expect(values).toContain("%mortgage%");

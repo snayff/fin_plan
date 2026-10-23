@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
 import { toMonthlyAmount, toGBP } from "@finplan/shared";
 import SubcategoryList from "./SubcategoryList";
 import ItemArea, { type LockedManager } from "./ItemArea";
@@ -36,7 +35,6 @@ interface SubcategorySummary {
 
 export default function TierPage({ tier }: TierPageProps) {
   const config = TIER_CONFIGS[tier];
-  const [searchParams] = useSearchParams();
   const {
     data: subcategories,
     isLoading: subsLoading,
@@ -59,10 +57,8 @@ export default function TierPage({ tier }: TierPageProps) {
   };
   const stalenessMonths = getStalenessMonths(settings, TIER_STALENESS[tier]);
 
-  const hasAddParam = searchParams.get("add") === "1";
-  useAddParam((_kind) => {
-    // add param consumed — ItemArea initialIsAdding prop handles opening
-  });
+  // Captured on arrival: ItemArea (which opens the form) mounts after data loads.
+  const hasAddParam = useAddParam() === "1";
   // Search deep links arrive with ?subcategory= (selects the panel) and ?focus=
   // (the row); wait for both lists before looking for the row.
   useFocusParam({ ready: !subsLoading && !itemsLoading });

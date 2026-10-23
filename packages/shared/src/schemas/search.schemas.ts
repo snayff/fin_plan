@@ -8,7 +8,7 @@ export const SearchResultKindEnum = z.enum([
   "account",
   "gift_person",
   "gift_event",
-  "purchase_item",
+  // purchase_item returns once Goals is built — its page is a placeholder today.
 ]);
 
 export type SearchResultKind = z.infer<typeof SearchResultKindEnum>;

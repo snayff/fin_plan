@@ -2,13 +2,8 @@ import { describe, it, expect } from "vitest";
 import { NAV_ACTIONS, CREATE_ACTIONS, ALL_ACTIONS } from "../actions";
 
 describe("action registry", () => {
-  it("has exactly 12 navigation actions", () => {
-    expect(NAV_ACTIONS).toHaveLength(12);
-  });
-
-  it("has exactly 8 create actions", () => {
-    expect(CREATE_ACTIONS).toHaveLength(8);
-  });
+  // No hard-coded counts: destinations.test.tsx opens every create action's
+  // page and fails if one isn't wired, which is what the counts stood in for.
 
   it("every nav action has a route and no addParam", () => {
     for (const a of NAV_ACTIONS) {
