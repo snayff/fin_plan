@@ -44,6 +44,7 @@ const exportIncomeSourceSchema = z.object({
       startDate: z.string().max(40),
       endDate: z.string().max(40).nullable().optional(),
       amount: importMoney,
+      dueDate: z.string().max(40).nullable().optional(),
     })
   ),
 });
@@ -62,6 +63,7 @@ const exportCommittedItemSchema = z.object({
       startDate: z.string().max(40),
       endDate: z.string().max(40).nullable().optional(),
       amount: importMoney,
+      dueDate: z.string().max(40).nullable().optional(),
     })
   ),
 });
@@ -80,6 +82,7 @@ const exportDiscretionaryItemSchema = z.object({
       startDate: z.string().max(40),
       endDate: z.string().max(40).nullable().optional(),
       amount: importMoney,
+      dueDate: z.string().max(40).nullable().optional(),
     })
   ),
 });
@@ -90,6 +93,7 @@ const exportItemAmountPeriodSchema = z.object({
   startDate: z.string().max(40),
   endDate: z.string().max(40).nullable().optional(),
   amount: importMoney,
+  dueDate: z.string().max(40).nullable().optional(),
 });
 
 const exportWaterfallHistorySchema = z.object({

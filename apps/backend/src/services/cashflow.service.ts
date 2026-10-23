@@ -154,14 +154,43 @@ function buildEvents(
 ): ProjectionEvent[] {
   const events: ProjectionEvent[] = [];
 
+  type FrequencyKey = "monthly" | "annual" | "yearly" | "one_off" | "weekly" | "quarterly";
+
   function expandRecurring(
     item: any,
     itemType: "income_source" | "committed_item",
     sign: 1 | -1,
-    frequencyKey: "monthly" | "annual" | "yearly" | "one_off" | "weekly" | "quarterly"
+    frequencyKey: FrequencyKey
   ) {
     const periods = periodsByKey.get(`${itemType}:${item.id}`) ?? [];
-    const due: Date = item.dueDate;
+    // A period can move the payment date as well as the amount. With no such
+    // period (or for a one-off), expand the whole window off the item's own
+    // dueDate; otherwise expand each period's span off the payment date in
+    // force for it — the latest period dueDate so far, else the item's.
+    if (frequencyKey === "one_off" || !periods.some((p) => p.dueDate)) {
+      expandSpan(item, itemType, sign, frequencyKey, periods, item.dueDate, from, to);
+      return;
+    }
+    let anchor: Date = item.dueDate;
+    for (const p of periods) {
+      if (p.dueDate) anchor = p.dueDate;
+      const spanFrom: Date = p.startDate > from ? p.startDate : from;
+      const spanTo: Date = p.endDate && p.endDate < to ? p.endDate : to;
+      if (spanFrom >= spanTo) continue;
+      expandSpan(item, itemType, sign, frequencyKey, periods, anchor, spanFrom, spanTo);
+    }
+  }
+
+  function expandSpan(
+    item: any,
+    itemType: "income_source" | "committed_item",
+    sign: 1 | -1,
+    frequencyKey: FrequencyKey,
+    periods: any[],
+    due: Date,
+    from: Date,
+    to: Date
+  ) {
     if (frequencyKey === "monthly") {
       const day = due.getUTCDate();
       // Step by month-offset from the window start, clamping day 29-31 to each
