@@ -293,6 +293,8 @@ export interface TierItemRow {
   /** Populated for discretionary items in the Savings subcategory. */
   linkedAccountId?: string | null;
   linkedAccount?: { id: string; name: string; type: string } | null;
+  /** Income tier only — e.g. "salary", "dividends". */
+  incomeType?: string;
 }
 
 function normaliseIncomeFrequency(frequency: string): SpendType {
@@ -332,6 +334,7 @@ function mapTierItem(r: any, spendType: string): TierItemRow {
     nextPeriod,
     linkedAccountId: r.linkedAccountId ?? null,
     linkedAccount: r.linkedAccount ?? null,
+    ...(r.incomeType ? { incomeType: r.incomeType } : {}),
   };
 }
 

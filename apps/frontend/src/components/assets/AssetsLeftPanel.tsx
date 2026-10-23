@@ -3,9 +3,12 @@ import type { AssetsSummary } from "../../services/assets.service.js";
 import { PageHeader } from "@/components/common/PageHeader";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
-
-const ASSET_TYPES: AssetType[] = ["Property", "Vehicle", "Other"];
-const ACCOUNT_TYPES: AccountType[] = ["Current", "Savings", "Pension", "StocksAndShares", "Other"];
+import {
+  ASSET_TYPES,
+  ACCOUNT_TYPES,
+  isSameSelection,
+  type AssetsSelection,
+} from "./assetsSelection";
 
 const TYPE_LABELS: Record<AssetType | AccountType, string> = {
   Property: "Property",
@@ -19,8 +22,8 @@ const TYPE_LABELS: Record<AssetType | AccountType, string> = {
 
 interface Props {
   summary: AssetsSummary | undefined;
-  selected: AssetType | AccountType;
-  onSelect: (type: AssetType | AccountType) => void;
+  selected: AssetsSelection;
+  onSelect: (selection: AssetsSelection) => void;
   staleCountByType?: Partial<Record<AssetType | AccountType, number>>;
 }
 
@@ -44,14 +47,14 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
         {/* Assets group */}
         <p className="label-chart px-4 py-1.5">Assets</p>
         {ASSET_TYPES.map((type) => {
-          const isSelected = selected === type;
+          const isSelected = isSameSelection(selected, { kind: "asset", type });
           const total = summary?.assetTotals[type] ?? 0;
           const staleCount = staleCountByType[type] ?? 0;
           return (
             <button
               key={type}
               type="button"
-              onClick={() => onSelect(type)}
+              onClick={() => onSelect({ kind: "asset", type })}
               aria-current={isSelected ? "true" : undefined}
               className={[
                 "relative flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors",
@@ -79,14 +82,14 @@ export function AssetsLeftPanel({ summary, selected, onSelect, staleCountByType 
         {/* Accounts group */}
         <p className="label-chart px-4 pt-3.5 pb-1.5">Accounts</p>
         {ACCOUNT_TYPES.map((type) => {
-          const isSelected = selected === type;
+          const isSelected = isSameSelection(selected, { kind: "account", type });
           const total = summary?.accountTotals[type] ?? 0;
           const staleCount = staleCountByType[type] ?? 0;
           return (
             <button
               key={type}
               type="button"
-              onClick={() => onSelect(type)}
+              onClick={() => onSelect({ kind: "account", type })}
               aria-current={isSelected ? "true" : undefined}
               className={[
                 "relative flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition-colors",
