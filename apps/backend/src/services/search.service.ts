@@ -4,7 +4,10 @@ import type { SearchResponse, SearchResult, SearchResultKind } from "@finplan/sh
 
 const PER_KIND_LIMIT = 5;
 
-type NamedRow = { id: string; name: string };
+/** Column the destination page needs to select the panel that renders the row. */
+type ScopeColumn = "subcategoryId" | "type";
+
+type NamedRow = { id: string; name: string; scope?: string | null };
 
 type KindConfig = {
   kind: SearchResultKind;
@@ -12,6 +15,8 @@ type KindConfig = {
   route: string;
   /** Table to search. Models have no @@map, so the model name is the table name. Never user input. */
   table: Prisma.ModelName;
+  /** Selected alongside id/name and returned under the same name on the result. */
+  scope?: ScopeColumn;
 };
 
 /** Escape LIKE metacharacters so the query matches literally (Postgres' default escape is `\`). */
@@ -24,10 +29,18 @@ function escapeLike(q: string): string {
  * then contains, then alphabetical — and only then limited. Ranking before the
  * LIMIT guarantees the best matches are returned however many rows match.
  */
-function findRanked(table: Prisma.ModelName, householdId: string, q: string): Promise<NamedRow[]> {
+function findRanked(
+  table: Prisma.ModelName,
+  scope: ScopeColumn | undefined,
+  householdId: string,
+  q: string
+): Promise<NamedRow[]> {
   const escaped = escapeLike(q);
+  // `scope` is a fixed column name from KINDS (never user input), cast to text
+  // so enum columns like Asset.type come back as plain strings.
+  const scopeSelect = scope ? Prisma.raw(`, "${scope}"::text AS "scope"`) : Prisma.empty;
   return prisma.$queryRaw<NamedRow[]>`
-    SELECT "id", "name"
+    SELECT "id", "name"${scopeSelect}
     FROM ${Prisma.raw(`"${table}"`)}
     WHERE "householdId" = ${householdId}
       AND "name" ILIKE ${`%${escaped}%`}
@@ -49,30 +62,35 @@ const KINDS: KindConfig[] = [
     subtitle: "Income · Source",
     route: "/income",
     table: "IncomeSource",
+    scope: "subcategoryId",
   },
   {
     kind: "committed_item",
     subtitle: "Committed · Item",
     route: "/committed",
     table: "CommittedItem",
+    scope: "subcategoryId",
   },
   {
     kind: "discretionary_item",
     subtitle: "Discretionary · Item",
     route: "/discretionary",
     table: "DiscretionaryItem",
+    scope: "subcategoryId",
   },
   {
     kind: "asset",
     subtitle: "Wealth · Asset",
     route: "/assets",
     table: "Asset",
+    scope: "type",
   },
   {
     kind: "account",
     subtitle: "Wealth · Account",
     route: "/assets",
     table: "Account",
+    scope: "type",
   },
   {
     kind: "gift_person",
@@ -101,7 +119,7 @@ export const searchService = {
 
     const buckets = await Promise.all(
       KINDS.map(async (cfg) => {
-        const rows = await findRanked(cfg.table, householdId, q);
+        const rows = await findRanked(cfg.table, cfg.scope, householdId, q);
         return rows.map<SearchResult>((row) => ({
           kind: cfg.kind,
           id: row.id,
@@ -109,6 +127,7 @@ export const searchService = {
           subtitle: cfg.subtitle,
           route: cfg.route,
           focusId: row.id,
+          ...(cfg.scope && row.scope ? { [cfg.scope]: row.scope } : {}),
         }));
       })
     );

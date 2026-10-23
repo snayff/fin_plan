@@ -7,6 +7,20 @@ import { SearchResultGroup } from "./SearchResultGroup";
 import { useSearchQuery } from "./useSearchQuery";
 import { useSearchRecents, type RecentEntry } from "./useSearchRecents";
 import type { PaletteAction } from "./actions";
+import type { SearchResult } from "@finplan/shared";
+
+/**
+ * Query params that land a data result on its row: `focus` plus whichever
+ * selection the destination page needs to render it — the tier page's
+ * `subcategory`, or the assets page's `type`.
+ */
+function dataResultParams(r: SearchResult): Record<string, string> {
+  return {
+    focus: r.focusId,
+    ...(r.subcategoryId ? { subcategory: r.subcategoryId } : {}),
+    ...(r.type ? { type: r.type } : {}),
+  };
+}
 
 type Props = {
   open: boolean;
@@ -31,14 +45,8 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
     close();
   };
 
-  const selectData = (r: {
-    kind: string;
-    id: string;
-    name: string;
-    subtitle: string;
-    route: string;
-    focusId: string;
-  }) => {
+  const selectData = (r: SearchResult) => {
+    const params = dataResultParams(r);
     push({
       kind: "data",
       id: r.id,
@@ -46,8 +54,9 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
       subtitle: r.subtitle,
       route: r.route,
       focusId: r.focusId,
+      params,
     });
-    navigateTo(r.route, { focus: r.focusId });
+    navigateTo(r.route, params);
   };
 
   const selectHelp = (h: { id: string; title: string; subtitle: string }) => {
@@ -74,6 +83,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
   };
 
   const selectRecent = (r: RecentEntry) => {
+    if (r.kind === "data" && r.params) return navigateTo(r.route, r.params);
     if (r.kind === "data" && r.focusId) return navigateTo(r.route, { focus: r.focusId });
     if (r.kind === "help") return navigateTo(r.route, { entry: r.id });
     if (r.kind === "create" && r.addParam) return navigateTo(r.route, { add: r.addParam });
@@ -96,8 +106,12 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
           aria-describedby={undefined}
         >
           <Dialog.Title className="sr-only">Search</Dialog.Title>
+          {/* Matching happens server-side (data) and in useSearchQuery (help,
+              actions). cmdk's own fuzzy filter would match the query against
+              each row's internal `value` key and hide real results. */}
           <Command
             label="Universal search"
+            shouldFilter={false}
             className="flex h-full flex-col overflow-hidden border border-foreground/10 bg-background shadow-lg md:h-auto md:rounded-b-md"
           >
             <div className="border-b border-foreground/5 px-3 py-2">

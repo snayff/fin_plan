@@ -19,12 +19,13 @@ function calls(): RawCall[] {
 // user-supplied values are plain strings/numbers.
 function tableOf([, ...values]: RawCall): string {
   const raw = values.find(
-    (v): v is Prisma.Sql => typeof v === "object" && v !== null && "sql" in v
+    (v): v is Prisma.Sql =>
+      typeof v === "object" && v !== null && "sql" in v && /^"\w+"$/.test((v as Prisma.Sql).sql)
   );
   return raw?.sql ?? "";
 }
 
-function rowsFor(table: string, rows: Array<{ id: string; name: string }>) {
+function rowsFor(table: string, rows: Array<Record<string, string>>) {
   prismaMock.$queryRaw.mockImplementation(((...args: RawCall) =>
     Promise.resolve(tableOf(args) === `"${table}"` ? rows : [])) as any);
 }
@@ -75,6 +76,32 @@ describe("searchService.search", () => {
 
     expect(res.results.map((r) => r.id)).toEqual(["c2", "c3", "c1"]);
     expect(res.results.every((r) => r.kind === "committed_item")).toBe(true);
+  });
+
+  it("carries the subcategory for tier items so the destination can select it", async () => {
+    rowsFor("DiscretionaryItem", [{ id: "d1", name: "Gifts", scope: "sub-gifts" }]);
+    const res = await searchService.search("hh-1", "gifts");
+    expect(res.results).toEqual([
+      expect.objectContaining({ kind: "discretionary_item", id: "d1", subcategoryId: "sub-gifts" }),
+    ]);
+    const [, ...values] = calls().find((c) => tableOf(c) === '"DiscretionaryItem"')!;
+    const fragments = values.map((v) => (v as Prisma.Sql)?.sql ?? "").join(" ");
+    expect(fragments).toContain('"subcategoryId"::text AS "scope"');
+  });
+
+  it("carries the type for assets and accounts so the destination can select it", async () => {
+    rowsFor("Account", [{ id: "ac1", name: "ISA", scope: "Savings" }]);
+    const res = await searchService.search("hh-1", "isa");
+    expect(res.results).toEqual([
+      expect.objectContaining({ kind: "account", id: "ac1", type: "Savings" }),
+    ]);
+  });
+
+  it("omits scoping fields for kinds whose page has no sub-selection", async () => {
+    rowsFor("GiftPerson", [{ id: "g1", name: "Mum" }]);
+    const res = await searchService.search("hh-1", "mum");
+    expect(res.results[0]).not.toHaveProperty("subcategoryId");
+    expect(res.results[0]).not.toHaveProperty("type");
   });
 
   it("returns an empty array when nothing matches", async () => {
