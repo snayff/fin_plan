@@ -66,6 +66,32 @@ export const periodService = {
     });
   },
 
+  /**
+   * Keep an item-level payment-date edit effective when a period has moved the
+   * payment date. Periods carry an optional `dueDate` that overrides the item's
+   * from that period on (inherited by later periods), so once one is in force a
+   * plain `item.dueDate` write would be shadowed. Write the new date onto the
+   * current period instead. No-op when no override is in force.
+   */
+  async syncCurrentDueDate(
+    db: PrismaLike,
+    householdId: string,
+    itemType: string,
+    itemId: string,
+    dueDate: Date,
+    now: Date = new Date()
+  ) {
+    const periods = await db.itemAmountPeriod.findMany({
+      where: { householdId, itemType: itemType as any, itemId },
+      orderBy: { startDate: "asc" },
+    });
+    const current = findEffectivePeriod(periods, now);
+    if (!current) return;
+    const overrideInForce = periods.some((p) => p.startDate <= current.startDate && p.dueDate);
+    if (!overrideInForce) return;
+    await db.itemAmountPeriod.update({ where: { id: current.id }, data: { dueDate } });
+  },
+
   async listPeriods(householdId: string, itemType: string, itemId: string) {
     return prisma.itemAmountPeriod.findMany({
       where: { householdId, itemType: itemType as any, itemId },
@@ -168,6 +194,7 @@ export const periodService = {
         startDate: data.startDate,
         endDate,
         amount: data.amount,
+        dueDate: data.dueDate ?? null,
       },
     });
   },
@@ -193,6 +220,7 @@ export const periodService = {
         if (data.amount !== undefined) updateData.amount = data.amount;
         if (data.startDate !== undefined) updateData.startDate = data.startDate;
         if (data.endDate !== undefined) updateData.endDate = data.endDate;
+        if (data.dueDate !== undefined) updateData.dueDate = data.dueDate;
 
         // Merge requested changes onto the current row to validate the result.
         const mergedStart = data.startDate ?? period.startDate;
@@ -289,6 +317,7 @@ interface PeriodLike {
   startDate: Date;
   endDate: Date | null;
   amount: number;
+  dueDate?: Date | null;
 }
 
 function findEffectivePeriod(periods: PeriodLike[], refDate: Date): PeriodLike | null {
