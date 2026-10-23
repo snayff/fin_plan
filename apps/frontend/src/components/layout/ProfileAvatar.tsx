@@ -85,7 +85,9 @@ export function ProfileAvatar() {
       <button
         ref={triggerRef}
         type="button"
-        aria-label="Profile menu"
+        // Visible initials must be part of the accessible name (WCAG 2.5.3) so
+        // voice-control users can activate the button by what they see.
+        aria-label={`${initials}, profile menu`}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}

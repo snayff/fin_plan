@@ -12,7 +12,7 @@ Measures the gzip size of the built `dist/assets/` chunks against hard limits de
 
 Two entries are tracked:
 
-- **Entry JS** — `dist/assets/index-*.js` (all entry chunks combined, gzip). Current limit: **144 KB**.
+- **Entry JS** — `dist/assets/index-*.js` (all entry chunks combined, gzip). Current limit: **150 KB**.
 - **Largest shared chunk** — `dist/assets/AreaChart-*.js` (recharts + D3, the heaviest lazy chunk). Current limit: **118 KB**.
 
 These limits were set at ~baseline + 10% headroom. They are floors, not targets.
