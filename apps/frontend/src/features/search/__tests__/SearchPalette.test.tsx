@@ -125,3 +125,78 @@ describe("SearchPalette", () => {
     expect(await screen.findByText(/No results/i)).toBeInTheDocument();
   });
 });
+
+describe("SearchPalette — error and loading states", () => {
+  it("shows an error row (not 'No results') when search fails, keeping other matches", async () => {
+    server.use(
+      http.get("http://localhost:3001/api/search", () =>
+        HttpResponse.json({ error: { message: "boom" } }, { status: 500 })
+      )
+    );
+    const user = userEvent.setup();
+    renderPalette(true);
+    // "income" also matches the "Go to Income" action, which must still show.
+    await user.type(screen.getByRole("combobox"), "income");
+    expect(await screen.findByText(/search unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No results/i)).toBeNull();
+    expect(screen.getByText("Go to Income")).toBeInTheDocument();
+  });
+
+  it("retries from the error row", async () => {
+    let calls = 0;
+    server.use(
+      http.get("http://localhost:3001/api/search", () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json({ error: { message: "boom" } }, { status: 500 })
+          : HttpResponse.json({
+              results: [
+                {
+                  kind: "income_source",
+                  id: "i1",
+                  name: "Salary",
+                  subtitle: "Income · Source",
+                  route: "/income",
+                  focusId: "i1",
+                },
+              ],
+            });
+      })
+    );
+    const user = userEvent.setup();
+    renderPalette(true);
+    await user.type(screen.getByRole("combobox"), "salary");
+    await user.click(await screen.findByText(/search unavailable/i));
+    expect(await screen.findByText("Salary")).toBeInTheDocument();
+    expect(screen.queryByText(/search unavailable/i)).toBeNull();
+  });
+
+  it("shows a searching state, not 'No results', while the request is in flight", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    server.use(
+      http.get("http://localhost:3001/api/search", async () => {
+        await gate;
+        return HttpResponse.json({ results: [] });
+      })
+    );
+    const user = userEvent.setup();
+    renderPalette(true);
+    await user.type(screen.getByRole("combobox"), "zzz-no-match");
+    expect(await screen.findByText(/searching/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No results/i)).toBeNull();
+    release();
+    expect(await screen.findByText(/No results/i)).toBeInTheDocument();
+  });
+
+  it("announces status text to screen readers", async () => {
+    server.use(
+      http.get("http://localhost:3001/api/search", () => HttpResponse.json({ results: [] }))
+    );
+    const user = userEvent.setup();
+    renderPalette(true);
+    await user.type(screen.getByRole("combobox"), "zzz-no-match");
+    const status = await screen.findByText(/No results/i);
+    expect(status.closest("[aria-live]")).not.toBeNull();
+  });
+});

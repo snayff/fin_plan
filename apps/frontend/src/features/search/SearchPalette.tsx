@@ -18,7 +18,7 @@ type Props = {
 
 export function SearchPalette({ open, onOpenChange, userId }: Props) {
   const [query, setQuery] = useState("");
-  const { groups } = useSearchQuery(query);
+  const { groups, isPending, error, retry } = useSearchQuery(query);
   const { list: recents, push } = useSearchRecents(userId);
   const navigate = useNavigate();
 
@@ -134,12 +134,27 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                     ))}
                   </SearchResultGroup>
                 )
-              ) : !hasAnyResults ? (
-                <Command.Empty className="px-3 py-6 text-xs text-foreground/50">
-                  No results
-                </Command.Empty>
               ) : (
                 <>
+                  {/* Status rows: only one shows. "No results" waits until the
+                      data request has settled without error, so a failure or
+                      a slow response never reads as a genuine miss. */}
+                  <div role="status" aria-live="polite">
+                    {error ? (
+                      <Command.Item
+                        value="search-error-retry"
+                        onSelect={retry}
+                        className="flex cursor-pointer items-center justify-between rounded-sm px-3 py-2 text-xs data-[selected=true]:bg-foreground/[0.06]"
+                      >
+                        <span className="text-foreground/70">Search unavailable</span>
+                        <span className="text-foreground/50">Try again</span>
+                      </Command.Item>
+                    ) : !hasAnyResults && isPending ? (
+                      <p className="px-3 py-6 text-xs text-foreground/50">Searching…</p>
+                    ) : !hasAnyResults ? (
+                      <p className="px-3 py-6 text-xs text-foreground/50">No results</p>
+                    ) : null}
+                  </div>
                   <SearchResultGroup heading="Data" hidden={groups.data.length === 0}>
                     {groups.data.map((r) => (
                       <SearchResultRow
