@@ -8,19 +8,7 @@ import { useSearchQuery } from "./useSearchQuery";
 import { useSearchRecents, type RecentEntry } from "./useSearchRecents";
 import type { PaletteAction } from "./actions";
 import type { SearchResult } from "@finplan/shared";
-
-/**
- * Query params that land a data result on its row: `focus` plus whichever
- * selection the destination page needs to render it — the tier page's
- * `subcategory`, or the assets page's `type`.
- */
-function dataResultParams(r: SearchResult): Record<string, string> {
-  return {
-    focus: r.focusId,
-    ...(r.subcategoryId ? { subcategory: r.subcategoryId } : {}),
-    ...(r.type ? { type: r.type } : {}),
-  };
-}
+import { destinationFor } from "./destinations";
 
 type Props = {
   open: boolean;
@@ -46,17 +34,17 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
   };
 
   const selectData = (r: SearchResult) => {
-    const params = dataResultParams(r);
+    const { route, params } = destinationFor(r);
     push({
       kind: "data",
       id: r.id,
       label: r.name,
       subtitle: r.subtitle,
-      route: r.route,
+      route,
       focusId: r.focusId,
       params,
     });
-    navigateTo(r.route, params);
+    navigateTo(route, params);
   };
 
   const selectHelp = (h: { id: string; title: string; subtitle: string }) => {

@@ -1,5 +1,4 @@
 import { useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { TwoPanelLayout } from "../components/layout/TwoPanelLayout.js";
 import { AssetsLeftPanel } from "../components/assets/AssetsLeftPanel.js";
 import { AssetItemArea } from "../components/assets/AssetItemArea.js";
@@ -18,8 +17,8 @@ const DEFAULT_SELECTION: AssetsSelection = { kind: "asset", type: "Property" };
 
 export default function AssetsPage() {
   const { data: summary } = useAssetsSummary();
-  const [searchParams] = useSearchParams();
-  const addKind = searchParams.get("add");
+  // Captured on arrival: the item area that opens the form may mount later.
+  const addKind = useAddParam();
 
   // URL is the single source of truth for selected type.
   // Validator accepts only known asset/account enum members; invalid values clear.
@@ -35,9 +34,6 @@ export default function AssetsPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useAddParam((_kind) => {
-    // add param consumed — initialIsAdding prop handles modal
-  });
   // Rows load inside the per-type item area, so start immediately and let the
   // hook wait for the row; search deep links also set ?type= to select it.
   useFocusParam({ ready: true });

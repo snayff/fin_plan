@@ -82,13 +82,6 @@ export const CREATE_ACTIONS: PaletteAction[] = [
     route: "/gifts",
     addParam: "event",
   },
-  {
-    id: "create.purchase-item",
-    label: "Add purchase item",
-    kind: "create",
-    route: "/goals",
-    addParam: "1",
-  },
 ];
 
 export const ALL_ACTIONS: PaletteAction[] = [...NAV_ACTIONS, ...CREATE_ACTIONS];

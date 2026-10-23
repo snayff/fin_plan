@@ -105,21 +105,27 @@ describe("useFocusParam", () => {
   });
 });
 
-function AddProbe({ onAdd }: { onAdd: (kind: string) => void }) {
-  useAddParam(onAdd);
-  return null;
+function AddPage() {
+  const intent = useAddParam();
+  return (
+    <>
+      <output data-testid="intent">{intent ?? "none"}</output>
+      <LocationProbe />
+    </>
+  );
 }
 
 describe("useAddParam", () => {
-  it("calls onAdd with the kind from ?add=<kind>", () => {
-    const spy = vi.fn();
-    render(
-      <MemoryRouter initialEntries={["/x?add=asset"]}>
-        <Routes>
-          <Route path="/x" element={<AddProbe onAdd={spy} />} />
-        </Routes>
-      </MemoryRouter>
-    );
-    expect(spy).toHaveBeenCalledWith("asset");
+  it("returns the ?add=<kind> captured on arrival and strips the param", async () => {
+    renderAt(<AddPage />, ["/x?add=asset&type=Property"]);
+    expect(screen.getByTestId("intent").textContent).toBe("asset");
+    // Stripped from the URL, but the captured intent survives the re-render.
+    await waitFor(() => expect(location()).toBe("/x?type=Property"));
+    expect(screen.getByTestId("intent").textContent).toBe("asset");
+  });
+
+  it("returns null when the param is absent", () => {
+    renderAt(<AddPage />, ["/x"]);
+    expect(screen.getByTestId("intent").textContent).toBe("none");
   });
 });

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useConfigEvents, useCreateGiftEvent, useDeleteGiftEvent } from "@/hooks/useGifts";
 import GhostAddButton from "@/components/tier/GhostAddButton";
+import { useFocusParam } from "@/features/search/useFocusParam";
 import { SkeletonLoader } from "@/components/common/SkeletonLoader";
 import { PanelError } from "@/components/common/PanelError";
 import {
@@ -15,17 +16,23 @@ import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
 import type { GiftDateType } from "@finplan/shared";
 import { MONTHS, daysForMonth } from "./giftDates";
 
-type Props = { readOnly: boolean };
+type Props = {
+  readOnly: boolean;
+  /** Open the add-event form on mount (search "Add gift event"). */
+  initialAdding?: boolean;
+};
 
-export function ConfigEventsPanel({ readOnly }: Props) {
+export function ConfigEventsPanel({ readOnly, initialAdding = false }: Props) {
   const { data, isLoading, isError, refetch } = useConfigEvents();
+  // Search deep links arrive with ?focus=<eventId>; focus the row once events load.
+  useFocusParam({ ready: !isLoading });
   const create = useCreateGiftEvent();
   const remove = useDeleteGiftEvent();
   const [name, setName] = useState("");
   const [dateType, setDateType] = useState<GiftDateType>("personal");
   const [month, setMonth] = useState("");
   const [day, setDay] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(initialAdding && !readOnly);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -85,6 +92,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
               <li
                 key={e.id}
                 data-testid={`event-row-${e.id}`}
+                data-search-focus={e.id}
                 className="flex items-center justify-between py-2"
               >
                 <span className="text-sm text-text-secondary">
@@ -113,6 +121,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
               <li
                 key={e.id}
                 data-testid={`event-row-${e.id}`}
+                data-search-focus={e.id}
                 className="flex items-center justify-between py-2"
               >
                 <span className="text-sm text-text-secondary">{e.name}</span>

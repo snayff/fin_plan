@@ -104,12 +104,6 @@ const KINDS: KindConfig[] = [
     route: "/gifts",
     table: "GiftEvent",
   },
-  {
-    kind: "purchase_item",
-    subtitle: "Goals · Purchase item",
-    route: "/goals",
-    table: "PurchaseItem",
-  },
 ];
 
 export const searchService = {

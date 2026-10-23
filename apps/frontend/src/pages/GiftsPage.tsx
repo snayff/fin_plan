@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState } from "react";
-import { useAddParam } from "@/features/search/useAddParam";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
 import { GiftsLeftAside, type GiftsMode } from "@/components/gifts/GiftsLeftAside";
 import { GiftsModePanel } from "@/components/gifts/GiftsModePanel";
 import { UpcomingModePanel } from "@/components/gifts/UpcomingModePanel";
-import { ConfigModePanel } from "@/components/gifts/ConfigModePanel";
+import { ConfigModePanel, type ConfigDrill } from "@/components/gifts/ConfigModePanel";
 import { YearRolloverBanner } from "@/components/gifts/YearRolloverBanner";
 import { SkeletonLoader } from "@/components/common/SkeletonLoader";
 import { PanelError } from "@/components/common/PanelError";
@@ -19,9 +19,43 @@ export default function GiftsPage() {
   return <GiftsPageBody />;
 }
 
+type DeepLink = { personId: string | null; drill: ConfigDrill | undefined; adding: boolean };
+
+/**
+ * Search deep links (see features/search/destinations.ts and actions.ts):
+ *   ?person=<id>          → Gifts view, that person's detail open
+ *   ?view=events&focus=<id> → Config → Events, the event row focused
+ *   ?add=person | ?add=event → Config → People/Events with the add form open
+ */
+function readDeepLink(params: URLSearchParams): DeepLink {
+  const add = params.get("add");
+  const view = params.get("view");
+  if (add === "person") return { personId: null, drill: "people", adding: true };
+  if (add === "event") return { personId: null, drill: "events", adding: true };
+  if (view === "events") return { personId: null, drill: "events", adding: false };
+  return { personId: params.get("person"), drill: undefined, adding: false };
+}
+
 function GiftsPageBody() {
   const year = new Date().getFullYear();
-  const [mode, setMode] = useState<GiftsMode>("gifts");
+  const [params, setParams] = useSearchParams();
+  // Captured once: the page opens where the link points, then behaves normally.
+  const [deepLink] = useState(() => readDeepLink(params));
+  const [mode, setMode] = useState<GiftsMode>(deepLink.drill ? "config" : "gifts");
+
+  // Clear the one-shot params so refresh/back don't re-open them. `focus` is
+  // left for ConfigEventsPanel, which consumes it once the event rows load.
+  useEffect(() => {
+    if (!["person", "view", "add"].some((k) => params.has(k))) return;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        ["person", "view", "add"].forEach((k) => next.delete(k));
+        return next;
+      },
+      { replace: true }
+    );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on arrival
   const [configDirty, setConfigDirty] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
   const pendingModeRef = useRef<GiftsMode | null>(null);
@@ -37,10 +71,6 @@ function GiftsPageBody() {
     },
     [mode, configDirty]
   );
-
-  useAddParam(() => {
-    // TODO: wire add modal for gifts
-  });
 
   const stateQuery = useGiftsState(year);
 
@@ -89,7 +119,12 @@ function GiftsPageBody() {
         right={
           <div className="flex h-full flex-col">
             {mode === "gifts" && (
-              <GiftsModePanel people={state.people} year={year} readOnly={state.isReadOnly} />
+              <GiftsModePanel
+                people={state.people}
+                year={year}
+                readOnly={state.isReadOnly}
+                initialPersonId={deepLink.personId}
+              />
             )}
             {mode === "upcoming" && (
               <UpcomingModePanel year={year} onNavigateToGifts={() => setMode("gifts")} />
@@ -101,6 +136,8 @@ function GiftsPageBody() {
                 year={year}
                 annualBudget={state.budget.annualBudget}
                 onDirtyChange={setConfigDirty}
+                initialDrill={deepLink.drill}
+                initialAdding={deepLink.adding}
               />
             )}
           </div>
