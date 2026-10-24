@@ -126,15 +126,13 @@ export function WaterfallTierTable({
             <tr className="border-b border-foreground/5">
               <th className="px-3 py-2 text-left font-heading font-semibold">Name</th>
               {tier === "income" && (
-                <th className="px-3 py-2 text-left font-heading font-semibold">Type</th>
+                <th className="px-2 py-2 text-left font-heading font-semibold">Type</th>
               )}
-              <th className="px-3 py-2 text-left font-heading font-semibold">Cadence</th>
-              {tier !== "income" && (
-                <th className="px-3 py-2 text-left font-heading font-semibold">Due</th>
-              )}
-              <th className="px-3 py-2 text-left font-heading font-semibold">Assigned to</th>
+              <th className="px-2 py-2 text-left font-heading font-semibold">Cadence</th>
+              <th className="px-2 py-2 text-left font-heading font-semibold">Due</th>
+              <th className="px-2 py-2 text-left font-heading font-semibold">Assigned to</th>
               <th className="px-3 py-2 text-right font-heading font-semibold">Amount</th>
-              <th className="px-3 py-2 text-right font-heading font-semibold">
+              <th className="px-2 py-2 text-right font-heading font-semibold">
                 <InfoTip
                   text="Monthly equivalent — each item's amount converted to a monthly figure (annual ÷ 12, weekly × 52 ÷ 12, etc.) so different cadences can be compared on the same scale."
                   side="top"

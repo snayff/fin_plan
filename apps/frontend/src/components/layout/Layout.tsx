@@ -1,6 +1,6 @@
 import { type ReactNode, useState, useCallback } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { Toaster } from "@/components/common/Toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
@@ -18,9 +18,11 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 
 /**
  * Nav item config. `desktopOnly: true` marks routes that soft-block on mobile
- * (FullWaterfall, Goals, Gifts, Help, Household Settings — see Decision 1).
+ * (FullWaterfall, Goals, Gifts, Help, Household Settings).
  * On mobile, the hamburger nav renders these with a "(desktop only)" badge;
- * tapping still navigates and shows the soft-block notice (Item 2 amendment).
+ * tapping still navigates and shows the soft-block notice. See
+ * docs/4. planning/mobile-accessibility/plan.md § 1 (Mobile scope) and
+ * Phase 3a (Discoverability).
  */
 type NavItem = {
   to: string;
@@ -221,6 +223,18 @@ export default function Layout({ children }: { children: ReactNode }) {
             <ProfileAvatar />
           </div>
         </nav>
+
+        {/* Mobile search trigger — the desktop one lives in the nav above,
+            which is hidden below lg. 44px touch target, mirroring the
+            hamburger (docs/4. planning/mobile-accessibility/plan.md § 8). */}
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          className="-mr-2 ml-auto inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:hidden"
+          aria-label="Search"
+        >
+          <Search className="h-5 w-5" aria-hidden="true" />
+        </button>
       </header>
 
       {showBanner && <StaleDataBanner erroredAt={erroredAt} onRetry={handleBannerRetry} />}

@@ -188,6 +188,7 @@ const periodResponseSchema = z
     startDate: isoDatetime,
     endDate: isoDatetime.nullable(),
     amount: z.number(),
+    dueDate: isoDatetime.nullable(),
     createdAt: isoDatetime,
   })
   .strict();

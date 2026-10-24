@@ -16,11 +16,16 @@ type ConfigPerson = {
   boughtCount: number;
 };
 
-type Props = { readOnly: boolean; year: number };
+type Props = {
+  readOnly: boolean;
+  year: number;
+  /** Open the add-person input on mount (search "Add gift recipient"). */
+  initialAdding?: boolean;
+};
 
-export function ConfigPeoplePanel({ readOnly, year }: Props) {
+export function ConfigPeoplePanel({ readOnly, year, initialAdding = false }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
-  const [showAddInput, setShowAddInput] = useState(false);
+  const [showAddInput, setShowAddInput] = useState(initialAdding && !readOnly);
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
   const { data: rawData, isLoading, isError, refetch } = useConfigPeople("all", year);
@@ -84,14 +89,15 @@ export function ConfigPeoplePanel({ readOnly, year }: Props) {
         {!readOnly && showAddInput && (
           <div className="border-t border-foreground/5 bg-foreground/[0.02] py-3 pr-4 flex flex-col gap-3 border-l-2 border-tier-discretionary pl-[30px]">
             <div className="flex flex-col gap-1">
-              <span className="label-chart">
+              <label htmlFor="gift-person-name" className="label-chart">
                 Name <span className="text-text-muted">*</span>
-              </span>
+              </label>
               <input
+                id="gift-person-name"
+                aria-label="Person name"
                 autoFocus
                 type="text"
                 placeholder="e.g. Mum, Best friend"
-                aria-label="Person name"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);

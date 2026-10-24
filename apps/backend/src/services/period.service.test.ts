@@ -219,6 +219,7 @@ describe("periodService.createPeriod", () => {
         startDate: new Date("2026-10-01"),
         endDate: null,
         amount: 9,
+        dueDate: null,
       },
     });
     expect(result.amount).toBe(9);
@@ -730,5 +731,56 @@ describe("periodService audits every mutation", () => {
 
     expect(result).toEqual({ deleteItem: true, itemType: "committed_item", itemId: "item-1" });
     expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("periodService.syncCurrentDueDate", () => {
+  const now = new Date("2026-06-01");
+  const base = { householdId: HH, itemType: "committed_item", itemId: "item-1", amount: 10 };
+
+  it("writes the new date onto the current period when a moved date is in force", async () => {
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      {
+        ...base,
+        id: "p1",
+        startDate: new Date("2025-01-01"),
+        endDate: new Date("2026-01-01"),
+        dueDate: new Date("2025-02-01"),
+      },
+      { ...base, id: "p2", startDate: new Date("2026-01-01"), endDate: null, dueDate: null },
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    const due = new Date("2026-07-15");
+    await periodService.syncCurrentDueDate(
+      prismaMock as any,
+      HH,
+      "committed_item",
+      "item-1",
+      due,
+      now
+    );
+
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p2" },
+      data: { dueDate: due },
+    });
+  });
+
+  it("does nothing when no period has moved the payment date", async () => {
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      { ...base, id: "p1", startDate: new Date("2025-01-01"), endDate: null, dueDate: null },
+    ] as any);
+
+    await periodService.syncCurrentDueDate(
+      prismaMock as any,
+      HH,
+      "committed_item",
+      "item-1",
+      new Date("2026-07-15"),
+      now
+    );
+
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
   });
 });

@@ -735,6 +735,7 @@ describe("waterfallService create methods create the opening period atomically",
         startDate: new Date("2026-01-01"),
         endDate: null,
         amount: 1000,
+        dueDate: null,
       },
     });
   });

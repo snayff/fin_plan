@@ -132,6 +132,15 @@ export async function updateDiscretionary(
         where: { id },
         data: { ...itemData, lastReviewedAt: new Date() },
       });
+      if (itemData.dueDate instanceof Date) {
+        await periodService.syncCurrentDueDate(
+          tx,
+          householdId,
+          "discretionary_item",
+          id,
+          itemData.dueDate
+        );
+      }
       if (amount !== undefined) {
         await periodService.setCurrentAmount(tx, householdId, "discretionary_item", id, amount);
         return { ...updated, amount };
@@ -283,6 +292,15 @@ export async function updateSavings(
         where: { id },
         data: { ...itemData, lastReviewedAt: new Date() },
       });
+      if (itemData.dueDate instanceof Date) {
+        await periodService.syncCurrentDueDate(
+          tx,
+          householdId,
+          "discretionary_item",
+          id,
+          itemData.dueDate
+        );
+      }
       if (amount !== undefined) {
         await periodService.setCurrentAmount(tx, householdId, "discretionary_item", id, amount);
         return { ...updated, amount };

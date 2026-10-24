@@ -40,7 +40,7 @@ describe("SubcategoryGroup", () => {
       </table>
     );
     expect(screen.getByText("Housing")).toBeInTheDocument();
-    expect(screen.getByText(/£1,450/)).toBeInTheDocument();
+    expect(screen.getByText(/£1,450\/mo/)).toBeInTheDocument();
   });
 
   it("computes monthly-equivalent total across mixed frequencies", () => {

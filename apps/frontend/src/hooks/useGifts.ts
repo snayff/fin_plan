@@ -218,8 +218,10 @@ export function useUpsertAllocation() {
       const matrixKey = GIFTS_KEYS.quickAddMatrix(year);
       await queryClient.cancelQueries({ queryKey: matrixKey });
       const snapshot = queryClient.getQueryData<QuickAddMatrix>(matrixKey);
-      if (snapshot?.allocations) {
-        const planned = (data as { planned?: number }).planned ?? 0;
+      // Only patch the matrix when `planned` is actually changing — a spent-only or
+      // date-only write must not optimistically zero the cell.
+      const planned = (data as { planned?: number }).planned;
+      if (snapshot?.allocations && planned !== undefined) {
         const others = snapshot.allocations.filter(
           (a) => !(a.personId === personId && a.eventId === eventId)
         );

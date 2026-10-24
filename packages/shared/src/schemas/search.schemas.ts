@@ -8,7 +8,7 @@ export const SearchResultKindEnum = z.enum([
   "account",
   "gift_person",
   "gift_event",
-  "purchase_item",
+  // purchase_item returns once Goals is built — its page is a placeholder today.
 ]);
 
 export type SearchResultKind = z.infer<typeof SearchResultKindEnum>;
@@ -29,6 +29,10 @@ export const SearchResultSchema = z
     subtitle: z.string(),
     route: z.string(),
     focusId: z.string(),
+    /** Tier items: the subcategory the destination page must select to render the row. */
+    subcategoryId: z.string().optional(),
+    /** Assets/accounts: the type the destination page must select to render the row. */
+    type: z.string().optional(),
   })
   .strict();
 

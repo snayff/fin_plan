@@ -1,6 +1,7 @@
 import { toMonthlyAmount } from "@finplan/shared";
 import { formatCurrency } from "@/utils/format";
 import { TierRow } from "./TierRow";
+import { columnCount } from "./tierRowFormat";
 import type { TierItemRow } from "@/hooks/useWaterfall";
 
 type Tier = "income" | "committed" | "discretionary";
@@ -49,7 +50,7 @@ export function SubcategoryGroup({
   onSaveAmount,
 }: Props) {
   const total = monthlyTotal(items);
-  const colSpan = 7;
+  const colSpan = columnCount(tier);
 
   return (
     <>

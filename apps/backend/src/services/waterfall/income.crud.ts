@@ -95,6 +95,15 @@ export async function updateIncome(
         where: { id },
         data: { ...itemData, lastReviewedAt: new Date() },
       });
+      if (itemData.dueDate instanceof Date) {
+        await periodService.syncCurrentDueDate(
+          tx,
+          householdId,
+          "income_source",
+          id,
+          itemData.dueDate
+        );
+      }
       if (amount !== undefined) {
         await periodService.setCurrentAmount(tx, householdId, "income_source", id, amount);
         return { ...updated, amount };

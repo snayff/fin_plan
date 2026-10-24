@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
+import { toMonthlyAmount } from "@finplan/shared";
 import { formatCurrency } from "@/utils/format";
 import type { TierItemRow } from "@/hooks/useWaterfall";
+import { CADENCE_LABELS, columnCount, formatDueDate, formatIncomeType } from "./tierRowFormat";
 
 interface Member {
   id: string;
@@ -20,34 +22,6 @@ interface Props {
   onSaveName: (name: string) => Promise<unknown>;
   onSaveAmount: (amount: number) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
-}
-
-const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-function formatDueDate(item: TierItemRowWithDraft): string {
-  if (item.spendType === "monthly") return "—";
-  if (item.spendType === "one_off" && item.dueDate) {
-    const d = new Date(item.dueDate);
-    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  }
-  if (item.spendType === "yearly" && item.dueDate) {
-    const d = new Date(item.dueDate);
-    return MONTH_NAMES[d.getMonth()] ?? "—";
-  }
-  return "—";
 }
 
 export function TierRow({
@@ -112,29 +86,47 @@ export function TierRow({
           isDraftIncomplete ? "relative" : "",
         ].join(" ")}
       >
-        {/* Draft indicator dot */}
-        <td className="w-3 pl-1 pr-0">
-          {isDraftIncomplete && (
-            <span
-              className="inline-block h-1.5 w-1.5 rounded-full bg-attention"
-              aria-label="Incomplete draft"
-            />
-          )}
-        </td>
-
-        {/* Name */}
+        {/* Name — draft indicator sits inline so it doesn't add a column */}
         <td className="px-2 py-1.5">
-          <input
-            ref={nameRef}
-            type="text"
-            defaultValue={item.name}
-            onBlur={() => void handleNameBlur()}
-            className={inputClass}
-            aria-label="Item name"
-          />
+          <div className="flex items-center gap-1.5">
+            {isDraftIncomplete && (
+              <span
+                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-attention"
+                aria-label="Incomplete draft"
+              />
+            )}
+            <input
+              ref={nameRef}
+              type="text"
+              defaultValue={item.name}
+              onBlur={() => void handleNameBlur()}
+              className={inputClass}
+              aria-label="Item name"
+            />
+          </div>
         </td>
 
-        {/* Amount */}
+        {/* Type — income only */}
+        {tier === "income" && (
+          <td data-testid="cell-type" className="px-2 py-1.5 text-sm text-text-tertiary">
+            {formatIncomeType(item.incomeType)}
+          </td>
+        )}
+
+        {/* Cadence */}
+        <td data-testid="cell-cadence" className="px-2 py-1.5 text-sm text-text-tertiary">
+          {CADENCE_LABELS[item.spendType]}
+        </td>
+
+        {/* Due */}
+        <td data-testid="cell-due" className="px-2 py-1.5 text-sm text-text-tertiary">
+          {formatDueDate(item)}
+        </td>
+
+        {/* Assigned to (member) — all tiers */}
+        <td className="px-2 py-1.5 text-sm text-text-tertiary">{memberLabel}</td>
+
+        {/* Amount — as entered, at the item's own cadence */}
         <td className="px-2 py-1.5 text-right">
           <input
             ref={amountRef}
@@ -148,26 +140,12 @@ export function TierRow({
           />
         </td>
 
-        {/* Tier-specific columns */}
-        {tier === "income" ? (
-          <td className="px-2 py-1.5 text-sm text-text-tertiary capitalize">
-            {item.spendType === "one_off" ? "One-off" : item.spendType}
-          </td>
-        ) : (
-          /* Due column for committed / discretionary */
-          <td data-testid="cell-due" className="px-2 py-1.5 text-sm text-text-tertiary">
-            {formatDueDate(item)}
-          </td>
-        )}
-
-        {/* Assigned to (member) — all tiers */}
-        <td className="px-2 py-1.5 text-sm text-text-tertiary">{memberLabel}</td>
-
-        {/* /month equivalent */}
-        <td className="px-2 py-1.5 text-right font-numeric tabular-nums text-sm text-text-tertiary">
-          {tier === "income"
-            ? formatCurrency(item.amount, showPence)
-            : formatCurrency(Math.round(item.amount / 12), showPence)}
+        {/* /month equivalent — derived from cadence (monthly passes through) */}
+        <td
+          data-testid="cell-monthly"
+          className="px-2 py-1.5 text-right font-numeric tabular-nums text-sm text-text-tertiary"
+        >
+          {formatCurrency(toMonthlyAmount(item.amount, item.spendType), showPence)}
         </td>
 
         {/* Delete button */}
@@ -210,7 +188,7 @@ export function TierRow({
       {/* Inline confirm UI — avoids needing a portal */}
       {confirmOpen && (
         <tr>
-          <td colSpan={7} className="px-2 py-2" aria-label="Confirm deletion">
+          <td colSpan={columnCount(tier)} className="px-2 py-2" aria-label="Confirm deletion">
             <div className="flex items-center gap-3 rounded border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm">
               <span className="flex-1 text-text-secondary">
                 Delete <strong className="font-medium">{item.name}</strong>? This cannot be undone.

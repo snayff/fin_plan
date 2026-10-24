@@ -8,6 +8,8 @@ export type RecentEntry = {
   route: string;
   addParam?: string;
   focusId?: string;
+  /** Data results: full query params for the destination (focus + subcategory/type). */
+  params?: Record<string, string>;
 };
 
 const CAP = 3;

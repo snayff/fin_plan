@@ -10,7 +10,8 @@ type Props = {
    * When true and the viewport is mobile, render a "(desktop only)" badge.
    * Used for routes that soft-block on mobile (Goals, Gifts, Help, Household
    * Settings, FullWaterfall). Tapping still navigates and lands on the
-   * MobileUnsupportedNotice — preserves discoverability per Item 2 amendment.
+   * MobileUnsupportedNotice — preserves discoverability. See
+   * docs/5. built/ui/universal-search/universal-search-spec.md § Mobile (amended).
    */
   desktopOnly?: boolean;
 };

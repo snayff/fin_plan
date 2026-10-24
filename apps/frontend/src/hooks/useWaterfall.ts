@@ -27,9 +27,7 @@ import type {
  * discretionary shape server-side, so no extra members are needed.
  */
 type WaterfallItemResponse =
-  | IncomeSourceResponse
-  | CommittedItemResponse
-  | DiscretionaryItemResponse;
+  IncomeSourceResponse | CommittedItemResponse | DiscretionaryItemResponse;
 
 /**
  * Re-exported for existing consumers. Keys are sourced from the central
@@ -307,11 +305,20 @@ export interface TierItemRow {
   /** References Member.id. null = no specific member ("Household"). */
   memberId: string | null;
   lifecycleState?: "active" | "future" | "expired";
-  periods?: Array<{ id: string; startDate: Date; endDate: Date | null; amount: number }>;
+  periods?: Array<{
+    id: string;
+    startDate: Date;
+    endDate: Date | null;
+    amount: number;
+    /** Payment date from this period on; null keeps the item's own dueDate. */
+    dueDate: Date | null;
+  }>;
   nextPeriod?: { amount: number; startDate: Date } | null;
   /** Populated for discretionary items in the Savings subcategory. */
   linkedAccountId?: string | null;
   linkedAccount?: { id: string; name: string; type: string } | null;
+  /** Income tier only — e.g. "salary", "dividends". */
+  incomeType?: string;
 }
 
 function normaliseIncomeFrequency(frequency: string): SpendType {
@@ -328,6 +335,7 @@ interface RawPeriod {
   startDate: string | Date;
   endDate?: string | Date | null;
   amount: number;
+  dueDate?: string | Date | null;
 }
 
 /**
@@ -352,6 +360,8 @@ interface TierItemSource {
   linkedAccount?: TierItemRow["linkedAccount"] | null;
   frequency?: string;
   spendType?: string;
+  /** Income rows only. */
+  incomeType?: string;
 }
 
 function mapTierItem(r: TierItemSource, spendType: string): TierItemRow {
@@ -360,11 +370,20 @@ function mapTierItem(r: TierItemSource, spendType: string): TierItemRow {
     startDate: new Date(p.startDate),
     endDate: p.endDate ? new Date(p.endDate) : null,
     amount: p.amount,
+    dueDate: p.dueDate ? new Date(p.dueDate) : null,
   }));
 
   // Find next future period for scheduled change indicator
   const now = new Date();
   const nextPeriod = periods.find((p: { startDate: Date }) => p.startDate > now) ?? null;
+
+  // A period can move the payment date (inherited by later periods), so the
+  // date in force today is the latest period dueDate that has started.
+  let dueDate: Date | null = r.dueDate ? new Date(r.dueDate) : null;
+  for (const p of periods as Array<{ startDate: Date; dueDate: Date | null }>) {
+    if (p.startDate > now) break;
+    if (p.dueDate) dueDate = p.dueDate;
+  }
 
   return {
     id: r.id,
@@ -373,7 +392,7 @@ function mapTierItem(r: TierItemSource, spendType: string): TierItemRow {
     spendType: spendType as SpendType,
     subcategoryId: r.subcategoryId ?? "",
     notes: r.notes ?? null,
-    dueDate: r.dueDate ? new Date(r.dueDate) : null,
+    dueDate,
     lastReviewedAt: new Date(r.lastReviewedAt),
     createdAt: new Date(r.createdAt),
     sortOrder: r.sortOrder ?? 0,
@@ -383,6 +402,7 @@ function mapTierItem(r: TierItemSource, spendType: string): TierItemRow {
     nextPeriod,
     linkedAccountId: r.linkedAccountId ?? null,
     linkedAccount: r.linkedAccount ?? null,
+    ...(r.incomeType ? { incomeType: r.incomeType } : {}),
   };
 }
 
@@ -494,6 +514,7 @@ export function useCreatePeriod(itemType: string, itemId: string) {
       void qc.invalidateQueries({ queryKey: PERIOD_KEYS.list(itemType, itemId) });
       void qc.invalidateQueries({ queryKey: queryKeys.waterfall.summary });
       void qc.invalidateQueries({ queryKey: queryKeys.forecast.all });
+      // A new period can move the payment date, so the whole projection is stale.
       void qc.invalidateQueries({ queryKey: queryKeys.cashflow.projectionAll });
       void qc.invalidateQueries({ queryKey: queryKeys.cashflow.monthAll });
       void qc.invalidateQueries({ queryKey: queryKeys.cashflow.shortfall });
