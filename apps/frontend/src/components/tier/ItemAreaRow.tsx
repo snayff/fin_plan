@@ -37,6 +37,8 @@ interface Props {
   onDeleteRequest: (id: string) => void;
   now: Date;
   stalenessMonths: number;
+  /** Set for planner-owned items: the row is read-only and links to the planner. */
+  managedBy?: { label: string; path: string };
 }
 
 export default function ItemAreaRow({
@@ -54,9 +56,10 @@ export default function ItemAreaRow({
   onDeleteRequest,
   now,
   stalenessMonths,
+  managedBy,
 }: Props) {
   const isExpanded = expandedItemId === item.id;
-  const isEditing = editingItemId === item.id;
+  const isEditing = !managedBy && editingItemId === item.id;
   const updateItem = useTierUpdateItem(tier, item.id);
   const confirmItem = useConfirmWaterfallItem(tier, item.id);
   const stale = isStale(item.lastReviewedAt, now, stalenessMonths);
@@ -88,6 +91,7 @@ export default function ItemAreaRow({
               item={{ ...item, subcategoryName }}
               config={config}
               onEdit={() => onStartEdit(item.id)}
+              managedBy={managedBy}
               now={now}
               stalenessMonths={stalenessMonths}
             />

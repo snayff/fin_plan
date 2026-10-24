@@ -7,10 +7,29 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 // fire (e.g. backgrounded tab with throttled timers).
 const PREFLIGHT_REFRESH_WINDOW_MS = 5_000;
 
-export interface ApiError {
-  message: string;
+/**
+ * Error thrown by ApiClient for any non-2xx response or network failure.
+ * Extends `Error` so callers' `error instanceof Error ? error.message : ...`
+ * checks surface the server's message instead of their generic fallback.
+ */
+export class ApiError extends Error {
   code?: string;
   statusCode: number;
+
+  constructor({
+    message,
+    code,
+    statusCode,
+  }: {
+    message: string;
+    code?: string;
+    statusCode: number;
+  }) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.statusCode = statusCode;
+  }
 }
 
 /** Shape of a parsed response body we care about for error extraction. */
@@ -58,18 +77,18 @@ export class ApiClient {
         continue;
       }
 
-      throw {
+      throw new ApiError({
         message: "Failed to fetch CSRF token",
         code: "CSRF_FETCH_ERROR",
         statusCode: response.status,
-      } as ApiError;
+      });
     }
 
-    throw {
+    throw new ApiError({
       message: "Failed to fetch CSRF token after retries",
       code: "CSRF_FETCH_ERROR",
       statusCode: 500,
-    } as ApiError;
+    });
   }
 
   private async request<T>(
@@ -131,11 +150,11 @@ export class ApiClient {
           : ((await response.json().catch(() => undefined)) as ResponseEnvelope | undefined);
 
       if (!response.ok) {
-        const apiError: ApiError = {
+        const apiError = new ApiError({
           message: data?.error?.message || "Request failed",
           code: data?.error?.code,
           statusCode: response.status,
-        };
+        });
 
         // Handle 401 errors - attempt to refresh token
         if (
@@ -173,7 +192,7 @@ export class ApiClient {
 
       return data as T;
     } catch (error) {
-      if ((error as ApiError).statusCode) {
+      if (error instanceof ApiError) {
         throw error;
       }
 
@@ -186,10 +205,10 @@ export class ApiClient {
         });
       }
 
-      throw {
+      throw new ApiError({
         message: "Network error",
         statusCode: 0,
-      } as ApiError;
+      });
     }
   }
 
