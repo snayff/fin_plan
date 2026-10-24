@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cashflowService } from "@/services/cashflow.service";
+import { queryKeys } from "./queryKeys";
 import type {
   CashflowShortfall,
   CashflowShortfallQuery,
@@ -8,7 +9,7 @@ import type {
   ShortfallTierKey,
 } from "@finplan/shared";
 
-const SHORTFALL_KEY = (q: CashflowShortfallQuery) => ["cashflow", "shortfall", q] as const;
+const SHORTFALL_KEY = queryKeys.cashflow.shortfallQuery;
 
 export function useShortfall(query: CashflowShortfallQuery = { windowDays: 30 }) {
   return useQuery({

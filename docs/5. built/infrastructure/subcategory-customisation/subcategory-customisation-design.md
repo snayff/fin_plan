@@ -2,8 +2,8 @@
 feature: subcategory-customisation
 status: approved
 creation_date: 2026-04-05
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Subcategory Customisation — Design

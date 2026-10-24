@@ -3,7 +3,7 @@ feature: tanstack-query-mutation-consistency
 category: ui
 spec: n/a — derived from audit at `C:\Users\Gabriel\.claude\plans\audit-tanstack-query-usage-sprightly-creek.md`
 creation_date: 2026-04-26
-status: backlog
+status: implemented
 ---
 
 # TanStack Query Mutation Consistency — Implementation Plan

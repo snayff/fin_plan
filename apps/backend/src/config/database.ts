@@ -19,7 +19,10 @@ if (process.env.NODE_ENV !== "production") {
   globalThis.prismaGlobal = prisma;
 }
 
-// Graceful shutdown
+// Fallback pool drain. NOTE: `beforeExit` does NOT fire after an explicit
+// `process.exit()`, so this is only a best-effort safety net for a natural
+// event-loop drain. The primary, reliable disconnect lives in the signal
+// handler in server.ts (see createShutdownHandler).
 process.on("beforeExit", async () => {
   await prisma.$disconnect();
 });

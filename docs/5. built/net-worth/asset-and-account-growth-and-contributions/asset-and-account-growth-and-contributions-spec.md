@@ -2,8 +2,8 @@
 feature: asset-and-account-growth-and-contributions
 design_doc: docs/4. planning/asset-and-account-growth-and-contributions/asset-and-account-growth-and-contributions-design.md
 creation_date: 2026-04-19
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Asset and Account Growth and Contributions

@@ -26,6 +26,7 @@ export function ConfigPlannerModePanel({ currentMode, readOnly }: Props) {
             <input
               type="radio"
               name="planner-mode"
+              aria-label="Synced mode"
               checked={currentMode === "synced"}
               disabled={readOnly}
               onChange={() => choose("synced")}
@@ -37,6 +38,7 @@ export function ConfigPlannerModePanel({ currentMode, readOnly }: Props) {
             <input
               type="radio"
               name="planner-mode"
+              aria-label="Independent mode"
               checked={currentMode === "independent"}
               disabled={readOnly}
               onChange={() => choose("independent")}

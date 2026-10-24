@@ -72,7 +72,9 @@ describe("SubcategoryGroup", () => {
         </tbody>
       </table>
     );
-    expect(screen.getByText(new RegExp(`${formatCurrency(expected)}/mo`))).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(`${formatCurrency(expected, false)}/mo`))
+    ).toBeInTheDocument();
   });
 
   it("renders + add ghost row at the end of items", () => {

@@ -3,8 +3,8 @@ feature: subcategory-customisation
 category: infrastructure
 spec: docs/4. planning/subcategory-customisation/subcategory-customisation-spec.md
 creation_date: 2026-04-05
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Subcategory Customisation — Implementation Plan

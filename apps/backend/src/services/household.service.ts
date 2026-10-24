@@ -14,6 +14,7 @@ import {
   AuthorizationError,
   ConflictError,
   ValidationError,
+  isUniqueConstraintError,
 } from "../utils/errors.js";
 import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
@@ -168,8 +169,8 @@ export const householdService = {
         });
         return household;
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
@@ -415,8 +416,8 @@ export const householdService = {
           });
         },
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
@@ -525,8 +526,8 @@ export const householdService = {
             role: "owner",
           },
         });
-      } catch (err: any) {
-        if (err?.code === "P2002") {
+      } catch (err: unknown) {
+        if (isUniqueConstraintError(err)) {
           throw new ConflictError("A member with that name already exists in this household");
         }
         throw err;
@@ -556,8 +557,8 @@ export const householdService = {
             },
           });
         }
-      } catch (err: any) {
-        if (err?.code === "P2002") {
+      } catch (err: unknown) {
+        if (isUniqueConstraintError(err)) {
           throw new ConflictError("A member with that name already exists in this household");
         }
         throw err;
@@ -694,8 +695,8 @@ export const householdService = {
           }),
         ]);
       }
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;

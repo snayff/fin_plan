@@ -35,6 +35,7 @@ function DemoInput({
     <div className="space-y-1">
       <label className="text-sm text-text-secondary block">{label}</label>
       <input
+        aria-label={label}
         className={`w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground outline-none ${borderClass}`}
         value={value ?? ""}
         placeholder={value ? undefined : "Enter value..."}

@@ -2,8 +2,8 @@
 feature: data_export_import
 status: approved
 creation_date: 2026-04-06
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Data Export & Import — Design

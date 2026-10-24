@@ -1,9 +1,10 @@
 import { apiClient } from "@/lib/api";
-import type { UpdateSettingsInput } from "@finplan/shared";
+import type { UpdateSettingsInput, HouseholdSettingsResponse } from "@finplan/shared";
 
 export const settingsService = {
-  getSettings: () => apiClient.get<any>("/api/settings"),
-  updateSettings: (data: UpdateSettingsInput) => apiClient.patch<any>("/api/settings", data),
+  getSettings: () => apiClient.get<HouseholdSettingsResponse>("/api/settings"),
+  updateSettings: (data: UpdateSettingsInput) =>
+    apiClient.patch<HouseholdSettingsResponse>("/api/settings", data),
   dismissWaterfallTip: () =>
-    apiClient.patch<unknown>("/api/settings", { waterfallTipDismissed: true }),
+    apiClient.patch<HouseholdSettingsResponse>("/api/settings", { waterfallTipDismissed: true }),
 };

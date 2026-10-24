@@ -3,8 +3,8 @@ feature: critique-fixes
 category: ui
 spec: docs/4. planning/critique-fixes/critique-fixes-spec.md
 creation_date: 2026-03-29
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Critique Fixes — Implementation Plan
