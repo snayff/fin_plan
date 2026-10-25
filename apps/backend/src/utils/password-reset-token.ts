@@ -1,4 +1,4 @@
-import { createHmac, createHash, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { config } from "../config/env";
 
 /**
@@ -7,7 +7,7 @@ import { config } from "../config/env";
  * Design (no new database table — see SEC-2):
  *   token = base64url(payload) "." base64url(signature)
  *   payload   = `${userId}.${expiresAtMs}`
- *   signature = HMAC-SHA256(JWT_SECRET, `${payload}.${passwordFingerprint}`)
+ *   signature = HMAC-SHA256(JWT_SECRET, `${payload}.${passwordHash}`)
  *
  * The signature binds the token to a *fingerprint of the user's current
  * password hash*. The fingerprint is never stored in the token — it is
@@ -34,17 +34,10 @@ function base64UrlDecode(input: string): string {
   return Buffer.from(input, "base64url").toString("utf8");
 }
 
-/**
- * A short, non-reversible fingerprint of the user's current password hash.
- * Binds a token to the exact password state at issue time.
- */
-function passwordFingerprint(passwordHash: string): string {
-  return createHash("sha256").update(passwordHash).digest("hex").slice(0, 32);
-}
-
+/** Signature over the payload, keyed by JWT_SECRET and bound to the password hash. */
 function sign(payload: string, passwordHash: string): string {
   return createHmac("sha256", config.JWT_SECRET)
-    .update(`${payload}${SEPARATOR}${passwordFingerprint(passwordHash)}`)
+    .update(`${payload}${SEPARATOR}${passwordHash}`)
     .digest("base64url");
 }
 
