@@ -2,7 +2,7 @@ import { describe, it, expect, mock, beforeEach, beforeAll, afterAll } from "bun
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "../test/helpers/fastify";
 import { errorHandler } from "../middleware/errorHandler";
-import { AuthenticationError, NotFoundError, ValidationError } from "../utils/errors";
+import { AuthenticationError, NotFoundError } from "../utils/errors";
 
 mock.module("../services/household.service", () => ({
   householdService: {
