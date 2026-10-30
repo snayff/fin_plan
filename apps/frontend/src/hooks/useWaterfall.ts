@@ -317,6 +317,8 @@ export interface TierItemRow {
   /** Populated for discretionary items in the Savings subcategory. */
   linkedAccountId?: string | null;
   linkedAccount?: { id: string; name: string; type: string } | null;
+  /** Synced from a planner (e.g. the Gift Planner) — read-only in the tier UI. */
+  isPlannerOwned?: boolean;
   /** Income tier only — e.g. "salary", "dividends". */
   incomeType?: string;
 }
@@ -402,6 +404,7 @@ function mapTierItem(r: TierItemSource, spendType: string): TierItemRow {
     nextPeriod,
     linkedAccountId: r.linkedAccountId ?? null,
     linkedAccount: r.linkedAccount ?? null,
+    isPlannerOwned: r.isPlannerOwned === true,
     ...(r.incomeType ? { incomeType: r.incomeType } : {}),
   };
 }

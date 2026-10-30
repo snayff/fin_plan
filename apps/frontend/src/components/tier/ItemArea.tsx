@@ -34,6 +34,11 @@ export interface LockedManager {
   path: string;
 }
 
+// Planner-owned items only exist while the Gift Planner is synced, so fall back
+// to it if the planner settings haven't resolved yet — the row must never be
+// editable, since the API rejects edits/deletes to planner-owned items.
+const GIFT_PLANNER: LockedManager = { label: "Gift Planner", path: "/gifts" };
+
 interface MemberOption {
   id: string;
   firstName: string;
@@ -349,6 +354,7 @@ export default function ItemArea({
               onDeleteRequest={setDeletingItemId}
               now={now}
               stalenessMonths={stalenessMonths}
+              managedBy={item.isPlannerOwned ? (lockedManager ?? GIFT_PLANNER) : undefined}
             />
           </div>
         ))}
