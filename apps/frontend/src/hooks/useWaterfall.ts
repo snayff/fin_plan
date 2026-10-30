@@ -360,6 +360,7 @@ interface TierItemSource {
   periods?: RawPeriod[] | null;
   linkedAccountId?: string | null;
   linkedAccount?: TierItemRow["linkedAccount"] | null;
+  isPlannerOwned?: boolean;
   frequency?: string;
   spendType?: string;
   /** Income rows only. */
