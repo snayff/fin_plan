@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { evaluateCoverage } from "./check-coverage";
+import { evaluateCoverage, findMissingCoverage } from "./check-coverage";
 
 const FLOOR = { functions: 63, lines: 74 };
 
@@ -59,5 +59,26 @@ describe("evaluateCoverage", () => {
       ratchetTolerancePp: 1,
     });
     expect(result.violations.some((v) => v.kind === "missing-baseline")).toBe(true);
+  });
+});
+
+describe("findMissingCoverage", () => {
+  const current = {
+    "apps/backend": { functions: 80, lines: 82 },
+    "apps/frontend": { functions: 75, lines: 78 },
+  };
+
+  test("returns required packages that emitted no coverage", () => {
+    expect(findMissingCoverage(current, ["apps/backend", "packages/shared"])).toEqual([
+      "packages/shared",
+    ]);
+  });
+
+  test("returns empty when every required package is present", () => {
+    expect(findMissingCoverage(current, ["apps/backend", "apps/frontend"])).toEqual([]);
+  });
+
+  test("treats no required packages as nothing missing (lenient local run)", () => {
+    expect(findMissingCoverage({}, [])).toEqual([]);
   });
 });

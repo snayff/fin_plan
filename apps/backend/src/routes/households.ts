@@ -157,13 +157,14 @@ export async function householdRoutes(fastify: FastifyInstance) {
     "/households/:householdId/members/:userId/role",
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const callerId = request.user!.userId;
       const { householdId, userId: targetUserId } = request.params as {
         householdId: string;
         userId: string;
       };
 
-      // Security: caller must belong to the active household matching the route param
+      // Security: caller must belong to the active household matching the route
+      // param. This guard also makes the route active-household-scoped, so the
+      // role attached by the auth middleware is the caller's role here.
       if (householdId !== request.householdId) {
         throw new AuthorizationError("Forbidden");
       }
@@ -172,7 +173,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
 
       const updated = await updateMemberRole(
         prisma,
-        { householdId, callerId, targetUserId, newRole },
+        { householdId, callerRole: request.user!.role, targetUserId, newRole },
         actorCtx(request)
       );
       return reply.send({ member: updated });

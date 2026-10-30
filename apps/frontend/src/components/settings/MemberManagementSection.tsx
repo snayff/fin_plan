@@ -64,7 +64,8 @@ export function MemberManagementSection() {
     const retYear = retYearStr ? Number.parseInt(retYearStr, 10) : null;
     return {
       name: trimmedName,
-      dateOfBirth: dob ? dob : null,
+      // <input type="date"> yields YYYY-MM-DD; the API expects an ISO datetime.
+      dateOfBirth: dob ? `${dob}T00:00:00.000Z` : null,
       retirementYear: Number.isFinite(retYear) ? retYear : null,
     };
   }
@@ -172,7 +173,8 @@ export function MemberManagementSection() {
     setShowAdd(false);
     setForm({
       name: member.name,
-      dateOfBirth: member.dateOfBirth ?? "",
+      // The API returns an ISO datetime; a date input only accepts YYYY-MM-DD.
+      dateOfBirth: member.dateOfBirth?.slice(0, 10) ?? "",
       retirementYear: member.retirementYear?.toString() ?? "",
     });
   }

@@ -25,6 +25,13 @@ describe("ProfileAvatar", () => {
     expect(trigger.textContent).toBe("JS");
   });
 
+  it("includes the visible initials in its accessible name (WCAG 2.5.3 label in name)", () => {
+    renderWithProviders(<ProfileAvatar />);
+    const trigger = screen.getByRole("button", { name: /profile menu/i });
+    const name = trigger.getAttribute("aria-label") ?? "";
+    expect(name).toContain(trigger.textContent ?? "");
+  });
+
   it("opens dropdown on click", () => {
     renderWithProviders(<ProfileAvatar />);
     fireEvent.click(screen.getByRole("button", { name: /profile menu/i }));

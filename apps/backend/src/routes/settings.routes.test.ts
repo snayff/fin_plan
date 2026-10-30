@@ -17,15 +17,9 @@ mock.module("../middleware/auth.middleware", () => ({
   authMiddleware: mock(() => {}),
 }));
 
-let mockMember: { role: string } | null = { role: "owner" };
-
-mock.module("../config/database", () => ({
-  prisma: {
-    member: {
-      findFirst: mock(async () => mockMember),
-    },
-  },
-}));
+// The growth-rate gate reads the caller's role from request.user (attached by
+// the auth middleware), so the middleware mock supplies it directly.
+let callerRole = "owner";
 
 import { authMiddleware } from "../middleware/auth.middleware";
 import { settingsRoutes } from "./settings.routes";
@@ -60,14 +54,14 @@ beforeEach(() => {
   settingsServiceMock.getSettings.mockResolvedValue(mockSettings as any);
   settingsServiceMock.updateSettings.mockResolvedValue(mockSettings as any);
 
-  mockMember = { role: "owner" };
+  callerRole = "owner";
 
   (authMiddleware as any).mockImplementation(async (request: any) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       throw new AuthenticationError("No authorization token provided");
     }
-    request.user = { userId: "user-1", email: "test@test.com" };
+    request.user = { userId: "user-1", email: "test@test.com", role: callerRole };
     request.householdId = "hh-1";
   });
 });
@@ -126,7 +120,7 @@ describe("PATCH /api/settings", () => {
 
 describe("PATCH /api/settings — growth rate role gate", () => {
   it("allows owner to update growth rate fields", async () => {
-    mockMember = { role: "owner" };
+    callerRole = "owner";
     const updated = { ...mockSettings, savingsRatePct: 5 };
     settingsServiceMock.updateSettings.mockResolvedValue(updated as any);
 
@@ -140,7 +134,7 @@ describe("PATCH /api/settings — growth rate role gate", () => {
   });
 
   it("allows admin to update growth rate fields", async () => {
-    mockMember = { role: "admin" };
+    callerRole = "admin";
     const updated = { ...mockSettings, investmentRatePct: 7 };
     settingsServiceMock.updateSettings.mockResolvedValue(updated as any);
 
@@ -154,7 +148,7 @@ describe("PATCH /api/settings — growth rate role gate", () => {
   });
 
   it("allows owner to update currentRatePct", async () => {
-    mockMember = { role: "owner" };
+    callerRole = "owner";
     const updated = { ...mockSettings, currentRatePct: 1.5 };
     settingsServiceMock.updateSettings.mockResolvedValue(updated as any);
 
@@ -168,7 +162,7 @@ describe("PATCH /api/settings — growth rate role gate", () => {
   });
 
   it("rejects member role from setting currentRatePct", async () => {
-    mockMember = { role: "member" };
+    callerRole = "member";
 
     const res = await app.inject({
       method: "PATCH",
@@ -180,7 +174,7 @@ describe("PATCH /api/settings — growth rate role gate", () => {
   });
 
   it("rejects member role from setting growth rate fields", async () => {
-    mockMember = { role: "member" };
+    callerRole = "member";
 
     const res = await app.inject({
       method: "PATCH",
@@ -194,7 +188,7 @@ describe("PATCH /api/settings — growth rate role gate", () => {
   it.each(["propertyRatePct", "vehicleRatePct", "otherAssetRatePct"] as const)(
     "rejects member role from setting %s",
     async (field) => {
-      mockMember = { role: "member" };
+      callerRole = "member";
 
       const res = await app.inject({
         method: "PATCH",
@@ -207,7 +201,7 @@ describe("PATCH /api/settings — growth rate role gate", () => {
   );
 
   it("allows member to update non-growth-rate fields", async () => {
-    mockMember = { role: "member" };
+    callerRole = "member";
     const updated = { ...mockSettings, surplusBenchmarkPct: 15 };
     settingsServiceMock.updateSettings.mockResolvedValue(updated as any);
 

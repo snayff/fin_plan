@@ -1,26 +1,59 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
 import type { SearchResponse, SearchResult, SearchResultKind } from "@finplan/shared";
 
 const PER_KIND_LIMIT = 5;
 
-type NamedRow = { id: string; name: string };
+/** Column the destination page needs to select the panel that renders the row. */
+type ScopeColumn = "subcategoryId" | "type";
+
+type NamedRow = { id: string; name: string; scope?: string | null };
 
 type KindConfig = {
   kind: SearchResultKind;
   subtitle: string;
   route: string;
-  fetch: (householdId: string, q: string) => Promise<NamedRow[]>;
+  /** Table to search. Models have no @@map, so the model name is the table name. Never user input. */
+  table: Prisma.ModelName;
+  /** Selected alongside id/name and returned under the same name on the result. */
+  scope?: ScopeColumn;
 };
 
-function like(householdId: string, q: string) {
-  return {
-    where: {
-      householdId,
-      name: { contains: q, mode: "insensitive" as const },
-    },
-    select: { id: true, name: true },
-    take: PER_KIND_LIMIT * 4,
-  };
+/** Escape LIKE metacharacters so the query matches literally (Postgres' default escape is `\`). */
+function escapeLike(q: string): string {
+  return q.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/**
+ * Case-insensitive substring match, ranked in SQL: exact name, then prefix,
+ * then contains, then alphabetical — and only then limited. Ranking before the
+ * LIMIT guarantees the best matches are returned however many rows match.
+ */
+function findRanked(
+  table: Prisma.ModelName,
+  scope: ScopeColumn | undefined,
+  householdId: string,
+  q: string
+): Promise<NamedRow[]> {
+  const escaped = escapeLike(q);
+  // `scope` is a fixed column name from KINDS (never user input), cast to text
+  // so enum columns like Asset.type come back as plain strings.
+  const scopeSelect = scope ? Prisma.raw(`, "${scope}"::text AS "scope"`) : Prisma.empty;
+  return prisma.$queryRaw<NamedRow[]>`
+    SELECT "id", "name"${scopeSelect}
+    FROM ${Prisma.raw(`"${table}"`)}
+    WHERE "householdId" = ${householdId}
+      AND "name" ILIKE ${`%${escaped}%`}
+    ORDER BY
+      CASE
+        WHEN lower("name") = lower(${q}) THEN 0
+        WHEN "name" ILIKE ${`${escaped}%`} THEN 1
+        ELSE 2
+      END,
+      "name",
+      "id"
+    LIMIT ${PER_KIND_LIMIT}
+  `;
 }
 
 const KINDS: KindConfig[] = [
@@ -28,59 +61,50 @@ const KINDS: KindConfig[] = [
     kind: "income_source",
     subtitle: "Income · Source",
     route: "/income",
-    fetch: (h, q) => prisma.incomeSource.findMany(like(h, q)),
+    table: "IncomeSource",
+    scope: "subcategoryId",
   },
   {
     kind: "committed_item",
     subtitle: "Committed · Item",
     route: "/committed",
-    fetch: (h, q) => prisma.committedItem.findMany(like(h, q)),
+    table: "CommittedItem",
+    scope: "subcategoryId",
   },
   {
     kind: "discretionary_item",
     subtitle: "Discretionary · Item",
     route: "/discretionary",
-    fetch: (h, q) => prisma.discretionaryItem.findMany(like(h, q)),
+    table: "DiscretionaryItem",
+    scope: "subcategoryId",
   },
   {
     kind: "asset",
     subtitle: "Wealth · Asset",
     route: "/assets",
-    fetch: (h, q) => prisma.asset.findMany(like(h, q)),
+    table: "Asset",
+    scope: "type",
   },
   {
     kind: "account",
     subtitle: "Wealth · Account",
     route: "/assets",
-    fetch: (h, q) => prisma.account.findMany(like(h, q)),
+    table: "Account",
+    scope: "type",
   },
   {
     kind: "gift_person",
     subtitle: "Gifts · Person",
     route: "/gifts",
-    fetch: (h, q) => prisma.giftPerson.findMany(like(h, q)),
+    table: "GiftPerson",
   },
   {
     kind: "gift_event",
     subtitle: "Gifts · Event",
     route: "/gifts",
-    fetch: (h, q) => prisma.giftEvent.findMany(like(h, q)),
-  },
-  {
-    kind: "purchase_item",
-    subtitle: "Goals · Purchase item",
-    route: "/goals",
-    fetch: (h, q) => prisma.purchaseItem.findMany(like(h, q)),
+    table: "GiftEvent",
   },
 ];
-
-function rankScore(name: string, q: string): number {
-  const n = name.toLowerCase();
-  const t = q.toLowerCase();
-  if (n === t) return 0;
-  if (n.startsWith(t)) return 1;
-  return 2;
-}
 
 export const searchService = {
   async search(householdId: string, rawQuery: string): Promise<SearchResponse> {
@@ -89,24 +113,16 @@ export const searchService = {
 
     const buckets = await Promise.all(
       KINDS.map(async (cfg) => {
-        const rows = await cfg.fetch(householdId, q);
-        return rows
-          .slice()
-          .sort((a, b) => {
-            const sa = rankScore(a.name, q);
-            const sb = rankScore(b.name, q);
-            if (sa !== sb) return sa - sb;
-            return a.name.localeCompare(b.name);
-          })
-          .slice(0, PER_KIND_LIMIT)
-          .map<SearchResult>((row) => ({
-            kind: cfg.kind,
-            id: row.id,
-            name: row.name,
-            subtitle: cfg.subtitle,
-            route: cfg.route,
-            focusId: row.id,
-          }));
+        const rows = await findRanked(cfg.table, cfg.scope, householdId, q);
+        return rows.map<SearchResult>((row) => ({
+          kind: cfg.kind,
+          id: row.id,
+          name: row.name,
+          subtitle: cfg.subtitle,
+          route: cfg.route,
+          focusId: row.id,
+          ...(cfg.scope && row.scope ? { [cfg.scope]: row.scope } : {}),
+        }));
       })
     );
 

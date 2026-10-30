@@ -2,8 +2,8 @@ import { FastifyInstance } from "fastify";
 import { householdService } from "../services/household.service";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { acceptInviteSchema } from "@finplan/shared";
-import { config } from "../config/env";
 import { actorCtx } from "../lib/actor-ctx.js";
+import { setRefreshTokenCookie } from "../lib/refresh-cookie.js";
 
 function maskInviteEmail(email: string): string {
   const atIndex = email.indexOf("@");
@@ -38,14 +38,10 @@ export async function inviteRoutes(fastify: FastifyInstance) {
       userAgent: request.headers["user-agent"],
     });
 
-    // Set refresh token cookie (mirrors auth routes pattern)
-    reply.setCookie("refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: config.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/api/auth/refresh",
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
+    // Set refresh token cookie via the shared helper so the cookie contract
+    // (attributes + lifetime) stays defined in exactly one place. The invite flow
+    // issues a persistent 7-day cookie, so opt into the remembered lifetime.
+    setRefreshTokenCookie(reply, result.refreshToken, { rememberMe: true });
 
     return reply.status(201).send({
       user: result.user,

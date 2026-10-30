@@ -1,11 +1,8 @@
 import { describe, it, expect, mock } from "bun:test";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import GiftsPage from "./GiftsPage";
-
-mock.module("@/features/search/useAddParam", () => ({
-  useAddParam: () => {},
-}));
 
 mock.module("@/hooks/useGifts", () => ({
   useGiftsState: () => ({
@@ -55,7 +52,11 @@ mock.module("@/components/gifts/YearRolloverBanner", () => ({
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  return (
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    </MemoryRouter>
+  );
 }
 
 describe("GiftsPage", () => {
