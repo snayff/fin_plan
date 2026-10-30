@@ -38,14 +38,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "bun-types": "^1.4.3",
+    "bun-types": "^1.4.4",
     "eslint": "^9.39.5",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.10",
-    "turbo": "^2.11.8",
+    "turbo": "^2.11.10",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.1"
   },
   "overrides": {
     "ws": "^8.21.0",

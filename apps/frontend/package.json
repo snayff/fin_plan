@@ -84,7 +84,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
-    "autoprefixer": "^10.6.1",
+    "autoprefixer": "^10.6.2",
     "axe-core": "^4.14.0",
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",
@@ -92,11 +92,11 @@
     "eslint-plugin-react-refresh": "^0.5.7",
     "jest-axe": "^10.0.0",
     "msw": "^2.15.0",
-    "postcss": "^8.5.30",
+    "postcss": "^8.5.32",
     "size-limit": "^12.1.0",
     "supertest": "^7.3.1",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
-    "vite": "^6.4.4"
+    "vite": "^6.4.5"
   }
 }
