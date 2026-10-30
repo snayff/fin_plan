@@ -1,9 +1,24 @@
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { householdService } from "../services/household.service";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { acceptInviteSchema } from "@finplan/shared";
 import { actorCtx } from "../lib/actor-ctx.js";
 import { setRefreshTokenCookie } from "../lib/refresh-cookie.js";
+
+/**
+ * Invite-token route param. Tokens are 32-byte hex strings (64 chars); bounding
+ * the param means a malformed token yields a consistent 400 rather than an
+ * unbounded string flowing into the token-hash lookup (#SEC-6).
+ */
+const inviteTokenParamsSchema = z.object({
+  token: z
+    .string()
+    .trim()
+    .min(1)
+    .max(128)
+    .regex(/^[a-zA-Z0-9._-]+$/),
+});
 
 function maskInviteEmail(email: string): string {
   const atIndex = email.indexOf("@");
@@ -18,7 +33,7 @@ export async function inviteRoutes(fastify: FastifyInstance) {
   // Validate an invite token — returns household name and invited email
   // No auth required (used to show invite landing page before signup)
   fastify.get("/invite/:token", async (request, reply) => {
-    const { token } = request.params as { token: string };
+    const { token } = inviteTokenParamsSchema.parse(request.params);
     const invite = await householdService.validateInviteToken(token);
     return reply.send({
       householdId: invite.householdId,
@@ -31,7 +46,7 @@ export async function inviteRoutes(fastify: FastifyInstance) {
   // New user accepts invite — creates account and joins household
   // No auth required
   fastify.post("/invite/:token/accept", async (request, reply) => {
-    const { token } = request.params as { token: string };
+    const { token } = inviteTokenParamsSchema.parse(request.params);
     const body = acceptInviteSchema.parse(request.body);
     const result = await householdService.acceptInvite(token, body, {
       ipAddress: request.ip,
@@ -52,7 +67,7 @@ export async function inviteRoutes(fastify: FastifyInstance) {
   // Existing logged-in user joins household via invite
   // Requires auth
   fastify.post("/invite/:token/join", { preHandler: [authMiddleware] }, async (request, reply) => {
-    const { token } = request.params as { token: string };
+    const { token } = inviteTokenParamsSchema.parse(request.params);
     const userId = request.user!.userId;
     const household = await householdService.joinViaInvite(token, userId, actorCtx(request));
     return reply.send({ household });

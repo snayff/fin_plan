@@ -5,6 +5,7 @@ import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { toMonthlyAmount } from "@finplan/shared";
 import { getIsaTaxYearWindow } from "../utils/isa-tax-year.js";
 import { forecastContribution, type ForecastInput } from "../utils/isa-forecast.js";
+import { assertMemberInHousehold as assertMemberInHouseholdShared } from "./ownership.js";
 import type {
   AssetType,
   AccountType,
@@ -50,13 +51,11 @@ async function assertAccountOwned(householdId: string, accountId: string) {
 }
 
 async function assertMemberInHousehold(householdId: string, memberId: string) {
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-    select: { id: true, householdId: true },
+  await assertMemberInHouseholdShared(householdId, memberId, {
+    query: "findUnique",
+    error: "ValidationError",
+    message: "Member not found in household",
   });
-  if (!member || member.householdId !== householdId) {
-    throw new ValidationError("Member not found in household");
-  }
 }
 
 // ── Disposal helpers ─────────────────────────────────────────────────────────
@@ -138,11 +137,11 @@ export const assetsService = {
     const [assets, accounts] = await Promise.all([
       prisma.asset.findMany({
         where: { householdId, ...activeWhere() },
-        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] } },
+        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
       }),
       prisma.account.findMany({
         where: { householdId, ...activeWhere() },
-        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] } },
+        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
       }),
     ]);
 
@@ -184,7 +183,7 @@ export const assetsService = {
     const assets = await prisma.asset.findMany({
       where: { householdId, type, ...(opts.includeDisposed ? {} : activeWhere()) },
       include: {
-        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
       },
       orderBy: { createdAt: "asc" },
     });
@@ -341,7 +340,7 @@ export const assetsService = {
     const accounts = await prisma.account.findMany({
       where: { householdId, type, ...(opts.includeDisposed ? {} : activeWhere()) },
       include: {
-        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
         linkedItems: { select: { id: true, name: true, spendType: true } },
       },
       orderBy: { createdAt: "asc" },

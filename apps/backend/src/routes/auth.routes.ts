@@ -13,7 +13,13 @@ import { setRefreshTokenCookie, clearRefreshTokenCookie } from "../lib/refresh-c
 import { decodeToken } from "../utils/jwt";
 import { NotFoundError, ValidationError } from "../utils/errors";
 import { MAX_PASSWORD_LENGTH } from "../utils/password";
-import { AuditAction } from "@finplan/shared";
+import { sendPasswordResetEmail } from "../utils/mailer";
+import {
+  AuditAction,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "@finplan/shared";
 
 function requestContext(request: FastifyRequest) {
   return { ipAddress: request.ip, userAgent: request.headers["user-agent"] };
@@ -48,28 +54,9 @@ const updateProfileSchema = z.object({
 });
 
 export async function authRoutes(fastify: FastifyInstance) {
-  // Rate limit configurations for auth endpoints
-  const loginOpts: RouteShorthandOptions = {
-    config: {
-      rateLimit: {
-        max: 5,
-        timeWindow: "15 minutes",
-      },
-    },
-  };
-
-  const registerOpts: RouteShorthandOptions = {
-    config: {
-      rateLimit: {
-        max: 10,
-        timeWindow: "1 hour",
-      },
-    },
-  };
-
-  // CSRF protection for cookie-authenticated state-changing endpoints.
+  // CSRF protection for state-changing endpoints.
   // Tokens are issued by GET /csrf-token and sent back in the X-CSRF-Token
-  // header (the frontend ApiClient does this automatically).
+  // header (the frontend ApiClient does this automatically for every POST).
   //
   // fastify.csrfProtection returns the (thenable) reply object when it
   // rejects a request, which makes the hook runner resume the lifecycle
@@ -79,12 +66,57 @@ export async function authRoutes(fastify: FastifyInstance) {
     fastify.csrfProtection(request, reply, done);
   };
 
+  // Rate limit configurations for auth endpoints. login/register also require
+  // a CSRF token (SEC-5) — the frontend already sends one on every POST, so
+  // this closes the gap where they were the only unprotected state-changers.
+  const loginOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "15 minutes",
+      },
+    },
+  };
+
+  const registerOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "1 hour",
+      },
+    },
+  };
+
   const refreshOpts: RouteShorthandOptions = {
     onRequest: csrfProtection,
     config: {
       rateLimit: {
         max: 10,
         timeWindow: "15 minutes",
+      },
+    },
+  };
+
+  // Rate limits for the password change/forgot/reset flows (SEC-2). Forgot is
+  // tightly capped to blunt enumeration/spam; reset a little higher for retries.
+  const forgotPasswordOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 hour",
+      },
+    },
+  };
+
+  const resetPasswordOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "1 hour",
       },
     },
   };
@@ -285,6 +317,92 @@ export async function authRoutes(fastify: FastifyInstance) {
       return reply.status(200).send({ message: "Logged out successfully" });
     }
   );
+
+  /**
+   * POST /api/auth/change-password
+   * Change the password for an authenticated user (SEC-2).
+   * Verifies the current password, sets the new one, and revokes all sessions
+   * (including the current one) so every device must re-authenticate. Requires
+   * a CSRF token in addition to the access token.
+   */
+  fastify.post(
+    "/change-password",
+    { onRequest: csrfProtection, preHandler: authMiddleware },
+    async (request, reply) => {
+      const userId = request.user!.userId;
+      const body = changePasswordSchema.parse(request.body);
+
+      await authService.changePassword(userId, body.currentPassword, body.newPassword);
+
+      // Terminate the acting session too: blacklist its access token and clear
+      // the refresh cookie. changePassword already revoked the refresh tokens.
+      await blacklistCurrentToken(request);
+      clearRefreshTokenCookie(reply);
+
+      await auditEvent({
+        userId,
+        action: "CHANGE_PASSWORD",
+        resource: "user",
+        resourceId: userId,
+        ...requestContext(request),
+      });
+
+      return reply.status(200).send({ message: "Password changed successfully" });
+    }
+  );
+
+  /**
+   * POST /api/auth/forgot-password
+   * Request a password-reset email (SEC-2). Always returns the same generic
+   * 200 response regardless of whether the account exists — no enumeration.
+   * When the account exists, a single-use, 1-hour reset token is emailed.
+   */
+  fastify.post("/forgot-password", forgotPasswordOpts, async (request, reply) => {
+    const body = forgotPasswordSchema.parse(request.body);
+    const ctx = requestContext(request);
+
+    const result = await authService.createPasswordResetToken(body.email);
+
+    if (result) {
+      // Fire the email + audit only when an account matched. Both are wrapped so
+      // a mail/audit failure never changes the generic response the client sees.
+      await sendPasswordResetEmail(result.email, result.token, request.log);
+      await auditEvent({
+        action: "PASSWORD_RESET_REQUEST",
+        resource: "user",
+        metadata: { email: result.email },
+        ...ctx,
+      });
+    }
+
+    return reply
+      .status(200)
+      .send({ message: "If an account exists for that email, a reset link has been sent." });
+  });
+
+  /**
+   * POST /api/auth/reset-password
+   * Complete a password reset using a token from the reset email (SEC-2).
+   * Validates the single-use token, sets the new password, and revokes all
+   * sessions. Errors are generic and never reveal token/account state.
+   */
+  fastify.post("/reset-password", resetPasswordOpts, async (request, reply) => {
+    const body = resetPasswordSchema.parse(request.body);
+
+    const userId = await authService.resetPassword(body.token, body.newPassword);
+
+    await auditEvent({
+      userId,
+      action: "PASSWORD_RESET",
+      resource: "user",
+      resourceId: userId,
+      ...requestContext(request),
+    });
+
+    return reply
+      .status(200)
+      .send({ message: "Password reset successfully. Please log in with your new password." });
+  });
 
   /**
    * GET /api/auth/sessions

@@ -860,8 +860,13 @@ describe("waterfallService.deleteAll — with subcategories", () => {
     prismaMock.committedItem.findMany.mockResolvedValue([]);
     prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
     prismaMock.itemAmountPeriod.deleteMany.mockResolvedValue({ count: 0 });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
 
-    await waterfallService.deleteAll("hh-1");
+    await waterfallService.deleteAll("hh-1", {
+      householdId: "hh-1",
+      actorId: "user-1",
+      actorName: "Test",
+    });
 
     expect(prismaMock.incomeSource.deleteMany).toHaveBeenCalledWith({
       where: { householdId: "hh-1" },

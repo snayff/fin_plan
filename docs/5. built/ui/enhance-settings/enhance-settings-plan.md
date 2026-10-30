@@ -3,8 +3,8 @@ feature: enhance-settings
 category: ui
 spec: docs/4. planning/enhance-settings/enhance-settings-spec.md
 creation_date: 2026-04-18
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Enhance Settings — Implementation Plan

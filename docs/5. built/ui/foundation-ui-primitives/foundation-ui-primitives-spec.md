@@ -1,10 +1,10 @@
 ---
 feature: foundation-ui-primitives
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 7
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Foundation UI Primitives

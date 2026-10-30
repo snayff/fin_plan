@@ -49,24 +49,31 @@ export const prismaMock = {
   reviewSession: buildModelMock(),
   importBackup: buildModelMock(),
   // Interactive transaction support: passes self so tx.model.method() resolves to same mocks
-  $transaction: mock((fn: (tx: any) => any) => fn(prismaMock)),
+  $transaction: mock((fn: (tx: unknown) => unknown) => fn(prismaMock)),
   $queryRaw: mock(() => {}),
   $disconnect: mock(() => {}),
 };
 
+/** Minimal shape of a bun mock we need to reset — avoids importing bun's Mock type. */
+type Resettable = { mockReset: () => void };
+
+function isResettable(value: unknown): value is Resettable {
+  return typeof value === "function" && typeof (value as Resettable).mockReset === "function";
+}
+
 /** Reset all mocks on the prisma mock object */
 export function resetPrismaMocks() {
-  for (const [key, value] of Object.entries(prismaMock)) {
-    if (typeof value === "function") {
-      (value as any).mockReset();
+  for (const value of Object.values(prismaMock)) {
+    if (isResettable(value)) {
+      value.mockReset();
     } else if (typeof value === "object" && value !== null) {
       for (const fn of Object.values(value)) {
-        if (typeof fn === "function") {
-          (fn as any).mockReset();
+        if (isResettable(fn)) {
+          fn.mockReset();
         }
       }
     }
   }
   // Restore $transaction default behavior
-  prismaMock.$transaction.mockImplementation((fn: (tx: any) => any) => fn(prismaMock));
+  prismaMock.$transaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(prismaMock));
 }

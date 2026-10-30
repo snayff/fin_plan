@@ -39,19 +39,54 @@ async function resolveFkLabels(
   }
   if (idsByModel.size === 0) return;
 
-  // Batch-fetch label per model, scoped to household where the model supports it.
+  // Batch-fetch label per model, scoped to household. Every resolver target has
+  // an `id` + `name` column, so we dispatch through a typed map of model name ->
+  // delegate fetcher rather than indexing the client by a dynamic string key.
+  const labelFetchers: Record<
+    string,
+    (ids: string[]) => Promise<Array<{ id: string; name: string }>>
+  > = {
+    account: (ids) =>
+      db.account.findMany({
+        where: { id: { in: ids }, householdId },
+        select: { id: true, name: true },
+      }),
+    member: (ids) =>
+      db.member.findMany({
+        where: { id: { in: ids }, householdId },
+        select: { id: true, name: true },
+      }),
+    subcategory: (ids) =>
+      db.subcategory.findMany({
+        where: { id: { in: ids }, householdId },
+        select: { id: true, name: true },
+      }),
+    discretionaryItem: (ids) =>
+      db.discretionaryItem.findMany({
+        where: { id: { in: ids }, householdId },
+        select: { id: true, name: true },
+      }),
+    giftPerson: (ids) =>
+      db.giftPerson.findMany({
+        where: { id: { in: ids }, householdId },
+        select: { id: true, name: true },
+      }),
+    giftEvent: (ids) =>
+      db.giftEvent.findMany({
+        where: { id: { in: ids }, householdId },
+        select: { id: true, name: true },
+      }),
+  };
+
   const labelByModelId = new Map<string, Map<string, string>>();
   await Promise.all(
     Array.from(idsByModel.entries()).map(async ([model, ids]) => {
-      const resolver = Object.values(FK_RESOLVERS).find((r) => r.model === model)!;
-      const rows = (await (db as any)[model].findMany({
-        where: { id: { in: Array.from(ids) }, householdId },
-        select: { id: true, [resolver.label]: true },
-      })) as Array<Record<string, string>>;
+      const fetcher = labelFetchers[model];
+      if (!fetcher) return;
+      const rows = await fetcher(Array.from(ids));
       const byId = new Map<string, string>();
       for (const row of rows) {
-        const label = row[resolver.label];
-        if (typeof row.id === "string" && typeof label === "string") byId.set(row.id, label);
+        byId.set(row.id, row.name);
       }
       labelByModelId.set(model, byId);
     })

@@ -1,4 +1,5 @@
 import { apiClient } from "../lib/api";
+import type { User } from "./auth.service";
 
 export interface Household {
   id: string;
@@ -128,7 +129,7 @@ export const householdService = {
   },
 
   async acceptInvite(token: string, data: { name: string; email: string; password: string }) {
-    return apiClient.post<{ user: any; accessToken: string }>(
+    return apiClient.post<{ user: User; accessToken: string }>(
       `/api/auth/invite/${token}/accept`,
       data
     );

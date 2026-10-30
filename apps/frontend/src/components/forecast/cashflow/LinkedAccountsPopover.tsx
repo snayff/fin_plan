@@ -80,7 +80,12 @@ export function LinkedAccountsPopover({ onClose }: LinkedAccountsPopoverProps) {
       ) : (
         <>
           <label className="flex items-center gap-3 px-2 py-1.5 cursor-pointer">
-            <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              aria-label="Select all accounts"
+            />
             <span className="label-chart">Select all</span>
           </label>
           <div className="border-t border-border my-2" />

@@ -1,13 +1,14 @@
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
 import { cn } from "@/lib/utils";
+import type { Purchase, PlannerBudget } from "./types";
 
 type ActiveView = "purchases";
 
 interface PlannerLeftPanelProps {
   year: number;
-  budget: any | null;
-  purchases: any[];
+  budget: PlannerBudget | null;
+  purchases: Purchase[];
   activeView: ActiveView;
   onSelectView: (v: ActiveView) => void;
 }

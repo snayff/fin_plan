@@ -3,8 +3,8 @@ feature: audit-log
 category: infrastructure
 spec: docs/4. planning/audit-log/audit-log-spec.md
 creation_date: 2026-03-29
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Audit Log — Implementation Plan

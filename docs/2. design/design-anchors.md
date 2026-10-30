@@ -53,7 +53,7 @@
 
 14. **Surplus is the cascaded remainder of the waterfall.** Surplus = Income − Committed Spend − Discretionary Spend. There is no other definition.
 
-15. **Yearly bills use a ÷12 virtual pot model.** Each month, one-twelfth of the annual bill amount accumulates in a virtual pot. Bills deduct from that pot when they fall due. Cashflow shortfalls are detected by comparing the pot balance to upcoming bills.
+15. **Cashflow is a daily balance projection over linked accounts.** Starting from the latest known balance of the cashflow-linked Current and Savings accounts, the projection walks forward day by day: recurring income, committed bills, and one-off discretionary items land on their due dates, ongoing discretionary spend is amortised evenly across each month, and asset/account disposals credit their proceeds when they liquidate. A shortfall is the point where this running balance dips below zero — surfaced with the date and the items that push it under. There is no virtual pot; timing is resolved at day-level precision against real account balances.
 
 16. **Snapshots are read-only.** When viewing a historical snapshot, all editing is disabled. The current plan is always editable; historical states never are.
 

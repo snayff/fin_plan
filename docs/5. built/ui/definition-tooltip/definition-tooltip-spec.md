@@ -1,10 +1,10 @@
 ---
 feature: definition-tooltip
-status: backlog
+status: implemented
 priority: medium
 deferred: false
 phase: 7
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Definition Tooltip

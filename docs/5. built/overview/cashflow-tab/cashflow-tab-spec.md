@@ -2,8 +2,8 @@
 feature: cashflow-tab
 design_doc: docs/4. planning/cashflow-tab/cashflow-tab-design.md
 creation_date: 2026-04-11
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Cashflow Tab

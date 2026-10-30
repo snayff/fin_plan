@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import csrf from "@fastify/csrf-protection";
 import helmet from "@fastify/helmet";
+import compress from "@fastify/compress";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config/env";
 import { verifyAccessToken } from "./utils/jwt";
@@ -25,6 +26,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { prisma } from "./config/database";
 import { startRetentionJob } from "./services/retention.service";
 import { startRevocationCleanup } from "./utils/tokenBlacklist";
+import { resolveRateLimitStore } from "./config/rate-limit-store";
 
 export async function buildApp(opts?: { logger?: boolean | object }): Promise<FastifyInstance> {
   const server = Fastify({
@@ -64,12 +66,27 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
     contentSecurityPolicy: config.NODE_ENV === "production",
   });
 
+  // Global response compression. Only payloads above ~1KB are compressed
+  // (below that, gzip/brotli framing overhead outweighs the saving), so tiny
+  // responses like /health stay uncompressed. Both gzip and brotli are offered;
+  // the client's Accept-Encoding decides which (or none).
+  await server.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ["br", "gzip"],
+  });
+
   // Rate limiting is opt-out via RATE_LIMIT_ENABLED. It stays on in production (and any
   // env that doesn't set the flag). It is disabled in dev/E2E because the whole browser
   // suite reaches the backend through the Vite proxy from a single source IP, which would
   // otherwise exhaust the per-IP auth caps (register 10/h, login 5/15m) and fail the suite.
   if (config.RATE_LIMIT_ENABLED) {
+    // Store selection: with RATE_LIMIT_REDIS_URL set, counters live in a shared
+    // Redis so caps hold across replicas; otherwise the plugin's in-memory
+    // (per-process) store is used. See config/rate-limit-store.ts.
+    const store = await resolveRateLimitStore();
     await server.register(rateLimit, {
+      ...store,
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_TIME_WINDOW,
       allowList: (req: { url: string }) => req.url === "/health",
@@ -89,8 +106,19 @@ export async function buildApp(opts?: { logger?: boolean | object }): Promise<Fa
     });
   }
 
-  // Health check endpoint
-  server.get("/health", async () => {
+  // Health check endpoint — pings the DB so orchestrators only route to
+  // instances that can actually serve requests. Returns 503 (never leaking
+  // error detail) when the database is unreachable.
+  server.get("/health", async (_req, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+    } catch {
+      return reply.status(503).send({
+        status: "unavailable",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+      });
+    }
     return {
       status: "ok",
       timestamp: new Date().toISOString(),

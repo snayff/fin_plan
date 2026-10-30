@@ -57,6 +57,24 @@ describe("TierDoughnut", () => {
     expect(screen.getByText("£1,650")).toBeTruthy();
   });
 
+  it("renders arc geometry from the d3-shape generators", () => {
+    const { container } = render(
+      <TierDoughnut
+        tier="committed"
+        tierTotal={1650}
+        subcategories={mockSubcategories}
+        items={mockItems}
+        isSnapshot={true}
+      />
+    );
+    // One <path> per subcategory, each with real arc path data from arc()/pie().
+    const paths = container.querySelectorAll("svg path");
+    expect(paths.length).toBe(mockSubcategories.length);
+    paths.forEach((p) => {
+      expect(p.getAttribute("d")?.startsWith("M")).toBe(true);
+    });
+  });
+
   it("renders subcategory names in the legend", () => {
     render(
       <TierDoughnut

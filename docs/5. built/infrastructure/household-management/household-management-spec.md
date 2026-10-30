@@ -1,10 +1,10 @@
 ---
 feature: household-management
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 2
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Household Management

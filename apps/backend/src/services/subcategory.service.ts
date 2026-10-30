@@ -3,11 +3,16 @@ import type {
   BatchSaveSubcategoriesInput,
   ResetSubcategoriesInput,
 } from "@finplan/shared";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient, Subcategory } from "@prisma/client";
 import { prisma } from "../config/database.js";
 import { auditEventTx, computeDiff } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
-import { ConflictError, ValidationError } from "../utils/errors.js";
+import {
+  ConflictError,
+  ValidationError,
+  isUniqueConstraintError,
+  isPrismaErrorWithCode,
+} from "../utils/errors.js";
 
 /**
  * A Prisma client or an interactive-transaction client. `seedDefaults` accepts
@@ -15,6 +20,65 @@ import { ConflictError, ValidationError } from "../utils/errors.js";
  * acceptInvite) and commit atomically with the household creation.
  */
 type PrismaLike = PrismaClient | Prisma.TransactionClient;
+
+/**
+ * Reassign a tier's items from one subcategory to another. The three item
+ * delegates share the same `updateMany` shape but their types don't unify into
+ * a single callable, so branch on the tier to keep each call fully typed.
+ */
+async function reassignTierItems(
+  db: PrismaLike,
+  tier: WaterfallTier,
+  householdId: string,
+  fromSubcategoryId: string,
+  toSubcategoryId: string
+): Promise<void> {
+  const where = { subcategoryId: fromSubcategoryId, householdId };
+  const data = { subcategoryId: toSubcategoryId };
+  if (tier === "income") {
+    await db.incomeSource.updateMany({ where, data });
+  } else if (tier === "committed") {
+    await db.committedItem.updateMany({ where, data });
+  } else {
+    await db.discretionaryItem.updateMany({ where, data });
+  }
+}
+
+/** A single subcategory's item count, normalised across the three tier delegates. */
+interface SubcategoryCount {
+  subcategoryId: string | null;
+  count: number;
+}
+
+/** Per-subcategory item counts for a tier (see reassignTierItems for the branch rationale). */
+async function groupItemCountsBySubcategory(
+  db: PrismaLike,
+  tier: WaterfallTier,
+  householdId: string
+): Promise<SubcategoryCount[]> {
+  if (tier === "income") {
+    const groups = await db.incomeSource.groupBy({
+      by: ["subcategoryId"],
+      where: { householdId },
+      _count: { id: true },
+    });
+    return groups.map((g) => ({ subcategoryId: g.subcategoryId, count: g._count.id }));
+  }
+  if (tier === "committed") {
+    const groups = await db.committedItem.groupBy({
+      by: ["subcategoryId"],
+      where: { householdId },
+      _count: { id: true },
+    });
+    return groups.map((g) => ({ subcategoryId: g.subcategoryId, count: g._count.id }));
+  }
+  const groups = await db.discretionaryItem.groupBy({
+    by: ["subcategoryId"],
+    where: { householdId },
+    _count: { id: true },
+  });
+  return groups.map((g) => ({ subcategoryId: g.subcategoryId, count: g._count.id }));
+}
 
 const DEFAULT_SUBCATEGORIES = {
   income: [
@@ -104,22 +168,10 @@ export const subcategoryService = {
   },
 
   async getItemCounts(householdId: string, tier: WaterfallTier): Promise<Record<string, number>> {
-    const model =
-      tier === "income"
-        ? prisma.incomeSource
-        : tier === "committed"
-          ? prisma.committedItem
-          : prisma.discretionaryItem;
-
-    const groups = await (model as any).groupBy({
-      by: ["subcategoryId"],
-      where: { householdId },
-      _count: { id: true },
-    });
-
+    const groups = await groupItemCountsBySubcategory(prisma, tier, householdId);
     const counts: Record<string, number> = {};
     for (const g of groups) {
-      counts[g.subcategoryId] = g._count.id;
+      if (g.subcategoryId != null) counts[g.subcategoryId] = g.count;
     }
     return counts;
   },
@@ -191,19 +243,9 @@ export const subcategoryService = {
 
     // ── Apply in transaction ──────────────────────────────────────────────────
     await prisma.$transaction(async (tx) => {
-      const itemModel =
-        tier === "income"
-          ? tx.incomeSource
-          : tier === "committed"
-            ? tx.committedItem
-            : tx.discretionaryItem;
-
       // 1. Reassign items from removed subcategories
       for (const r of reassignments) {
-        await (itemModel as any).updateMany({
-          where: { subcategoryId: r.fromSubcategoryId, householdId },
-          data: { subcategoryId: r.toSubcategoryId },
-        });
+        await reassignTierItems(tx, tier, householdId, r.fromSubcategoryId, r.toSubcategoryId);
       }
 
       // 2. Delete removed subcategories
@@ -291,8 +333,8 @@ export const subcategoryService = {
         },
         { isolationLevel: "Serializable" }
       );
-    } catch (err: any) {
-      if (err.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A subcategory with that name already exists");
       }
       throw err;
@@ -308,7 +350,7 @@ export const subcategoryService = {
     const tiers = ["income", "committed", "discretionary"] as const;
 
     // Fetch all existing subcategories across all tiers
-    const allExisting: Array<{ id: string; tier: string; householdId: string }> = [];
+    const allExisting: Subcategory[] = [];
     for (const tier of tiers) {
       const subs = await prisma.subcategory.findMany({
         where: { householdId, tier },
@@ -329,7 +371,7 @@ export const subcategoryService = {
     // Build a map of destination IDs → their tier + name (so we can remap after re-seed)
     const destinationInfo = new Map<string, { tier: string; name: string }>();
     for (const r of reassignments) {
-      const dest = allExisting.find((s) => s.id === r.toSubcategoryId) as any;
+      const dest = allExisting.find((s) => s.id === r.toSubcategoryId);
       if (dest) {
         destinationInfo.set(r.toSubcategoryId, { tier: dest.tier, name: dest.name });
       }
@@ -345,24 +387,14 @@ export const subcategoryService = {
     const subsById = new Map(allExisting.map((s) => [s.id, s] as const));
     const blocking: string[] = [];
     for (const tier of tiers) {
-      const itemModel =
-        tier === "income"
-          ? prisma.incomeSource
-          : tier === "committed"
-            ? prisma.committedItem
-            : prisma.discretionaryItem;
-      const groups = await (itemModel as any).groupBy({
-        by: ["subcategoryId"],
-        where: { householdId },
-        _count: { id: true },
-      });
-      for (const g of groups as Array<{ subcategoryId: string | null; _count: { id: number } }>) {
+      const groups = await groupItemCountsBySubcategory(prisma, tier, householdId);
+      for (const g of groups) {
         const subId = g.subcategoryId;
-        if (!subId || g._count.id === 0) continue;
+        if (!subId || g.count === 0) continue;
         // After reassignment, a source is emptied; a target retains its items
         // but is remapped post-reseed. Everything else would orphan its items.
         if (reassignmentSources.has(subId) || reassignmentTargets.has(subId)) continue;
-        const sub = subsById.get(subId) as { name?: string } | undefined;
+        const sub = subsById.get(subId);
         blocking.push(sub?.name ? `${sub.name} (${subId})` : subId);
       }
     }
@@ -379,17 +411,7 @@ export const subcategoryService = {
           const source = allExisting.find((s) => s.id === r.fromSubcategoryId);
           if (!source) continue;
           const tier = source.tier as WaterfallTier;
-          const itemModel =
-            tier === "income"
-              ? tx.incomeSource
-              : tier === "committed"
-                ? tx.committedItem
-                : tx.discretionaryItem;
-
-          await (itemModel as any).updateMany({
-            where: { subcategoryId: r.fromSubcategoryId, householdId },
-            data: { subcategoryId: r.toSubcategoryId },
-          });
+          await reassignTierItems(tx, tier, householdId, r.fromSubcategoryId, r.toSubcategoryId);
         }
 
         // 2. Delete all existing subcategories across all tiers
@@ -425,24 +447,14 @@ export const subcategoryService = {
             const newSub = newSubs.find((s) => s.tier === info.tier && s.name === info.name);
             if (!newSub || newSub.id === oldId) continue;
 
-            const itemModel =
-              info.tier === "income"
-                ? tx.incomeSource
-                : info.tier === "committed"
-                  ? tx.committedItem
-                  : tx.discretionaryItem;
-
-            await (itemModel as any).updateMany({
-              where: { subcategoryId: oldId, householdId },
-              data: { subcategoryId: newSub.id },
-            });
+            await reassignTierItems(tx, info.tier as WaterfallTier, householdId, oldId, newSub.id);
           }
         }
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Defence in depth: if the FK RESTRICT still trips (e.g. a concurrent
       // insert added an item after the pre-check), surface a 400 not a 500.
-      if (err?.code === "P2003") {
+      if (isPrismaErrorWithCode(err, "P2003")) {
         throw new ValidationError(
           "Cannot reset: some subcategories still hold items and were not reassigned"
         );

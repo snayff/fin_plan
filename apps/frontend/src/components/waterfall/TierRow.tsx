@@ -188,8 +188,7 @@ export function TierRow({
       {/* Inline confirm UI — avoids needing a portal */}
       {confirmOpen && (
         <tr>
-          {/* eslint-disable-next-line jsx-a11y/control-has-associated-label -- table row/cell, not a control; its content is the rendered children */}
-          <td colSpan={columnCount(tier)} className="px-2 py-2">
+          <td colSpan={columnCount(tier)} className="px-2 py-2" aria-label="Confirm deletion">
             <div className="flex items-center gap-3 rounded border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm">
               <span className="flex-1 text-text-secondary">
                 Delete <strong className="font-medium">{item.name}</strong>? This cannot be undone.

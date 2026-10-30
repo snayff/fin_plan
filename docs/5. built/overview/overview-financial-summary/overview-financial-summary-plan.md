@@ -3,8 +3,8 @@ feature: overview-financial-summary
 category: overview
 spec: docs/4. planning/overview-financial-summary/overview-financial-summary-spec.md
 creation_date: 2026-03-29
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Overview — Financial Summary Panel — Implementation Plan

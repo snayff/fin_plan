@@ -254,12 +254,11 @@ jobs:
         run: bun run build
 
   # ─────────────────────────────────────────
-  # Frontend bundle size budget (runs on PRs)
+  # Frontend bundle size budget (PRs + branch pushes)
   # ─────────────────────────────────────────
   frontend-perf-size:
     name: Frontend Bundle Size
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     needs: [check-compile]
 
     env:
@@ -292,12 +291,11 @@ jobs:
         run: cd apps/frontend && bun run size
 
   # ─────────────────────────────────────────
-  # Lighthouse CI (runs on PRs)
+  # Lighthouse CI (PRs + branch pushes)
   # ─────────────────────────────────────────
   frontend-perf-lhci:
     name: Frontend Lighthouse
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     needs: [check-compile]
     timeout-minutes: 15
 
@@ -397,7 +395,15 @@ jobs:
     name: Deploy to Coolify
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/production'
-    needs: [lint-and-typecheck, test, check-compile, security-audit]
+    needs:
+      [
+        lint-and-typecheck,
+        test,
+        check-compile,
+        security-audit,
+        frontend-perf-size,
+        frontend-perf-lhci,
+      ]
     environment: PROD
 
     steps:

@@ -2,8 +2,8 @@
 feature: testability-improvements
 spec: docs/4. planning/testability-improvements/testability-improvements-spec.md
 creation_date: 2026-03-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Testability Improvements — Implementation Plan

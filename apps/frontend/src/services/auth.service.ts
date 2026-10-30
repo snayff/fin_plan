@@ -57,4 +57,30 @@ export const authService = {
     // No longer pass refreshToken - it's in httpOnly cookie
     return apiClient.post<{ accessToken: string }>("/api/auth/refresh", {});
   },
+
+  /**
+   * Change the password for the signed-in user (SEC-2). On success the backend
+   * revokes every session, so callers should treat this as a logout and route
+   * the user back to /login.
+   */
+  async changePassword(
+    token: string,
+    data: { currentPassword: string; newPassword: string }
+  ): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>("/api/auth/change-password", data, token);
+  },
+
+  /**
+   * Request a password-reset email (SEC-2). Always resolves with the same
+   * generic message whether or not the account exists — never surface account
+   * existence to the caller.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>("/api/auth/forgot-password", { email });
+  },
+
+  /** Complete a password reset with the token from the reset email (SEC-2). */
+  async resetPassword(data: { token: string; newPassword: string }): Promise<{ message: string }> {
+    return apiClient.post<{ message: string }>("/api/auth/reset-password", data);
+  },
 };
