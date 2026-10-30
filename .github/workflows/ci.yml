@@ -221,6 +221,29 @@ jobs:
         run: bun scripts/check-audit.ts
 
   # ─────────────────────────────────────────
+  # Privacy Scan (PRs + branch pushes)
+  # ─────────────────────────────────────────
+  privacy-scan:
+    name: Privacy Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.9"
+
+      - name: Scan tracked files for personal data
+        # Fails on personal-provider emails or denylisted real values. The
+        # private denylist (real name / domain) is supplied via the
+        # PRIVACY_DENYLIST secret so it never enters the public repo.
+        # Policy: docs/3. architecture/issue-workflow.md → Privacy rules.
+        env:
+          PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+        run: bun scripts/check-privacy.ts
+
+  # ─────────────────────────────────────────
   # Compile Check (PRs + branch pushes)
   # ─────────────────────────────────────────
   check-compile:
@@ -397,7 +420,7 @@ jobs:
     name: Deploy to Coolify
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/production'
-    needs: [lint-and-typecheck, test, check-compile, security-audit]
+    needs: [lint-and-typecheck, test, check-compile, security-audit, privacy-scan]
     environment: PROD
 
     steps:

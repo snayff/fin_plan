@@ -48,7 +48,10 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.finplan-frontend.rule=Host(`finplan.snaith.io`)"
+      # Hostname is injected from the Coolify environment (FRONTEND_HOST) so the
+      # private instance's domain stays out of this public repo. Deploy fails
+      # loudly if it is unset rather than silently mis-routing.
+      - "traefik.http.routers.finplan-frontend.rule=Host(`${FRONTEND_HOST:?set FRONTEND_HOST in the Coolify environment}`)"
       - "traefik.http.routers.finplan-frontend.entrypoints=http"
       - "traefik.http.services.finplan-frontend.loadbalancer.server.port=3000"
 

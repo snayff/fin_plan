@@ -5,7 +5,7 @@ import Layout from "./Layout";
 
 function useAuthStoreMock(selector: (state: unknown) => unknown) {
   return selector({
-    user: { id: "u1", activeHouseholdId: "h1", name: "Josh Snaith", email: "j@example.com" },
+    user: { id: "u1", activeHouseholdId: "h1", name: "Jane Smith", email: "jane@example.com" },
     accessToken: "t",
     setUser: () => {},
     logout: async () => {},
