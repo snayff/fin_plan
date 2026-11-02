@@ -1,0 +1,32 @@
+{
+  "blockedEmailDomains": [
+    "gmail.com",
+    "googlemail.com",
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "msn.com",
+    "yahoo.com",
+    "ymail.com",
+    "icloud.com",
+    "me.com",
+    "mac.com",
+    "proton.me",
+    "protonmail.com",
+    "pm.me",
+    "aol.com",
+    "gmx.com",
+    "fastmail.com",
+    "zoho.com"
+  ],
+  "allowedEmails": [],
+  "ignoreGlobs": [
+    "scripts/check-privacy.ts",
+    "scripts/privacy-allowlist.json",
+    "scripts/privacy-denylist.local.example.txt",
+    "bun.lock",
+    ".agents/**",
+    ".claude/skills/agent-browser/**",
+    "**/*.snap"
+  ]
+}

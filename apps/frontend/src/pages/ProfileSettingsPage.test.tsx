@@ -5,7 +5,7 @@ import ProfileSettingsPage from "./ProfileSettingsPage";
 
 function useAuthStoreMock(selector: (state: unknown) => unknown) {
   return selector({
-    user: { id: "u1", name: "Josh Snaith", email: "j@example.com", activeHouseholdId: "h1" },
+    user: { id: "u1", name: "Jane Smith", email: "jane@example.com", activeHouseholdId: "h1" },
     accessToken: "t",
     setUser: () => {},
   });
@@ -34,7 +34,7 @@ mock.module("@/hooks/useSettings", () => ({
 }));
 
 mock.module("@/services/auth.service", () => ({
-  authService: { updateProfile: async () => ({ user: { name: "Josh Snaith" } }) },
+  authService: { updateProfile: async () => ({ user: { name: "Jane Smith" } }) },
 }));
 
 describe("ProfileSettingsPage", () => {
