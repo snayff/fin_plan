@@ -21,7 +21,7 @@ function SkeletonRow() {
   return (
     <tr className="border-b border-border/40">
       {[1, 2, 3, 4, 5].map((i) => (
-        <td key={i} className="px-3 py-2">
+        <td key={i} className="px-3 py-2" aria-label="Loading">
           <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
         </td>
       ))}

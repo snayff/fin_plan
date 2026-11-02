@@ -37,9 +37,13 @@ describe("authMiddleware", () => {
     const payload = { userId: "user-1", email: "test@test.com" };
     (verifyAccessToken as any).mockReturnValue(payload);
     prismaMock.user.findUnique.mockResolvedValue(
-      buildUser({ id: "user-1", email: "test@test.com", activeHouseholdId: "household-1" } as any)
+      buildUser({
+        id: "user-1",
+        email: "test@test.com",
+        activeHouseholdId: "household-1",
+        memberProfiles: [buildMember({ householdId: "household-1", role: "owner" })],
+      } as any)
     );
-    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "owner" }));
 
     const request = buildMockRequest("Bearer valid-token");
     await authMiddleware(request, mockReply);
@@ -51,6 +55,55 @@ describe("authMiddleware", () => {
       role: "owner",
     });
     expect(request.householdId).toBe("household-1");
+  });
+
+  it("runs only two DB queries on the happy path (blacklist + single user fetch)", async () => {
+    (verifyAccessToken as any).mockReturnValue({
+      userId: "user-1",
+      email: "test@test.com",
+      jti: "jti-1",
+    });
+    prismaMock.user.findUnique.mockResolvedValue(
+      buildUser({
+        id: "user-1",
+        email: "test@test.com",
+        activeHouseholdId: "household-1",
+        memberProfiles: [buildMember({ householdId: "household-1", role: "owner" })],
+      } as any)
+    );
+
+    const request = buildMockRequest("Bearer valid-token");
+    await authMiddleware(request, mockReply);
+
+    // The membership check is now satisfied from the included memberProfiles —
+    // no separate member.findFirst / findMany round-trip.
+    expect(isTokenBlacklisted).toHaveBeenCalledTimes(1);
+    expect(prismaMock.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(prismaMock.member.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.member.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it("includes the user's member profiles in the single user fetch", async () => {
+    (verifyAccessToken as any).mockReturnValue({ userId: "user-1", email: "test@test.com" });
+    prismaMock.user.findUnique.mockResolvedValue(
+      buildUser({
+        id: "user-1",
+        email: "test@test.com",
+        activeHouseholdId: "household-1",
+        memberProfiles: [buildMember({ householdId: "household-1", role: "owner" })],
+      } as any)
+    );
+
+    const request = buildMockRequest("Bearer valid-token");
+    await authMiddleware(request, mockReply);
+
+    const call = prismaMock.user.findUnique.mock.calls[0]![0];
+    expect(call.where).toEqual({ id: "user-1" });
+    expect(call.include ?? call.select).toBeDefined();
+    // Membership data must be part of this single query, not a follow-up.
+    const shape = JSON.stringify(call);
+    expect(shape).toContain("memberProfiles");
   });
 
   it("throws AuthenticationError when no authorization header", async () => {
@@ -116,8 +169,8 @@ describe("authMiddleware", () => {
       email: "a@b.com",
       name: "Alice",
       activeHouseholdId: "hh_1",
+      memberProfiles: [buildMember({ householdId: "hh_1", role: "member" })],
     } as any);
-    prismaMock.member.findFirst.mockResolvedValue(buildMember({ role: "member" }));
 
     const request = buildMockRequest("Bearer valid_token");
     await authMiddleware(request, mockReply);
@@ -129,11 +182,16 @@ describe("authMiddleware", () => {
   it("throws AuthenticationError when user is no longer a member of active household", async () => {
     const payload = { userId: "user-1", email: "test@test.com" };
     (verifyAccessToken as any).mockReturnValue(payload);
+    // User has no membership for the active household and no other memberships,
+    // so the stale activeHouseholdId is cleared to null.
     prismaMock.user.findUnique.mockResolvedValue(
-      buildUser({ id: "user-1", email: "test@test.com", activeHouseholdId: "household-1" } as any)
+      buildUser({
+        id: "user-1",
+        email: "test@test.com",
+        activeHouseholdId: "household-1",
+        memberProfiles: [],
+      } as any)
     );
-    // Membership no longer exists; fallback also returns null
-    prismaMock.member.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     prismaMock.user.update.mockResolvedValue({});
 
     const request = buildMockRequest("Bearer valid-token");
@@ -146,5 +204,44 @@ describe("authMiddleware", () => {
       where: { id: "user-1" },
       data: { activeHouseholdId: null },
     });
+  });
+
+  it("reassigns activeHouseholdId to the earliest-joined household when removed from active", async () => {
+    (verifyAccessToken as any).mockReturnValue({ userId: "user-1", email: "test@test.com" });
+    // Removed from household-1, but still a member of household-2 (and household-3).
+    // Fallback picks the earliest joinedAt among remaining memberships.
+    prismaMock.user.findUnique.mockResolvedValue(
+      buildUser({
+        id: "user-1",
+        email: "test@test.com",
+        activeHouseholdId: "household-1",
+        memberProfiles: [
+          buildMember({
+            householdId: "household-3",
+            role: "member",
+            joinedAt: new Date("2025-06-01T00:00:00Z"),
+          }),
+          buildMember({
+            householdId: "household-2",
+            role: "member",
+            joinedAt: new Date("2025-02-01T00:00:00Z"),
+          }),
+        ],
+      } as any)
+    );
+    prismaMock.user.update.mockResolvedValue({});
+
+    const request = buildMockRequest("Bearer valid-token");
+    await expect(authMiddleware(request, mockReply)).rejects.toThrow(
+      "No longer a member of this household"
+    );
+
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { activeHouseholdId: "household-2" },
+    });
+    // Fallback is computed in-memory from the single fetch — no extra query.
+    expect(prismaMock.member.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.member.findMany).not.toHaveBeenCalled();
   });
 });

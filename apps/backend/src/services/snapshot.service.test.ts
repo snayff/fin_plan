@@ -4,10 +4,19 @@ import { prismaMock, resetPrismaMocks } from "../test/mocks/prisma";
 
 mock.module("../config/database.js", () => ({ prisma: prismaMock }));
 
-// Mock waterfallService so snapshot creation doesn't need DB for summary
+// Mock waterfallService so snapshot creation doesn't need DB for summary.
+// Shape covers both buildSnapshotData (which only stores the raw object, and
+// existing tests assert `incomeTotalMonthly: 0` is present) and
+// getFinancialSummary (which reads income/committed/discretionary/surplus).
 mock.module("./waterfall.service.js", () => ({
   waterfallService: {
-    getWaterfallSummary: async () => ({ incomeTotalMonthly: 0 }),
+    getWaterfallSummary: async () => ({
+      incomeTotalMonthly: 0,
+      income: { total: 0 },
+      committed: { monthlyTotal: 0, monthlyAvg12: 0 },
+      discretionary: { total: 0 },
+      surplus: { amount: 0 },
+    }),
   },
 }));
 
@@ -237,6 +246,58 @@ describe("snapshot audit logging", () => {
         }),
       })
     );
+  });
+});
+
+describe("snapshotService.getFinancialSummary", () => {
+  it("bounds the auto-snapshot query (take + where isAuto), most recent first", async () => {
+    prismaMock.snapshot.findMany.mockResolvedValue([] as any);
+
+    await snapshotService.getFinancialSummary("hh-1");
+
+    expect(prismaMock.snapshot.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ householdId: "hh-1", isAuto: true }),
+        orderBy: { createdAt: "desc" },
+        take: expect.any(Number),
+        select: { data: true, createdAt: true },
+      })
+    );
+    const call = prismaMock.snapshot.findMany.mock.calls.find(
+      (c: any[]) => c[0]?.where?.isAuto === true
+    );
+    expect(call![0].take).toBeGreaterThan(0);
+  });
+
+  it("builds sparklines in chronological order even though the query returns desc", async () => {
+    // Query returns most-recent-first (desc); output sparklines must be oldest-first.
+    prismaMock.snapshot.findMany.mockResolvedValue([
+      {
+        data: { income: { total: 3000 }, assetsTotal: 300 },
+        createdAt: new Date("2026-03-01T00:00:00Z"),
+      },
+      {
+        data: { income: { total: 2000 }, assetsTotal: 200 },
+        createdAt: new Date("2026-02-01T00:00:00Z"),
+      },
+      {
+        data: { income: { total: 1000 }, assetsTotal: 100 },
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    ] as any);
+
+    const result = await snapshotService.getFinancialSummary("hh-1");
+
+    expect(result.sparklines.income).toEqual([
+      { date: "2026-01-01", value: 1000 },
+      { date: "2026-02-01", value: 2000 },
+      { date: "2026-03-01", value: 3000 },
+    ]);
+    expect(result.sparklines.netWorth).toEqual([
+      { date: "2026-01-01", value: 100 },
+      { date: "2026-02-01", value: 200 },
+      { date: "2026-03-01", value: 300 },
+    ]);
   });
 });
 

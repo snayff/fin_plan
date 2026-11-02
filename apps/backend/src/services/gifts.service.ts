@@ -1,6 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
-import { NotFoundError, ConflictError, ValidationError } from "../utils/errors.js";
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  isUniqueConstraintError,
+} from "../utils/errors.js";
 import type {
   CreateGiftPersonInput,
   UpdateGiftPersonInput,
@@ -14,11 +19,7 @@ import type {
 import { AuditAction } from "@finplan/shared";
 import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
-
-function assertOwned(item: { householdId: string } | null, householdId: string, label: string) {
-  if (!item) throw new NotFoundError(`${label} not found`);
-  if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
-}
+import { assertOwned } from "./ownership.js";
 
 export const giftsService = {
   async getOrCreateSettings(householdId: string) {
@@ -113,8 +114,8 @@ export const giftsService = {
         beforeFetch: async () => null,
         mutation: (tx) => tx.giftPerson.create({ data: { householdId, ...data } }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift person with that name already exists");
       }
       throw err;
@@ -135,8 +136,8 @@ export const giftsService = {
           tx.giftPerson.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
         mutation: (tx) => tx.giftPerson.update({ where: { id }, data }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift person with that name already exists");
       }
       throw err;
@@ -191,8 +192,8 @@ export const giftsService = {
         beforeFetch: async () => null,
         mutation: (tx) => tx.giftEvent.create({ data: payload }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift event with that name already exists");
       }
       throw err;
@@ -216,8 +217,8 @@ export const giftsService = {
           tx.giftEvent.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
         mutation: (tx) => tx.giftEvent.update({ where: { id }, data }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift event with that name already exists");
       }
       throw err;
@@ -898,8 +899,8 @@ export const giftsService = {
     const currentMonth = new Date().getMonth() + 1;
 
     for (const a of allocations) {
-      const event = (a as any).giftEvent;
-      const person = (a as any).giftPerson;
+      const event = a.giftEvent;
+      const person = a.giftPerson;
       const month =
         event.dateType === "shared"
           ? (a.dateMonth ?? event.dateMonth ?? null)
@@ -1067,8 +1068,8 @@ export const giftsService = {
           });
         }
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         // Another request rolled this year over first — not an error.
         return false;
       }

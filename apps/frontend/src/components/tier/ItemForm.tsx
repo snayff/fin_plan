@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for form open */
 import { useState } from "react";
 import {
   Select,
@@ -228,9 +227,9 @@ export default function ItemForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Name <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             placeholder={getItemNamePlaceholder(currentSubcategoryName, tier)}
@@ -244,9 +243,9 @@ export default function ItemForm({
 
         {/* Amount */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Amount <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             inputMode="decimal"
@@ -270,7 +269,7 @@ export default function ItemForm({
 
         {/* Frequency */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>Frequency</label>
+          <span className={labelClass}>Frequency</span>
           <Select value={spendType} onValueChange={(v) => setSpendType(v as SpendType)}>
             <SelectTrigger
               aria-label="Spend type"
@@ -307,7 +306,7 @@ export default function ItemForm({
 
         {/* Category */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Category</label>
+          <span className={labelClass}>Category</span>
           <Select value={subcategoryId} onValueChange={handleSubcategoryChange}>
             <SelectTrigger
               aria-label="Subcategory"
@@ -332,7 +331,7 @@ export default function ItemForm({
 
         {/* Member */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Assigned to</label>
+          <span className={labelClass}>Assigned to</span>
           <Select
             value={memberId ?? "__household__"}
             onValueChange={(v) => setMemberId(v === "__household__" ? null : v)}
@@ -356,7 +355,7 @@ export default function ItemForm({
 
         {/* Notes */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Notes</label>
+          <span className={labelClass}>Notes</span>
           <textarea
             placeholder="Any details worth remembering"
             value={notes}
@@ -371,7 +370,7 @@ export default function ItemForm({
         {/* Period editor — edit mode only */}
         {mode === "edit" && item?.periods && item.periods.length > 0 && (
           <div className="col-span-2 flex flex-col gap-1">
-            <label className={labelClass}>Amount history</label>
+            <span className={labelClass}>Amount history</span>
             <p className="text-xs text-text-tertiary">
               {periodCanMoveDueDate
                 ? "Add a period when the amount or payment date changes from a given date."

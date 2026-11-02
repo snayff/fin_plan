@@ -4,6 +4,7 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
+  isUniqueConstraintError,
 } from "../utils/errors.js";
 import { exportService } from "./export.service.js";
 import { auditEventTx, type ActorCtx } from "./audit.service.js";
@@ -164,8 +165,8 @@ export const importService = {
                 role: "owner",
               },
             });
-          } catch (err: any) {
-            if (err?.code === "P2002") {
+          } catch (err: unknown) {
+            if (isUniqueConstraintError(err)) {
               throw new ConflictError("A member with that name already exists in this household");
             }
             throw err;
@@ -238,8 +239,8 @@ export const importService = {
                 retirementYear: m.retirementYear ?? null,
               },
             });
-          } catch (err: any) {
-            if (err?.code === "P2002") {
+          } catch (err: unknown) {
+            if (isUniqueConstraintError(err)) {
               throw new ConflictError("A member with that name already exists in this household");
             }
             throw err;

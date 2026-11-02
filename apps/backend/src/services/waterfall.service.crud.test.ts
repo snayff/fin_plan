@@ -681,7 +681,7 @@ describe("waterfallService.confirmBatch routes every item-type label", () => {
 
 describe("waterfallService.deleteAll", () => {
   it("scopes every delete to the household", async () => {
-    await waterfallService.deleteAll("hh-1");
+    await waterfallService.deleteAll("hh-1", ctx);
 
     expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
       where: { householdId: "hh-1" },
@@ -692,6 +692,22 @@ describe("waterfallService.deleteAll", () => {
     expect(prismaMock.subcategory.deleteMany).toHaveBeenCalledWith({
       where: { householdId: "hh-1" },
     });
+  });
+
+  // SEC-1: the wipe must leave an audit trail.
+  it("writes a DELETE_ALL_WATERFALL audit row inside the transaction", async () => {
+    await waterfallService.deleteAll("hh-1", ctx);
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "DELETE_ALL_WATERFALL",
+          resource: "waterfall",
+          resourceId: "hh-1",
+          actorId: "user-1",
+        }),
+      })
+    );
   });
 });
 

@@ -1,5 +1,10 @@
 import { prisma } from "../config/database.js";
-import { ConflictError, NotFoundError, ValidationError } from "../utils/errors.js";
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+  isUniqueConstraintError,
+} from "../utils/errors.js";
 import type { CreateMemberInput, UpdateMemberInput } from "@finplan/shared";
 import { AuditAction } from "@finplan/shared";
 import { audited, auditEventTx } from "./audit.service.js";
@@ -46,8 +51,8 @@ export const memberService = {
       }
 
       return created;
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
@@ -107,8 +112,8 @@ export const memberService = {
             },
           }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;

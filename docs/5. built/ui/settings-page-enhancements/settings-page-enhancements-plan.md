@@ -2,8 +2,8 @@
 feature: settings-page-enhancements
 spec: docs/4. planning/settings-page-enhancements/settings-page-enhancements-spec.md
 creation_date: 2026-03-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Settings Page Enhancements — Implementation Plan

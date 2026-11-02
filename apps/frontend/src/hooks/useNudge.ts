@@ -19,6 +19,6 @@ export function useSavingsNudge(
 // ─── Account nudge ────────────────────────────────────────────────────────────
 
 // Placeholder — will be re-implemented against the new Assets system in Task 8
-export function useWealthAccountNudge(_account: any): NudgeContent | null {
+export function useWealthAccountNudge(_account: unknown): NudgeContent | null {
   return null;
 }

@@ -15,8 +15,7 @@ export const ACCOUNT_TYPES: AccountType[] = [
  * strings would select both "Other" rows and always route to the asset list.
  */
 export type AssetsSelection =
-  | { kind: "asset"; type: AssetType }
-  | { kind: "account"; type: AccountType };
+  { kind: "asset"; type: AssetType } | { kind: "account"; type: AccountType };
 
 // URL key for the account-side "Other". Every other type keeps its bare name so
 // existing ?type= links continue to work.

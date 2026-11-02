@@ -9,77 +9,21 @@ import type {
   UpdateAccountInput,
   RecordAccountBalanceInput,
   IsaAllowanceSummary,
+  AssetItem,
+  AccountItem,
+  AssetsSummary,
 } from "@finplan/shared";
 
-export interface AssetItem {
-  id: string;
-  name: string;
-  type: AssetType;
-  householdId: string;
-  memberId: string | null;
-  growthRatePct: number | null;
-  lastReviewedAt: string | null;
-  disposedAt: string | null;
-  disposalAccountId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  currentBalance: number;
-  currentBalanceDate: string | null;
-  balances: Array<{
-    id: string;
-    value: number;
-    date: string;
-    note: string | null;
-    createdAt: string;
-  }>;
-}
-
-export interface LinkedContributionItem {
-  id: string;
-  name: string;
-  spendType: string;
-  amount: number;
-  lumpSumExceedsCap: boolean;
-}
-
-export interface AccountItem {
-  id: string;
-  name: string;
-  type: AccountType;
-  householdId: string;
-  memberId: string | null;
-  growthRatePct: number | null;
-  lastReviewedAt: string | null;
-  disposedAt: string | null;
-  disposalAccountId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  currentBalance: number;
-  currentBalanceDate: string | null;
-  monthlyContribution: number;
-  monthlyContributionLimit: number | null;
-  isISA: boolean;
-  isaYearContribution: number | null;
-  spareMonthly: number | null;
-  isOverCap: boolean;
-  hasSpareCapacityNudge: boolean;
-  higherRateTarget: { id: string; name: string; growthRatePct: number } | null;
-  effectiveGrowthRatePct: number | null;
-  linkedItems: LinkedContributionItem[];
-  balances: Array<{
-    id: string;
-    value: number;
-    date: string;
-    note: string | null;
-    createdAt: string;
-  }>;
-}
-
-export interface AssetsSummary {
-  assetTotals: Record<AssetType, number>;
-  accountTotals: Record<AccountType, number>;
-  grandTotal: number;
-}
+// AssetItem, AccountItem, LinkedContributionItem and AssetsSummary are the
+// canonical response contracts — defined once in @finplan/shared/responses and
+// re-exported here so existing consumers importing them from this module keep
+// working.
+export type {
+  AssetItem,
+  AccountItem,
+  LinkedContributionItem,
+  AssetsSummary,
+} from "@finplan/shared";
 
 export const assetsApiService = {
   getSummary: () => apiClient.get<AssetsSummary>("/api/assets/summary"),

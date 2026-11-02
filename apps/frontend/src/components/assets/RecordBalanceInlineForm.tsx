@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; inputs already have aria-label */
 import { useState } from "react";
 
 interface Props {
@@ -49,9 +48,9 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
       <div className="grid grid-cols-2 gap-3">
         {/* Value */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Value (£) <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="number"
             inputMode="decimal"
@@ -73,9 +72,9 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
 
         {/* Date */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Date <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="date"
             max={todayISO()}
@@ -92,7 +91,7 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
 
         {/* Note */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Note (optional)</label>
+          <span className={labelClass}>Note (optional)</span>
           <input
             type="text"
             placeholder="e.g. end of year valuation"

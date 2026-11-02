@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/database";
 import { hashPassword } from "../utils/password";
 import { subcategoryService } from "../services/subcategory.service";
@@ -10,6 +11,42 @@ if (process.env.NODE_ENV === "production") {
 type WaterfallModel = "incomeSource" | "committedItem" | "discretionaryItem";
 type WaterfallItemType = "income_source" | "committed_item" | "discretionary_item";
 
+/**
+ * Find-or-create a waterfall item (income/committed/discretionary). The three
+ * delegates don't unify into one callable, so a small typed dispatch runs the
+ * find-then-create against the concrete model. `created` is false when an item
+ * of that name already existed (the caller then skips period creation).
+ */
+async function findOrCreateItem(
+  model: WaterfallModel,
+  householdId: string,
+  data: Record<string, unknown>
+): Promise<{ item: { id: string }; created: boolean }> {
+  const name = data.name as string;
+  if (model === "incomeSource") {
+    const existing = await prisma.incomeSource.findFirst({ where: { householdId, name } });
+    if (existing) return { item: existing, created: false };
+    const item = await prisma.incomeSource.create({
+      data: { householdId, ...data } as Prisma.IncomeSourceUncheckedCreateInput,
+    });
+    return { item, created: true };
+  }
+  if (model === "committedItem") {
+    const existing = await prisma.committedItem.findFirst({ where: { householdId, name } });
+    if (existing) return { item: existing, created: false };
+    const item = await prisma.committedItem.create({
+      data: { householdId, ...data } as Prisma.CommittedItemUncheckedCreateInput,
+    });
+    return { item, created: true };
+  }
+  const existing = await prisma.discretionaryItem.findFirst({ where: { householdId, name } });
+  if (existing) return { item: existing, created: false };
+  const item = await prisma.discretionaryItem.create({
+    data: { householdId, ...data } as Prisma.DiscretionaryItemUncheckedCreateInput,
+  });
+  return { item, created: true };
+}
+
 async function createItemWithPeriod(
   model: WaterfallModel,
   itemType: WaterfallItemType,
@@ -17,14 +54,8 @@ async function createItemWithPeriod(
   data: Record<string, unknown>,
   amount: number
 ) {
-  const existing = await (prisma[model] as any).findFirst({
-    where: { householdId, name: data.name },
-  });
-  if (existing) return existing;
-
-  const item = await (prisma[model] as any).create({
-    data: { householdId, ...data },
-  });
+  const { item, created } = await findOrCreateItem(model, householdId, data);
+  if (!created) return item;
 
   await prisma.itemAmountPeriod.create({
     data: {

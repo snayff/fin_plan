@@ -1,11 +1,15 @@
 ---
 feature: waterfall-creation-wizard
-status: backlog
+status: superseded
+superseded_by: overview/overview-waterfall
+superseded_date: 2026-07-05
 priority: high
 deferred: false
 phase: 13
 implemented_date:
 ---
+
+> **Superseded** (2026-07-05): The step-by-step creation wizard has been removed and replaced by the **Full Waterfall** — a single dense, full-screen bulk-entry surface at `/waterfall`. See `docs/5. built/overview/overview-waterfall/` for the shipped surface. Original plan retained below for historical context.
 
 # Waterfall Creation Wizard
 
@@ -95,3 +99,12 @@ DELETE /api/setup-session   → clear
 - "Finish" (Step 6): if snapshot checkbox checked → `POST /api/snapshots { name }` → `DELETE /api/setup-session` → navigate to `/overview`
 
 **All data is saved to the real DB immediately** — not buffered in the session. The session only tracks `currentStep`.
+
+## Remaining Work
+
+Core wizard flow (income → committed → discretionary → summary), step persistence via WaterfallSetupSession, session restore, and optional opening snapshot are implemented. The spec defines a 7-step structure that is not fully reflected. Outstanding:
+
+- [ ] Step 0 — Household: dedicated step for setting household name and viewing/inviting members (currently skipped; wizard starts at income step)
+- [ ] Step 3 — Yearly Bills: separate wizard step for yearly bills (currently yearly bills are accessible via a frequency dropdown nested inside the committed bills step, not as a standalone step)
+- [ ] Step 5 — Savings: separate wizard step for savings allocations (currently savings are toggled via `isSavingsActive` inside the discretionary step, not as a standalone step)
+- [ ] Step sequencing: update WaterfallSetupSession `currentStep` to map to the full 7-step flow so session restore lands on the correct step

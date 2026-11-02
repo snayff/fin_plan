@@ -3,8 +3,8 @@ feature: frontend-perf-budget
 category: infrastructure
 spec: docs/4. planning/frontend-perf-budget/frontend-perf-budget-spec.md
 creation_date: 2026-05-17
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Frontend Performance Budget — Implementation Plan

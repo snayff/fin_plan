@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useBulkUpsertAllocations,
@@ -20,7 +19,7 @@ import { SkeletonLoader } from "@/components/common/SkeletonLoader";
 import { PanelError } from "@/components/common/PanelError";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
-import type { GiftDateType } from "@finplan/shared";
+import type { GiftDateType, CreateGiftEventInput } from "@finplan/shared";
 
 const MONTHS = [
   { value: "1", label: "January" },
@@ -224,12 +223,12 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
   // Add event
   const submitEvent = () => {
     if (!eventName.trim()) return;
-    const payload: Record<string, unknown> = { name: eventName.trim(), dateType: eventDateType };
+    const payload: CreateGiftEventInput = { name: eventName.trim(), dateType: eventDateType };
     if (eventDateType === "shared") {
       payload.dateMonth = parseInt(eventMonth, 10);
       payload.dateDay = parseInt(eventDay, 10);
     }
-    createEvent.mutate(payload as any);
+    createEvent.mutate(payload);
     setEventName("");
     setEventDateType("personal");
     setEventMonth("");
@@ -299,13 +298,14 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
             {addForm === "person" && (
               <div className="border-t border-foreground/5 bg-foreground/[0.02] py-3 pr-4 flex flex-col gap-3 border-l-2 border-tier-discretionary pl-[30px]">
                 <div className="flex flex-col gap-1">
-                  <label className={labelClass}>
+                  <span className={labelClass}>
                     Name <span className="text-foreground/30">*</span>
-                  </label>
+                  </span>
                   <input
                     autoFocus
                     type="text"
                     placeholder="e.g. Mum, Best friend"
+                    aria-label="Person name"
                     value={personName}
                     onChange={(e) => {
                       setPersonName(e.target.value);
@@ -350,9 +350,9 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
               <div className="border-t border-foreground/5 bg-foreground/[0.02] py-3 pr-4 flex flex-col gap-3 border-l-2 border-tier-discretionary pl-[30px]">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 flex flex-col gap-1">
-                    <label className={labelClass}>
+                    <span className={labelClass}>
                       Name <span className="text-foreground/30">*</span>
-                    </label>
+                    </span>
                     <input
                       type="text"
                       placeholder="e.g. Halloween, Anniversary"
@@ -368,7 +368,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                   </div>
 
                   <div className="col-span-2 flex flex-col gap-1">
-                    <label className={labelClass}>Date type</label>
+                    <span className={labelClass}>Date type</span>
                     <Select
                       value={eventDateType}
                       onValueChange={(v) => setEventDateType(v as GiftDateType)}
@@ -390,7 +390,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                   {eventDateType === "shared" && (
                     <>
                       <div className="flex flex-col gap-1">
-                        <label className={labelClass}>Month</label>
+                        <span className={labelClass}>Month</span>
                         <Select value={eventMonth} onValueChange={setEventMonth}>
                           <SelectTrigger aria-label="Month" className={selectTriggerClass}>
                             <SelectValue placeholder="Month" />
@@ -405,7 +405,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                         </Select>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className={labelClass}>Day</label>
+                        <span className={labelClass}>Day</span>
                         <Select value={eventDay} onValueChange={setEventDay}>
                           <SelectTrigger aria-label="Day" className={selectTriggerClass}>
                             <SelectValue placeholder="Day" />
@@ -548,6 +548,7 @@ export function QuickAddPanel({ year, readOnly, onDirtyChange }: Props) {
                   min={0}
                   step="any"
                   disabled={readOnly}
+                  aria-label="Budget"
                   value={budgetDisplayValue}
                   onChange={(e) => setBudgetInput(e.target.value)}
                   onBlur={saveBudget}

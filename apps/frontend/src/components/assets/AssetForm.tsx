@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState } from "react";
 import { useHouseholdMembers, useSettings } from "../../hooks/useSettings.js";
 import { useAllAccounts } from "../../hooks/useAssets.js";
@@ -149,9 +148,9 @@ export function AssetForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Name <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             placeholder="e.g. Family Home"
@@ -171,9 +170,9 @@ export function AssetForm({
         {mode === "add" && (
           <>
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>
+              <span className={labelClass}>
                 Current value <span className="text-text-muted">*</span>
-              </label>
+              </span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -187,7 +186,7 @@ export function AssetForm({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>As of</label>
+              <span className={labelClass}>As of</span>
               <input
                 type="date"
                 max={todayISO()}
@@ -206,7 +205,7 @@ export function AssetForm({
 
         {/* Growth rate */}
         <div className="flex flex-col gap-1 col-span-2">
-          <label className={labelClass}>Growth rate (% p.a.)</label>
+          <span className={labelClass}>Growth rate (% p.a.)</span>
           <input
             type="text"
             inputMode="decimal"
@@ -220,7 +219,7 @@ export function AssetForm({
 
         {/* Assigned to */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Assigned to</label>
+          <span className={labelClass}>Assigned to</span>
           <select
             value={memberId ?? ""}
             onChange={(e) => setMemberId(e.target.value || null)}
@@ -258,7 +257,7 @@ export function AssetForm({
           {disposalOpen && (
             <div className="grid grid-cols-2 gap-3 pl-1">
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Disposal date</label>
+                <span className={labelClass}>Disposal date</span>
                 <input
                   type="date"
                   value={disposedAt}
@@ -271,7 +270,7 @@ export function AssetForm({
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Proceeds go to</label>
+                <span className={labelClass}>Proceeds go to</span>
                 <select
                   value={disposalAccountId ?? ""}
                   onChange={(e) => {

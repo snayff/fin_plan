@@ -1,10 +1,10 @@
 ---
 feature: reduced-motion
-status: backlog
+status: implemented
 priority: low
 deferred: true
 phase:
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Reduced Motion

@@ -142,6 +142,7 @@ export function DataSection() {
             accept="application/json,.json"
             className="hidden"
             onChange={handleFileChange}
+            aria-label="Import data file"
           />
         </div>
 
@@ -149,8 +150,8 @@ export function DataSection() {
           <div>
             <h3 className="text-sm font-medium text-destructive">Delete household</h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Permanently remove this household and all its data — members, accounts, assets,
-              snapshots, and goals. This cannot be undone.
+              Permanently remove this household and all its data — members, accounts, assets, and
+              snapshots. This cannot be undone.
             </p>
           </div>
           <Button
@@ -178,7 +179,7 @@ export function DataSection() {
         isOpen={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
         title="Delete household?"
-        message={`Permanently delete "${householdName}" and all its data — members, accounts, assets, snapshots, and goals. This cannot be undone.`}
+        message={`Permanently delete "${householdName}" and all its data — members, accounts, assets, and snapshots. This cannot be undone.`}
         confirmText="Delete"
         onConfirm={handleConfirmDelete}
         isLoading={deleteMutation.isPending}

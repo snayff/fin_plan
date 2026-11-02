@@ -2,7 +2,7 @@
 feature: assets
 spec: docs/4. planning/assets/assets-spec.md
 creation_date: 2026-03-30
-status: backlog
+status: implemented
 category: overview
 ---
 

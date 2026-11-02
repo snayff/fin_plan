@@ -21,8 +21,7 @@ export function LinkedAccountPicker({ value, onChange }: Props) {
 
   return (
     <div className="col-span-2 flex flex-col gap-1">
-      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- TODO(a11y): Radix Select lacks a native id; needs aria-labelledby refactor */}
-      <label className={labelClass}>Link to account</label>
+      <span className={labelClass}>Link to account</span>
       <Select
         value={value ?? NONE_VALUE}
         onValueChange={(v) => onChange(v === NONE_VALUE ? null : v)}

@@ -1,10 +1,10 @@
 ---
 feature: wealth-trust-savings
-status: backlog
+status: implemented
 priority: medium
 deferred: false
 phase: 8
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Wealth — Trust Savings (Held on Behalf Of)

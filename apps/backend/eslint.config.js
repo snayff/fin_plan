@@ -7,7 +7,9 @@ export default tseslint.config(
   {
     files: ["src/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-explicit-any": "off",
+      // Source must stay `any`-free (SCALE-4). Test files relax this below
+      // because they legitimately stub Fastify/Prisma internals with `any`.
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
@@ -18,6 +20,7 @@ export default tseslint.config(
     files: ["src/**/*.test.ts", "src/test/**/*.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
   {

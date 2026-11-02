@@ -8,11 +8,7 @@ import type {
   UpdatePurchaseInput,
   UpsertYearBudgetInput,
 } from "@finplan/shared";
-
-function assertOwned(item: { householdId: string } | null, householdId: string, label: string) {
-  if (!item) throw new NotFoundError(`${label} not found`);
-  if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
-}
+import { assertOwned } from "./ownership.js";
 
 async function validateFundingAccount(householdId: string, fundingAccountId: string) {
   const account = await prisma.account.findFirst({

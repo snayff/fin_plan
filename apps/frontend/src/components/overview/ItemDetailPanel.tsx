@@ -207,6 +207,7 @@ export function ItemDetailPanel({
                 </label>
                 <input
                   id="edit-amount"
+                  aria-label="New amount"
                   type="number"
                   value={editAmount}
                   onChange={(e) => setEditAmount(e.target.value)}

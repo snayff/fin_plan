@@ -3,8 +3,8 @@ feature: behavioural-test-coverage
 category: infrastructure
 spec: docs/4. planning/behavioural-test-coverage/behavioural-test-coverage-spec.md
 creation_date: 2026-05-17
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Behavioural Test Coverage — Implementation Plan
