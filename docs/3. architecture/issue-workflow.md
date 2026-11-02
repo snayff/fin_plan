@@ -149,12 +149,31 @@ Vulnerability-class items — anything that reveals a current weakness in the li
 
 ## Privacy rules
 
-The repo (and therefore every issue **and** every doc under `docs/`) is public. Standing rules, baked into the templates and both skills:
+The repo (and therefore every issue **and** every doc under `docs/` **and all source**) is public. Standing rules, baked into the templates and both skills:
 
 1. **Nothing about the developer or their circumstances** — no real figures, household details, salary, identity, or email.
 2. **No infra / PROD topology** — nothing about deployment, hosting, tunnels, or "real users".
 3. **Security weaknesses → advisories**, never public issues.
-4. **Generated design docs are public too** — the same rules apply to examples and figures inside any `/write-design` output.
+4. **Generated design docs are public too** — the same rules apply to examples and figures inside any `/write-design` output, **including HTML mockups and any test fixtures**. Mockups and fixtures are the most common leak vector because they tend to get auto-filled with whatever real data was on screen.
+
+### Placeholder convention
+
+Whenever an example needs a person, email, or domain, use these placeholders — never real values:
+
+| Field  | Placeholder                                              |
+| ------ | -------------------------------------------------------- |
+| Name   | `Jane Smith`                                             |
+| Email  | `jane@example.com` (or `test@test.com` in test fixtures) |
+| Domain | `example.com`                                            |
+
+### Automated enforcement
+
+`scripts/check-privacy.ts` (run `bun run privacy:check`) scans every tracked file and **fails CI + pre-commit** on:
+
+- any email on a consumer provider (gmail, outlook, icloud, …) — the personal-email leak class;
+- any term in a **private denylist** of real values (your real name, production domain) supplied via the `PRIVACY_DENYLIST` CI secret or a gitignored `scripts/privacy-denylist.local.txt` — so the literal strings are caught **without ever being committed**. See `scripts/privacy-denylist.local.example.txt`.
+
+Synthetic test domains (`test.com`, `example.com`, the app's own `noreply@`) are intentionally allowed. This is the same "enforce, don't rely on memory" model as the design-system checks.
 
 ---
 

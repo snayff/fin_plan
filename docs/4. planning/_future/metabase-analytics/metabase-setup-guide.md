@@ -96,15 +96,15 @@ Metabase needs its own database to store its configuration (dashboards, question
    MB_DB_USER=postgres
    MB_DB_PASS=<password from step 2.1>
    MB_DB_HOST=metabase-db
-   MB_SITE_URL=https://metrics.snaith.io
+   MB_SITE_URL=https://metrics.example.com
    JAVA_TIMEZONE=Europe/London
    ```
 
-   Replace `metrics.snaith.io` with whatever subdomain you want Metabase to live at.
+   Replace `metrics.example.com` with whatever subdomain you want Metabase to live at.
 
 5. Under **Network**, ensure the service is on the `coolify` network (same network as finplan and the metabase-db).
 
-6. Under **Domain**, set the domain to your chosen subdomain (e.g., `metrics.snaith.io`). Coolify/Traefik will handle SSL automatically.
+6. Under **Domain**, set the domain to your chosen subdomain (e.g., `metrics.example.com`). Coolify/Traefik will handle SSL automatically.
 
 7. Click **Deploy**. Metabase takes 2–3 minutes to start on first run.
 
@@ -131,7 +131,7 @@ Metabase requires login by default. This is acceptable if you set a strong admin
 
 ### 3.1 Complete the setup wizard
 
-1. Navigate to `https://metrics.snaith.io` (or wherever you deployed Metabase).
+1. Navigate to `https://metrics.example.com` (or wherever you deployed Metabase).
 2. Click **Get started**.
 3. Create the admin account:
    - Use an email address you control.

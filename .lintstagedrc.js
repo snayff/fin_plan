@@ -42,7 +42,7 @@ export default (stagedFiles) => {
     byWorkspace[ws].push(file);
   }
 
-  return Object.entries(byWorkspace).flatMap(([ws, files]) => {
+  const commands = Object.entries(byWorkspace).flatMap(([ws, files]) => {
     const wsAbs = path.resolve(process.cwd(), ws);
     if (!existsSync(path.join(wsAbs, "eslint.config.js"))) return []; // no config (e.g. packages/shared)
     // Paths relative to the workspace so ESLint's relative `files` overrides match.
@@ -51,4 +51,11 @@ export default (stagedFiles) => {
     // (no shell), so a bare `cd ... && ...` would try to exec `cd` and ENOENT.
     return [`sh -c "cd '${ws}' && eslint --fix --max-warnings=0 --no-warn-ignored ${fileList}"`];
   });
+
+  // Privacy gate: scan the whole tree for leaked personal data on every commit.
+  // Run repo-wide (no file args) to dodge path-quoting issues with spaces in
+  // docs folder names; it's fast and reads working-tree content.
+  commands.push("bun scripts/check-privacy.ts");
+
+  return commands;
 };
