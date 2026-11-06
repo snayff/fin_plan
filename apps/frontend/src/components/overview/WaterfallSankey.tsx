@@ -146,7 +146,7 @@ export function WaterfallSankey({
           x={COL_LEFT}
           y={16}
           textAnchor="middle"
-          fill="rgba(238,242,255,0.5)"
+          fill="hsl(var(--foreground) / 0.5)"
           fontSize="11"
           fontFamily="var(--font-heading, 'Outfit', sans-serif)"
           fontWeight={600}
@@ -158,7 +158,7 @@ export function WaterfallSankey({
           x={COL_RIGHT}
           y={16}
           textAnchor="middle"
-          fill="rgba(238,242,255,0.5)"
+          fill="hsl(var(--foreground) / 0.5)"
           fontSize="11"
           fontFamily="var(--font-heading, 'Outfit', sans-serif)"
           fontWeight={600}
@@ -266,27 +266,19 @@ export function WaterfallSankey({
           role="tooltip"
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none px-3 py-1.5 rounded-lg"
           style={{
-            background: "rgba(13,17,32,0.95)",
-            border: "1px solid rgba(238,242,255,0.12)",
+            background: "hsl(var(--surface-overlay) / 0.95)",
+            border: "1px solid hsl(var(--foreground) / 0.12)",
             backdropFilter: "blur(8px)",
           }}
         >
           <span
-            className="text-xs font-medium"
-            style={{
-              color: TIER_COLOURS[hoveredBand],
-              fontFamily: "var(--font-heading, 'Outfit', sans-serif)",
-            }}
+            className="text-xs font-medium font-heading"
+            // Tier colour is dataset-driven (semantic per band); kept as a value.
+            style={{ color: TIER_COLOURS[hoveredBand] }}
           >
             {TIER_LABELS[hoveredBand]}
           </span>
-          <span
-            className="text-xs ml-2 tabular-nums"
-            style={{
-              color: "rgba(238,242,255,0.85)",
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
+          <span className="text-xs ml-2 tabular-nums font-numeric text-foreground/85">
             {formatCurrency(amounts[hoveredBand], showPence)}/mo
           </span>
         </div>

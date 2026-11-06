@@ -47,16 +47,18 @@ describe("householdService — household CRUD", () => {
 
 describe("householdService.inviteMember — optional role branch", () => {
   it("omits role from the payload when not provided", () => {
-    householdService.inviteMember("h1", "a@example.com");
+    householdService.inviteMember("h1", "a@example.com", "Alice");
     expect(apiClientMock.post).toHaveBeenCalledWith("/api/households/h1/invite", {
       email: "a@example.com",
+      name: "Alice",
     });
   });
 
   it("includes role in the payload when provided", () => {
-    householdService.inviteMember("h1", "a@example.com", "admin");
+    householdService.inviteMember("h1", "a@example.com", "Alice", "admin");
     expect(apiClientMock.post).toHaveBeenCalledWith("/api/households/h1/invite", {
       email: "a@example.com",
+      name: "Alice",
       role: "admin",
     });
   });
@@ -74,21 +76,22 @@ describe("householdService.regenerateInvite", () => {
       return Promise.resolve({ token: "t", invitedEmail: "a@example.com" } as any);
     });
 
-    const result = await householdService.regenerateInvite("h1", "inv1", "a@example.com");
+    const result = await householdService.regenerateInvite("h1", "inv1", "a@example.com", "Alice");
 
     expect(order).toEqual(["delete", "post"]);
     expect(apiClientMock.delete).toHaveBeenCalledWith("/api/households/h1/invites/inv1");
     expect(apiClientMock.post).toHaveBeenCalledWith("/api/households/h1/invite", {
       email: "a@example.com",
+      name: "Alice",
     });
     expect(result.token).toBe("t");
   });
 
   it("does not issue a new invite if cancelling the old one fails", async () => {
     apiClientMock.delete.mockImplementationOnce(() => Promise.reject(new Error("cancel failed")));
-    await expect(householdService.regenerateInvite("h1", "inv1", "a@example.com")).rejects.toThrow(
-      "cancel failed"
-    );
+    await expect(
+      householdService.regenerateInvite("h1", "inv1", "a@example.com", "Alice")
+    ).rejects.toThrow("cancel failed");
     expect(apiClientMock.post).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { buildApp } from "../../app";
 import { truncateAllTables } from "../helpers/test-db";
+import { prisma } from "../../config/database";
 import type { FastifyInstance } from "fastify";
 
 describe("Waterfall Journey", () => {
@@ -377,5 +378,115 @@ describe("Waterfall Journey", () => {
     expect(summaryB.statusCode).toBe(200);
     const summaryBBody = JSON.parse(summaryB.body);
     expect(summaryBBody.income.total).toBe(0);
+  });
+
+  it("amount periods and value history are scoped to the owning household", async () => {
+    const userA = await registerUser("perioda@test.com", "Period A");
+    await createHousehold(userA.accessToken, "Period Household A");
+    const userB = await registerUser("periodb@test.com", "Period B");
+    await createHousehold(userB.accessToken, "Period Household B");
+
+    // ── User A creates an income source (auto-creates its first period) ──
+    const subIdA = await getDefaultSubcategoryId(userA.accessToken, "income");
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/waterfall/income",
+      headers: await authedMutationHeaders(userA.accessToken),
+      payload: {
+        name: "Scoped Salary",
+        amount: 3000,
+        frequency: "monthly",
+        incomeType: "salary",
+        dueDate: new Date().toISOString(),
+        subcategoryId: subIdA,
+      },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const incomeId = JSON.parse(createRes.body).id as string;
+
+    // ── The persisted period row carries household A's id ──
+    const householdA = await prisma.household.findFirst({
+      where: { name: "Period Household A" },
+    });
+    expect(householdA).not.toBeNull();
+    const periodRow = await prisma.itemAmountPeriod.findFirst({ where: { itemId: incomeId } });
+    expect(periodRow).not.toBeNull();
+    expect(periodRow!.householdId).toBe(householdA!.id);
+
+    // ── User B cannot list user A's periods ──
+    const listAsB = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/periods/income_source/${incomeId}`,
+      headers: authHeaders(userB.accessToken),
+    });
+    expect(listAsB.statusCode).toBe(404);
+
+    // ── User B cannot create a period attached to user A's item ──
+    const createAsB = await app.inject({
+      method: "POST",
+      url: "/api/waterfall/periods",
+      headers: await authedMutationHeaders(userB.accessToken),
+      payload: {
+        itemType: "income_source",
+        itemId: incomeId,
+        startDate: new Date().toISOString(),
+        amount: 1,
+      },
+    });
+    expect(createAsB.statusCode).toBe(404);
+
+    // ── User B cannot update or delete user A's period ──
+    const patchAsB = await app.inject({
+      method: "PATCH",
+      url: `/api/waterfall/periods/${periodRow!.id}`,
+      headers: await authedMutationHeaders(userB.accessToken),
+      payload: { amount: 1 },
+    });
+    expect(patchAsB.statusCode).toBe(404);
+
+    const csrfDelete = await getCsrfToken();
+    const deleteAsB = await app.inject({
+      method: "DELETE",
+      url: `/api/waterfall/periods/${periodRow!.id}`,
+      headers: {
+        authorization: `Bearer ${userB.accessToken}`,
+        "x-csrf-token": csrfDelete.token,
+        cookie: csrfDelete.cookie,
+      },
+    });
+    expect(deleteAsB.statusCode).toBe(404);
+
+    // Period unchanged after the rejected mutations, and no extra period created.
+    const periodAfter = await prisma.itemAmountPeriod.findFirst({ where: { id: periodRow!.id } });
+    expect(periodAfter).not.toBeNull();
+    expect(periodAfter!.amount).toBe(3000);
+    const periodCount = await prisma.itemAmountPeriod.count({ where: { itemId: incomeId } });
+    expect(periodCount).toBe(1);
+
+    // ── Value history is household-scoped too ──
+    await prisma.waterfallHistory.create({
+      data: {
+        householdId: householdA!.id,
+        itemType: "income_source",
+        itemId: incomeId,
+        value: 3000,
+        recordedAt: new Date(),
+      },
+    });
+
+    const historyAsA = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/history/income_source/${incomeId}`,
+      headers: authHeaders(userA.accessToken),
+    });
+    expect(historyAsA.statusCode).toBe(200);
+    expect(JSON.parse(historyAsA.body)).toHaveLength(1);
+
+    const historyAsB = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/history/income_source/${incomeId}`,
+      headers: authHeaders(userB.accessToken),
+    });
+    expect(historyAsB.statusCode).toBe(404);
   });
 });

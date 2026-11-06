@@ -34,7 +34,7 @@ describe("CreateSnapshotModal", () => {
   });
 
   it("surfaces a duplicate-name error on a 409 response", () => {
-    mutateImpl = (_name, opts) => opts.onError({ status: 409 });
+    mutateImpl = (_name, opts) => opts.onError({ statusCode: 409 });
 
     render(<CreateSnapshotModal onClose={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

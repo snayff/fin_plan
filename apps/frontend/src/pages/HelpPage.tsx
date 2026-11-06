@@ -40,15 +40,7 @@ function HelpPageBody() {
 
   return (
     <GlossaryPopoverProvider>
-      <div className="relative h-full">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 40% at 20% 20%, rgba(99,102,241,0.06) 0%, transparent 70%)",
-          }}
-        />
+      <div data-page="help" className="relative h-full">
         <TwoPanelLayout
           left={
             <div className="flex flex-col h-full">

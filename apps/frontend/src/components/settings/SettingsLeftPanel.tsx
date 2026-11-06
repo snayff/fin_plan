@@ -38,7 +38,7 @@ export function SettingsLeftPanel({
     : [{ key: "", items }];
 
   return (
-    <aside className="flex flex-col h-full w-[360px] shrink-0 border-r">
+    <div className="flex h-full flex-col">
       <div className="shrink-0">
         <PageHeader title={title} contextName={contextName} />
         {subLabel && (
@@ -48,11 +48,7 @@ export function SettingsLeftPanel({
       <nav aria-label="Settings sections" className="flex-1 min-h-0 overflow-y-auto">
         {groups.map((g) => (
           <div key={g.key || "flat"}>
-            {g.key && (
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-4 pt-3 pb-1">
-                {g.key}
-              </p>
-            )}
+            {g.key && <p className="label-detail px-4 pt-3 pb-1">{g.key}</p>}
             {g.items.map((item) => {
               const isActive = item.id === activeId;
               return (
@@ -79,6 +75,6 @@ export function SettingsLeftPanel({
         <span className="text-foreground/40">finplan</span>
         <span className="font-numeric text-xs text-foreground/30">v{version}</span>
       </div>
-    </aside>
+    </div>
   );
 }

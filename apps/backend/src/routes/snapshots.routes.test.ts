@@ -97,6 +97,16 @@ describe("GET /api/snapshots/:id", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().name).toBe("March 2026");
   });
+
+  it("returns 400 for an over-length id param and never hits the service", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/snapshots/${"x".repeat(65)}`,
+      headers: { authorization: "Bearer valid-token" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(snapshotServiceMock.getSnapshot).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/snapshots", () => {

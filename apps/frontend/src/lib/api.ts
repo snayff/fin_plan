@@ -7,10 +7,35 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 // fire (e.g. backgrounded tab with throttled timers).
 const PREFLIGHT_REFRESH_WINDOW_MS = 5_000;
 
-export interface ApiError {
-  message: string;
+/**
+ * Error thrown by ApiClient for any non-2xx response or network failure.
+ * Extends `Error` so callers' `error instanceof Error ? error.message : ...`
+ * checks surface the server's message instead of their generic fallback.
+ */
+export class ApiError extends Error {
   code?: string;
   statusCode: number;
+
+  constructor({
+    message,
+    code,
+    statusCode,
+  }: {
+    message: string;
+    code?: string;
+    statusCode: number;
+  }) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
+/** Shape of a parsed response body we care about for error extraction. */
+interface ResponseEnvelope {
+  error?: { message?: string; code?: string };
+  [key: string]: unknown;
 }
 
 export class ApiClient {
@@ -52,18 +77,18 @@ export class ApiClient {
         continue;
       }
 
-      throw {
+      throw new ApiError({
         message: "Failed to fetch CSRF token",
         code: "CSRF_FETCH_ERROR",
         statusCode: response.status,
-      } as ApiError;
+      });
     }
 
-    throw {
+    throw new ApiError({
       message: "Failed to fetch CSRF token after retries",
       code: "CSRF_FETCH_ERROR",
       statusCode: 500,
-    } as ApiError;
+    });
   }
 
   private async request<T>(
@@ -81,6 +106,8 @@ export class ApiClient {
       "/api/auth/refresh",
       "/api/auth/csrf-token",
       "/api/auth/me",
+      "/api/auth/forgot-password",
+      "/api/auth/reset-password",
     ];
     const isAuthEndpoint =
       unauthenticated.some((p) => endpoint.startsWith(p)) ||
@@ -101,7 +128,7 @@ export class ApiClient {
     try {
       // Get CSRF token for all state-changing requests (including auth endpoints)
       let csrfToken: string | undefined;
-      if (["POST", "PUT", "DELETE"].includes(options.method || "GET")) {
+      if (["POST", "PUT", "PATCH", "DELETE"].includes(options.method || "GET")) {
         csrfToken = await this.fetchCsrfToken();
       }
 
@@ -117,17 +144,19 @@ export class ApiClient {
       };
 
       const response = await fetch(url, config);
-      const data =
+      // Tolerate empty and non-JSON bodies (e.g. 204, empty 401, 502 HTML).
+      // `response.status` stays authoritative for the control-flow branches below.
+      const data: ResponseEnvelope | undefined =
         response.status === 204 || response.headers.get("content-length") === "0"
           ? undefined
-          : await response.json();
+          : ((await response.json().catch(() => undefined)) as ResponseEnvelope | undefined);
 
       if (!response.ok) {
-        const apiError: ApiError = {
-          message: data.error?.message || "Request failed",
-          code: data.error?.code,
+        const apiError = new ApiError({
+          message: data?.error?.message || "Request failed",
+          code: data?.error?.code,
           statusCode: response.status,
-        };
+        });
 
         // Handle 401 errors - attempt to refresh token
         if (
@@ -152,7 +181,7 @@ export class ApiClient {
         }
 
         // Handle CSRF token errors
-        if (response.status === 403 && data.error?.code === "FST_CSRF_INVALID_TOKEN") {
+        if (response.status === 403 && data?.error?.code === "FST_CSRF_INVALID_TOKEN") {
           // Clear cached CSRF token and retry
           this.csrfToken = null;
           if (!isRetry) {
@@ -165,7 +194,7 @@ export class ApiClient {
 
       return data as T;
     } catch (error) {
-      if ((error as ApiError).statusCode) {
+      if (error instanceof ApiError) {
         throw error;
       }
 
@@ -178,10 +207,10 @@ export class ApiClient {
         });
       }
 
-      throw {
+      throw new ApiError({
         message: "Network error",
         statusCode: 0,
-      } as ApiError;
+      });
     }
   }
 

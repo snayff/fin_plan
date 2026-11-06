@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +8,27 @@ import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
 import { useAuthStore } from "@/stores/authStore";
 import { householdService } from "@/services/household.service";
 import { authService } from "@/services/auth.service";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { usePrefersReducedMotion } from "@/utils/motion";
 
 type Phase = "welcome" | "name" | "celebrate";
 
+/**
+ * Confetti reuses the four protected waterfall tier colours by design — a sanctioned
+ * celebration exception documented in design-system.md § 1.2. Sourced from the canonical
+ * tier CSS custom properties (single source of truth in index.css) rather than hardcoded
+ * hex so the celebration always tracks the real tier palette.
+ */
+const CONFETTI_TIER_COLOURS = [
+  "hsl(var(--tier-income))",
+  "hsl(var(--tier-committed))",
+  "hsl(var(--tier-discretionary))",
+  "hsl(var(--tier-surplus))",
+] as const;
+
 export default function WelcomePage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -40,6 +56,7 @@ export default function WelcomePage() {
         const { user: refreshed } = await authService.getCurrentUser(accessToken);
         setUser(refreshed, accessToken);
       }
+      purgeStaleQueries(qc);
       setPhase("celebrate");
       setShowConfetti(true);
     } catch {
@@ -47,7 +64,7 @@ export default function WelcomePage() {
     } finally {
       setSaving(false);
     }
-  }, [name, accessToken, setUser]);
+  }, [name, accessToken, setUser, qc]);
 
   function handleContinue() {
     navigate("/overview", { replace: true });
@@ -62,8 +79,8 @@ export default function WelcomePage() {
             className="rounded-xl p-6 space-y-6"
             style={{
               background:
-                "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(168,85,247,0.05) 100%)",
-              border: "1px solid rgba(99,102,241,0.1)",
+                "linear-gradient(135deg, hsl(var(--callout-card-from) / 0.08) 0%, hsl(var(--callout-card-to) / 0.05) 100%)",
+              border: "1px solid hsl(var(--callout-card-from) / 0.1)",
             }}
           >
             <div className="space-y-3">
@@ -158,8 +175,7 @@ function ConfettiBurst({ onDone }: { onDone: () => void }) {
         const delay = Math.random() * 0.5;
         const duration = 1.5 + Math.random() * 1.5;
         const size = 6 + Math.random() * 6;
-        const colors = ["#0ea5e9", "#6366f1", "#a855f7", "#4adcd0"];
-        const color = colors[i % colors.length];
+        const color = CONFETTI_TIER_COLOURS[i % CONFETTI_TIER_COLOURS.length];
         const rotation = Math.random() * 360;
         return (
           <div

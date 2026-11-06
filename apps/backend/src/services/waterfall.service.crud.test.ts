@@ -113,8 +113,17 @@ describe("waterfallService delete methods", () => {
       householdId: "hh-1",
     } as any);
     prismaMock.incomeSource.delete.mockResolvedValue({} as any);
+    prismaMock.itemAmountPeriod.deleteMany.mockResolvedValue({ count: 2 } as any);
+    prismaMock.waterfallHistory.deleteMany.mockResolvedValue({ count: 1 } as any);
     await waterfallService.deleteIncome("hh-1", "inc-1", ctx);
     expect(prismaMock.incomeSource.delete).toHaveBeenCalledWith({ where: { id: "inc-1" } });
+    // #132: polymorphic period/history rows are cleaned up by itemType/itemId.
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "income_source", itemId: "inc-1" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "income_source", itemId: "inc-1" },
+    });
   });
 
   it("deleteIncome throws NotFoundError when the item belongs to another household", async () => {
@@ -136,6 +145,12 @@ describe("waterfallService delete methods", () => {
     prismaMock.committedItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteCommitted("hh-1", "ci-1", ctx);
     expect(prismaMock.committedItem.delete).toHaveBeenCalledWith({ where: { id: "ci-1" } });
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-1" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-1" },
+    });
   });
 
   it("deleteYearly removes an owned yearly committed item", async () => {
@@ -146,6 +161,13 @@ describe("waterfallService delete methods", () => {
     prismaMock.committedItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteYearly("hh-1", "ci-2", ctx);
     expect(prismaMock.committedItem.delete).toHaveBeenCalledWith({ where: { id: "ci-2" } });
+    // Yearly items are CommittedItem rows → committed_item itemType.
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-2" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "committed_item", itemId: "ci-2" },
+    });
   });
 
   it("deleteDiscretionary removes an owned, non-planner item", async () => {
@@ -157,6 +179,12 @@ describe("waterfallService delete methods", () => {
     prismaMock.discretionaryItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteDiscretionary("hh-1", "di-1", ctx);
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "di-1" } });
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-1" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-1" },
+    });
   });
 
   it("deleteDiscretionary refuses to delete a planner-owned item", async () => {
@@ -175,10 +203,31 @@ describe("waterfallService delete methods", () => {
     prismaMock.discretionaryItem.findUnique.mockResolvedValue({
       id: "di-s",
       householdId: "hh-1",
+      isPlannerOwned: false,
     } as any);
     prismaMock.discretionaryItem.delete.mockResolvedValue({} as any);
     await waterfallService.deleteSavings("hh-1", "di-s", ctx);
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "di-s" } });
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-s" },
+    });
+    expect(prismaMock.waterfallHistory.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "di-s" },
+    });
+  });
+
+  // #129: planner-owned items (e.g. the synced Gifts item) must not be
+  // mutable through the /savings path.
+  it("deleteSavings refuses to delete a planner-owned item", async () => {
+    prismaMock.discretionaryItem.findUnique.mockResolvedValue({
+      id: "di-s",
+      householdId: "hh-1",
+      isPlannerOwned: true,
+    } as any);
+    await expect(waterfallService.deleteSavings("hh-1", "di-s", ctx)).rejects.toThrow(
+      "managed by the Gifts planner"
+    );
+    expect(prismaMock.discretionaryItem.delete).not.toHaveBeenCalled();
   });
 });
 
@@ -192,11 +241,14 @@ describe("waterfallService confirm methods stamp lastReviewedAt", () => {
     ["confirmSavings", "discretionaryItem"],
   ] as const;
 
+  const ctx = { householdId: "hh-1", actorId: "user-1", actorName: "Test" };
+
   for (const [method, model] of cases) {
     it(`${method} updates lastReviewedAt for an owned item`, async () => {
       (prismaMock as any)[model].findUnique.mockResolvedValue({ id: "x-1", householdId: "hh-1" });
       (prismaMock as any)[model].update.mockResolvedValue({ id: "x-1" });
-      await (waterfallService as any)[method]("hh-1", "x-1");
+      prismaMock.auditLog.create.mockResolvedValue({} as any);
+      await (waterfallService as any)[method]("hh-1", "x-1", ctx);
       expect((prismaMock as any)[model].update).toHaveBeenCalledWith({
         where: { id: "x-1" },
         data: { lastReviewedAt: expect.any(Date) },
@@ -205,7 +257,9 @@ describe("waterfallService confirm methods stamp lastReviewedAt", () => {
 
     it(`${method} throws when the item is missing`, async () => {
       (prismaMock as any)[model].findUnique.mockResolvedValue(null);
-      await expect((waterfallService as any)[method]("hh-1", "x-1")).rejects.toThrow("not found");
+      await expect((waterfallService as any)[method]("hh-1", "x-1", ctx)).rejects.toThrow(
+        "not found"
+      );
     });
   }
 });
@@ -239,6 +293,40 @@ describe("waterfallService.updateSavings", () => {
       where: { id: "di-s" },
       data: { name: "Bigger fund", lastReviewedAt: expect.any(Date) },
     });
+  });
+
+  // #129: planner-owned items must not be editable through the /savings path.
+  it("rejects updates to a planner-owned item", async () => {
+    prismaMock.discretionaryItem.findUnique.mockResolvedValue({
+      id: "di-s",
+      householdId: "hh-1",
+      isPlannerOwned: true,
+    } as any);
+    await expect(
+      waterfallService.updateSavings("hh-1", "di-s", { name: "x" }, ctx)
+    ).rejects.toThrow("managed by the Gifts planner");
+    expect(prismaMock.discretionaryItem.update).not.toHaveBeenCalled();
+  });
+});
+
+// ─── createSavings guard (#129) ─────────────────────────────────────────────────
+
+describe("waterfallService.createSavings guard branches", () => {
+  it("rejects creation in a planner-locked subcategory", async () => {
+    // validateSubcategoryOwnership and validateSubcategoryNotPlannerLocked both
+    // call subcategory.findFirst; the locked flag short-circuits with a 400.
+    prismaMock.subcategory.findFirst.mockResolvedValue({
+      id: "sub-gifts",
+      lockedByPlanner: true,
+    } as any);
+    await expect(
+      waterfallService.createSavings(
+        "hh-1",
+        { name: "x", amount: 10, subcategoryId: "sub-gifts" },
+        ctx
+      )
+    ).rejects.toThrow("managed by the Gifts planner");
+    expect(prismaMock.discretionaryItem.create).not.toHaveBeenCalled();
   });
 });
 
@@ -366,6 +454,147 @@ describe("waterfallService.createDiscretionary guard branches", () => {
   });
 });
 
+// ─── Bug #108: amount / frequency / dueDate edits persist via update ────────────
+
+describe("waterfallService update methods persist amount to the current period (bug #108)", () => {
+  /** A single active (open-ended) period covering `now`. */
+  function currentPeriod(itemType: string, itemId: string, amount: number) {
+    return {
+      id: `p-${itemId}`,
+      householdId: "hh-1",
+      itemType,
+      itemId,
+      startDate: new Date("2020-01-01"),
+      endDate: null,
+      amount,
+      createdAt: new Date(),
+    };
+  }
+
+  it("updateIncome writes amount to the current period and never forwards it to incomeSource.update", async () => {
+    prismaMock.incomeSource.findUnique.mockResolvedValue({
+      id: "inc-1",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.incomeSource.update.mockResolvedValue({ id: "inc-1" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      currentPeriod("income_source", "inc-1", 1000),
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    await waterfallService.updateIncome(
+      "hh-1",
+      "inc-1",
+      { amount: 1500, frequency: "annual" } as any,
+      ctx
+    );
+
+    // frequency is a real income column → forwarded to the item update
+    expect(prismaMock.incomeSource.update).toHaveBeenCalledWith({
+      where: { id: "inc-1" },
+      data: { frequency: "annual", lastReviewedAt: expect.any(Date) },
+    });
+    // amount must NOT leak into the item update (no `amount` column on the row)
+    const incomeUpdateArg = prismaMock.incomeSource.update.mock.calls[0]![0] as any;
+    expect(incomeUpdateArg.data).not.toHaveProperty("amount");
+    // amount goes to the current effective period
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-inc-1" },
+      data: { amount: 1500 },
+    });
+  });
+
+  it("updateCommitted writes amount to the current period and keeps it off committedItem.update", async () => {
+    prismaMock.committedItem.findUnique.mockResolvedValue({
+      id: "ci-1",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.committedItem.update.mockResolvedValue({ id: "ci-1" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      currentPeriod("committed_item", "ci-1", 200),
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    await waterfallService.updateCommitted("hh-1", "ci-1", { amount: 350 } as any, ctx);
+
+    const arg = prismaMock.committedItem.update.mock.calls[0]![0] as any;
+    expect(arg.data).not.toHaveProperty("amount");
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-ci-1" },
+      data: { amount: 350 },
+    });
+  });
+
+  it("updateDiscretionary persists amount AND dueDate (dueDate is a real column)", async () => {
+    prismaMock.discretionaryItem.findUnique.mockResolvedValue({
+      id: "di-1",
+      householdId: "hh-1",
+      isPlannerOwned: false,
+      subcategoryId: "sub-food",
+    } as any);
+    // getSavingsSubcategoryId → no Savings subcategory, so no auto-null branch
+    prismaMock.subcategory.findFirst.mockResolvedValue(null);
+    prismaMock.discretionaryItem.update.mockResolvedValue({ id: "di-1" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([
+      currentPeriod("discretionary_item", "di-1", 50),
+    ] as any);
+    prismaMock.itemAmountPeriod.update.mockResolvedValue({} as any);
+
+    const due = new Date("2026-09-01");
+    await waterfallService.updateDiscretionary(
+      "hh-1",
+      "di-1",
+      { amount: 75, dueDate: due } as any,
+      ctx
+    );
+
+    const arg = prismaMock.discretionaryItem.update.mock.calls[0]![0] as any;
+    expect(arg.data).not.toHaveProperty("amount");
+    expect(arg.data).toMatchObject({ dueDate: due });
+    expect(prismaMock.itemAmountPeriod.update).toHaveBeenCalledWith({
+      where: { id: "p-di-1" },
+      data: { amount: 75 },
+    });
+  });
+
+  it("creates a period starting today when no effective period exists", async () => {
+    prismaMock.committedItem.findUnique.mockResolvedValue({
+      id: "ci-9",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.committedItem.update.mockResolvedValue({ id: "ci-9" } as any);
+    // No periods at all → setCurrentAmount must create one
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([] as any);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({} as any);
+
+    await waterfallService.updateCommitted("hh-1", "ci-9", { amount: 99 } as any, ctx);
+
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        householdId: "hh-1",
+        itemType: "committed_item",
+        itemId: "ci-9",
+        amount: 99,
+      }),
+    });
+  });
+
+  it("does not touch periods when amount is omitted", async () => {
+    prismaMock.incomeSource.findUnique.mockResolvedValue({
+      id: "inc-2",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.incomeSource.update.mockResolvedValue({ id: "inc-2" } as any);
+    prismaMock.itemAmountPeriod.findMany.mockResolvedValue([] as any);
+
+    await waterfallService.updateIncome("hh-1", "inc-2", { name: "Renamed" } as any, ctx);
+
+    expect(prismaMock.itemAmountPeriod.update).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
+  });
+});
+
 // ─── getHistory ─────────────────────────────────────────────────────────────────
 
 describe("waterfallService.getHistory", () => {
@@ -378,7 +607,12 @@ describe("waterfallService.getHistory", () => {
     const result = await waterfallService.getHistory("hh-1", "income_source", "inc-1");
     expect(result).toEqual([{ id: "h1" }] as any);
     expect(prismaMock.waterfallHistory.findMany).toHaveBeenCalledWith({
-      where: { itemType: "income_source", itemId: "inc-1", recordedAt: { gte: expect.any(Date) } },
+      where: {
+        householdId: "hh-1",
+        itemType: "income_source",
+        itemId: "inc-1",
+        recordedAt: { gte: expect.any(Date) },
+      },
       orderBy: { recordedAt: "asc" },
     });
   });
@@ -424,36 +658,115 @@ describe("waterfallService.getHistory", () => {
 
 describe("waterfallService.confirmBatch routes every item-type label", () => {
   it("dispatches bill, yearly, discretionary and savings labels to the right models", async () => {
-    await waterfallService.confirmBatch("hh-1", {
-      items: [
-        { type: "committed_bill", id: "b1" },
-        { type: "yearly_bill", id: "b2" },
-        { type: "discretionary_category", id: "d1" },
-        { type: "savings_allocation", id: "s1" },
-      ] as any,
-    });
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+    await waterfallService.confirmBatch(
+      "hh-1",
+      {
+        items: [
+          { type: "committed_bill", id: "b1" },
+          { type: "yearly_bill", id: "b2" },
+          { type: "discretionary_category", id: "d1" },
+          { type: "savings_allocation", id: "s1" },
+        ] as any,
+      },
+      { householdId: "hh-1", actorId: "user-1", actorName: "Test" }
+    );
 
     expect(prismaMock.committedItem.updateMany).toHaveBeenCalledTimes(2);
     expect(prismaMock.discretionaryItem.updateMany).toHaveBeenCalledTimes(2);
   });
 });
 
-// ─── deleteAll — empty household ─────────────────────────────────────────────────
+// ─── deleteAll ───────────────────────────────────────────────────────────────────
 
-describe("waterfallService.deleteAll with no items", () => {
-  it("skips period cleanup when there is nothing to delete", async () => {
-    prismaMock.incomeSource.findMany.mockResolvedValue([]);
-    prismaMock.committedItem.findMany.mockResolvedValue([]);
-    prismaMock.discretionaryItem.findMany.mockResolvedValue([]);
+describe("waterfallService.deleteAll", () => {
+  it("scopes every delete to the household", async () => {
+    await waterfallService.deleteAll("hh-1", ctx);
 
-    await waterfallService.deleteAll("hh-1");
-
-    expect(prismaMock.itemAmountPeriod.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
+      where: { householdId: "hh-1" },
+    });
     expect(prismaMock.incomeSource.deleteMany).toHaveBeenCalledWith({
       where: { householdId: "hh-1" },
     });
     expect(prismaMock.subcategory.deleteMany).toHaveBeenCalledWith({
       where: { householdId: "hh-1" },
     });
+  });
+
+  // SEC-1: the wipe must leave an audit trail.
+  it("writes a DELETE_ALL_WATERFALL audit row inside the transaction", async () => {
+    await waterfallService.deleteAll("hh-1", ctx);
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "DELETE_ALL_WATERFALL",
+          resource: "waterfall",
+          resourceId: "hh-1",
+          actorId: "user-1",
+        }),
+      })
+    );
+  });
+});
+
+// ─── #130: item + initial period created atomically ────────────────────────────
+
+describe("waterfallService create methods create the opening period atomically", () => {
+  it("createIncome writes the initial period inside the same transaction", async () => {
+    prismaMock.subcategory.findFirst.mockResolvedValue({ id: "sub-income" } as any);
+    prismaMock.incomeSource.create.mockResolvedValue({ id: "inc-new" } as any);
+    prismaMock.itemAmountPeriod.create.mockResolvedValue({ id: "p-new" } as any);
+
+    await waterfallService.createIncome(
+      "hh-1",
+      { name: "Salary", amount: 1000, frequency: "monthly", subcategoryId: "sub-income" } as any,
+      ctx,
+      { startDate: new Date("2026-01-01"), amount: 1000 }
+    );
+
+    expect(prismaMock.incomeSource.create).toHaveBeenCalled();
+    expect(prismaMock.itemAmountPeriod.create).toHaveBeenCalledWith({
+      data: {
+        householdId: "hh-1",
+        itemType: "income_source",
+        itemId: "inc-new",
+        startDate: new Date("2026-01-01"),
+        endDate: null,
+        amount: 1000,
+        dueDate: null,
+      },
+    });
+  });
+
+  it("rolls the item back when the initial period fails (error propagates)", async () => {
+    // $transaction runs the callback against the same mock; a rejected period
+    // create rejects the whole audited transaction, so the item never commits.
+    prismaMock.subcategory.findFirst.mockResolvedValue({ id: "sub-income" } as any);
+    prismaMock.incomeSource.create.mockResolvedValue({ id: "inc-new" } as any);
+    prismaMock.itemAmountPeriod.create.mockRejectedValue(new Error("period insert failed"));
+
+    await expect(
+      waterfallService.createIncome(
+        "hh-1",
+        { name: "Salary", amount: 1000, frequency: "monthly", subcategoryId: "sub-income" } as any,
+        ctx,
+        { startDate: new Date("2026-01-01"), amount: 1000 }
+      )
+    ).rejects.toThrow("period insert failed");
+  });
+
+  it("does not create any period when no initialPeriod is supplied", async () => {
+    prismaMock.committedItem.create.mockResolvedValue({ id: "ci-new" } as any);
+    prismaMock.subcategory.findFirst.mockResolvedValue({ id: "sub-1" } as any);
+
+    await waterfallService.createCommitted(
+      "hh-1",
+      { name: "Rent", amount: 500, subcategoryId: "sub-1", spendType: "monthly" } as any,
+      ctx
+    );
+
+    expect(prismaMock.itemAmountPeriod.create).not.toHaveBeenCalled();
   });
 });

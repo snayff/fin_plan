@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { householdService } from "@/services/household.service";
 import { useAuthStore } from "@/stores/authStore";
 import { authService } from "@/services/auth.service";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { showError } from "@/lib/toast";
 
 const safeName = (name: string) =>
@@ -43,10 +44,16 @@ export function useImportHousehold() {
       householdService.importHousehold(data, mode),
     onSuccess: async () => {
       if (accessToken) {
-        const { user } = await authService.getCurrentUser(accessToken);
-        setUser(user, accessToken);
+        try {
+          const { user } = await authService.getCurrentUser(accessToken);
+          setUser(user, accessToken);
+        } catch {
+          // /me failed transiently — still purge caches; auth state resyncs
+          // on the next request.
+        }
       }
-      void queryClient.invalidateQueries();
+      // Drop all cached data that predates the import.
+      purgeStaleQueries(queryClient);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to import household");

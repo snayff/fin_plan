@@ -1,5 +1,10 @@
 import { prisma } from "../config/database";
-import { hashPassword, verifyPassword } from "../utils/password";
+import {
+  hashPassword,
+  verifyPassword,
+  MAX_PASSWORD_LENGTH,
+  TIMING_EQUALIZATION_HASH,
+} from "../utils/password";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -7,6 +12,11 @@ import {
   generateTokenFamily,
   verifyRefreshToken,
 } from "../utils/jwt";
+import {
+  generatePasswordResetToken,
+  verifyPasswordResetToken,
+  peekPasswordResetTokenUserId,
+} from "../utils/password-reset-token";
 import {
   AuthenticationError,
   ConflictError,
@@ -71,6 +81,11 @@ export const authService = {
     // Validate password strength (minimum 12 characters)
     if (password.length < 12) {
       throw new ValidationError("Password must be at least 12 characters long");
+    }
+
+    // Bound password length (bcrypt input limit)
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
     }
 
     // Check if user already exists
@@ -153,6 +168,9 @@ export const authService = {
     });
 
     if (!user) {
+      // Run an equivalent-cost comparison so response timing matches the
+      // stored-hash path regardless of whether the account exists.
+      await verifyPassword(password, TIMING_EQUALIZATION_HASH);
       throw new AuthenticationError("Invalid credentials");
     }
 
@@ -263,6 +281,8 @@ export const authService = {
    * Returns a new access token AND a new refresh token.
    * The old refresh token is revoked. If a revoked token is reused,
    * the entire token family is revoked (replay attack detection).
+   * Rotation (revoke old + create new) commits atomically, so a session
+   * can never be left mid-rotation by a crash or concurrent refresh.
    */
   async refreshAccessToken(
     refreshToken: string,
@@ -273,6 +293,7 @@ export const authService = {
     rememberMe: boolean;
     expiresAt: Date;
     sessionExpiresAt: Date;
+    userId: string;
   }> {
     if (!refreshToken) {
       throw new AuthenticationError("Refresh token is required");
@@ -316,15 +337,6 @@ export const authService = {
         throw new AuthenticationError("Session expired - please login again");
       }
 
-      // Revoke the current token (it's been used)
-      await prisma.refreshToken.update({
-        where: { id: storedToken.id },
-        data: {
-          isRevoked: true,
-          lastUsedAt: now,
-        },
-      });
-
       // Find user
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },
@@ -342,20 +354,49 @@ export const authService = {
         storedToken.sessionExpiresAt
       );
 
-      // Store new refresh token in the same family
-      await prisma.refreshToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: hashToken(newRefreshToken),
-          familyId: storedToken.familyId, // Same family for reuse detection
-          expiresAt,
-          sessionExpiresAt,
-          rememberMe: storedToken.rememberMe,
-          ipAddress: context?.ipAddress,
-          userAgent: context?.userAgent,
-          lastUsedAt: now,
-        },
+      // Atomic rotation: claim (revoke) the old token and store its
+      // replacement in one transaction. The guarded updateMany only succeeds
+      // for the request that claims the token first; a concurrent refresh of
+      // the same token claims nothing and is treated as reuse below.
+      const rotated = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.refreshToken.updateMany({
+          where: { id: storedToken.id, isRevoked: false },
+          data: { isRevoked: true, lastUsedAt: now },
+        });
+
+        if (claimed.count === 0) {
+          return false;
+        }
+
+        // Store new refresh token in the same family
+        await tx.refreshToken.create({
+          data: {
+            userId: user.id,
+            tokenHash: hashToken(newRefreshToken),
+            familyId: storedToken.familyId, // Same family for reuse detection
+            expiresAt,
+            sessionExpiresAt,
+            rememberMe: storedToken.rememberMe,
+            ipAddress: context?.ipAddress,
+            userAgent: context?.userAgent,
+            lastUsedAt: now,
+          },
+        });
+
+        return true;
       });
+
+      if (!rotated) {
+        // Another request rotated this token between our read and the claim —
+        // same protection as the replay path above.
+        await prisma.refreshToken.updateMany({
+          where: { familyId: storedToken.familyId },
+          data: { isRevoked: true },
+        });
+        throw new AuthenticationError(
+          "Refresh token reuse detected — all sessions in this family have been revoked"
+        );
+      }
 
       return {
         accessToken: newAccessToken,
@@ -363,6 +404,7 @@ export const authService = {
         rememberMe: storedToken.rememberMe,
         expiresAt,
         sessionExpiresAt,
+        userId: user.id,
       };
     } catch (error) {
       if (error instanceof AuthenticationError) {
@@ -380,6 +422,117 @@ export const authService = {
       where: { userId, isRevoked: false },
       data: { isRevoked: true },
     });
+  },
+
+  /**
+   * Change the password for an authenticated user.
+   *
+   * Verifies the current password, stores the new hash, and revokes every
+   * refresh token for the user so all other sessions are logged out. The
+   * caller (route) is responsible for blacklisting the *current* access token
+   * if it wants the acting session terminated too.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      // Authenticated route, so this is effectively unreachable — treat a
+      // vanished user as an auth failure rather than leaking a 404.
+      throw new AuthenticationError("Invalid credentials");
+    }
+
+    const isCurrentValid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!isCurrentValid) {
+      throw new AuthenticationError("Current password is incorrect");
+    }
+
+    if (newPassword.length < 12) {
+      throw new ValidationError("Password must be at least 12 characters long");
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Log out all other sessions (reuse the logout-everywhere revocation).
+    await this.revokeAllUserTokens(userId);
+  },
+
+  /**
+   * Create a single-use, expiring password-reset token for the given email.
+   *
+   * Returns null when no account matches — the caller MUST return an identical
+   * generic response in both cases to prevent account enumeration. The token is
+   * stateless and self-invalidating (see utils/password-reset-token.ts): it is
+   * bound to a fingerprint of the current password hash, so it stops validating
+   * the moment the password changes.
+   */
+  async createPasswordResetToken(email: string): Promise<{ token: string; email: string } | null> {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+    if (!user) {
+      return null;
+    }
+
+    const token = generatePasswordResetToken(user.id, user.passwordHash);
+    return { token, email: user.email };
+  },
+
+  /**
+   * Complete a password reset using a token from the reset email.
+   *
+   * Validates the token against the user's live password hash (unexpired,
+   * untampered, and not already used — a prior reset would have rotated the
+   * hash and invalidated the token). On success, stores the new hash and
+   * revokes all sessions. Returns the userId for audit attribution.
+   *
+   * All failure modes raise a single generic ValidationError so the endpoint
+   * never reveals whether the token, the account, or the expiry was at fault.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<string> {
+    const genericError = new ValidationError("This reset link is invalid or has expired");
+
+    const peekedUserId = peekPasswordResetTokenUserId(token);
+    if (!peekedUserId) {
+      throw genericError;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: peekedUserId } });
+    if (!user) {
+      throw genericError;
+    }
+
+    const verified = verifyPasswordResetToken(token, user.passwordHash);
+    if (!verified || verified.userId !== user.id) {
+      throw genericError;
+    }
+
+    if (newPassword.length < 12) {
+      throw new ValidationError("Password must be at least 12 characters long");
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    // Reset invalidates every existing session.
+    await this.revokeAllUserTokens(user.id);
+
+    return user.id;
   },
 
   /**

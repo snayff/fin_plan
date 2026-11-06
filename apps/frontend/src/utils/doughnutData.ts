@@ -16,7 +16,7 @@ export function extractDrillItems(
     const bills: DrillItem[] = summary.committed.bills.map((b) => ({
       id: b.id,
       name: b.name,
-      amount: b.amount,
+      amount: toMonthlyAmount(b.amount, b.spendType ?? "monthly"),
       subcategoryId: b.subcategoryId ?? "",
     }));
 

@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  idSchema,
+  nameSchema,
+  nonNegativeMoneySchema,
+  notesSchema,
+  positiveMoneySchema,
+} from "./common.schemas";
 
 export const PurchasePriorityEnum = z.enum(["lowest", "low", "medium", "high"]);
 export type PurchasePriority = z.infer<typeof PurchasePriorityEnum>;
@@ -9,32 +16,32 @@ export type PurchaseStatus = z.infer<typeof PurchaseStatusEnum>;
 // ─── Purchases ────────────────────────────────────────────────────────────────
 
 export const createPurchaseSchema = z.object({
-  name: z.string().min(1).trim(),
-  estimatedCost: z.number().positive(),
+  name: nameSchema,
+  estimatedCost: positiveMoneySchema,
   priority: PurchasePriorityEnum.optional(),
   scheduledThisYear: z.boolean().optional(),
-  fundingSources: z.array(z.string()).optional(),
-  fundingAccountId: z.string().optional(),
+  fundingSources: z.array(z.string().max(100)).max(50).optional(),
+  fundingAccountId: idSchema.optional(),
   status: PurchaseStatusEnum.optional(),
-  reason: z.string().optional(),
-  comment: z.string().optional(),
+  reason: notesSchema.optional(),
+  comment: notesSchema.optional(),
 });
 
 export const updatePurchaseSchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  estimatedCost: z.number().positive().optional(),
+  name: nameSchema.optional(),
+  estimatedCost: positiveMoneySchema.optional(),
   priority: PurchasePriorityEnum.optional(),
   scheduledThisYear: z.boolean().optional(),
-  fundingSources: z.array(z.string()).optional(),
-  fundingAccountId: z.string().nullable().optional(),
+  fundingSources: z.array(z.string().max(100)).max(50).optional(),
+  fundingAccountId: idSchema.nullable().optional(),
   status: PurchaseStatusEnum.optional(),
-  reason: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
+  reason: notesSchema.nullable().optional(),
+  comment: notesSchema.nullable().optional(),
 });
 
 export const upsertYearBudgetSchema = z.object({
-  purchaseBudget: z.number().min(0).optional(),
-  giftBudget: z.number().min(0).optional(),
+  purchaseBudget: nonNegativeMoneySchema.optional(),
+  giftBudget: nonNegativeMoneySchema.optional(),
 });
 
 export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;

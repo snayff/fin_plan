@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: finplan_dev_password
       POSTGRES_DB: finplan_dev
     ports:
-      - "5432:5432"
+      # Bind to loopback only — the dev database must not be reachable from the network
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./apps/backend/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -43,6 +44,9 @@ services:
       # Disable rate limiting in dev/E2E: the browser suite reaches the backend through the
       # Vite proxy from a single source IP and would otherwise exhaust the per-IP auth caps.
       RATE_LIMIT_ENABLED: "false"
+      # Opt-in for destructive maintenance commands (db:reset-e2e). This compose file is
+      # dev/E2E only, so the reset script's explicit allow flag is safe to set here.
+      DB_RESET_ALLOWED: "true"
     command: sh -c "cd /workspace && bun install && cd /workspace/apps/backend && bunx prisma migrate deploy && bunx prisma generate && bun src/db/seed.ts && bunx nodemon --legacy-watch --watch src --watch ../../packages/shared/src --ext ts --exec 'bun src/server.ts'"
     volumes:
       # Mount source code for hot reload

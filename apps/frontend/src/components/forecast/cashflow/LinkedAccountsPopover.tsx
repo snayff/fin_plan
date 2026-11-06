@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useLinkableAccounts, useBulkUpdateLinkedAccounts } from "@/hooks/useCashflow";
 import { formatCurrency } from "@/utils/format";
 import { useSettings } from "@/hooks/useSettings";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
 import { format } from "date-fns";
 
 interface LinkedAccountsPopoverProps {
@@ -60,7 +61,9 @@ export function LinkedAccountsPopover({ onClose }: LinkedAccountsPopoverProps) {
 
   if (isLoading)
     return (
-      <div className="rounded-md border border-border bg-popover p-4 w-96 shadow-lg">Loading…</div>
+      <div className="rounded-md border border-border bg-popover p-4 w-96 shadow-lg">
+        <SkeletonLoader variant="left-panel" className="p-0" />
+      </div>
     );
 
   return (
@@ -77,7 +80,12 @@ export function LinkedAccountsPopover({ onClose }: LinkedAccountsPopoverProps) {
       ) : (
         <>
           <label className="flex items-center gap-3 px-2 py-1.5 cursor-pointer">
-            <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              aria-label="Select all accounts"
+            />
             <span className="label-chart">Select all</span>
           </label>
           <div className="border-t border-border my-2" />

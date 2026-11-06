@@ -6,6 +6,9 @@ mock.module("./audit.service.js", () => ({
   audited: mock(({ mutation }: { mutation: (tx: typeof prismaMock) => unknown }) =>
     mutation(prismaMock)
   ),
+  auditEventTx: mock(async (tx: typeof prismaMock, entry: Record<string, unknown>) => {
+    await tx.auditLog.create({ data: entry });
+  }),
 }));
 mock.module("./subcategory.service.js", () => ({
   subcategoryService: { seedDefaults: mock(async () => {}) },
@@ -55,6 +58,32 @@ describe("householdService.joinViaInvite", () => {
     expect(prismaMock.member.create).toHaveBeenCalledWith({
       data: { householdId: "hh-invited", userId: "u-2", name: "Bob", role: "member" },
     });
+    expect(result).toMatchObject({ id: "hh-invited" });
+  });
+
+  it("links the existing placeholder member instead of creating a new one", async () => {
+    prismaMock.householdInvite.findUnique.mockResolvedValue(
+      validInvite({ memberId: "placeholder-1" }) as any
+    );
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: "u-2",
+      email: "bob@example.com",
+      name: "Bob",
+    } as any);
+    prismaMock.member.findFirst.mockResolvedValue(null);
+    prismaMock.member.update.mockResolvedValue({ id: "placeholder-1", userId: "u-2" } as any);
+    prismaMock.user.update.mockResolvedValue({} as any);
+    prismaMock.householdInvite.update.mockResolvedValue({} as any);
+
+    const result = await householdService.joinViaInvite("tok", "u-2", ctx);
+
+    expect(prismaMock.member.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "placeholder-1" },
+        data: expect.objectContaining({ userId: "u-2" }),
+      })
+    );
+    expect(prismaMock.member.create).not.toHaveBeenCalled();
     expect(result).toMatchObject({ id: "hh-invited" });
   });
 

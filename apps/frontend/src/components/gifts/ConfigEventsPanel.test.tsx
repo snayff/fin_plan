@@ -1,6 +1,10 @@
 import { describe, it, expect, mock } from "bun:test";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { ConfigEventsPanel } from "./ConfigEventsPanel";
+
+// The panel reads ?focus= for search deep links, so it needs a router.
+const router = { wrapper: MemoryRouter };
 
 const createMock = mock(() => Promise.resolve({}));
 const deleteMock = mock(() => Promise.resolve());
@@ -33,26 +37,26 @@ mock.module("@/hooks/useGifts", () => ({
 
 describe("ConfigEventsPanel", () => {
   it("groups locked and custom events", () => {
-    render(<ConfigEventsPanel readOnly={false} />);
+    render(<ConfigEventsPanel readOnly={false} />, router);
     expect(screen.getByText(/locked/i)).toBeInTheDocument();
     expect(screen.getByText(/custom/i)).toBeInTheDocument();
   });
 
   it("locked event is not deletable", () => {
-    render(<ConfigEventsPanel readOnly={false} />);
+    render(<ConfigEventsPanel readOnly={false} />, router);
     const xmasRow = screen.getByTestId("event-row-e1");
     expect(xmasRow.querySelector("button")).toBeNull();
   });
 
   it("shows add form when + Add event is clicked", () => {
-    render(<ConfigEventsPanel readOnly={false} />);
+    render(<ConfigEventsPanel readOnly={false} />, router);
     expect(screen.queryByLabelText(/event name/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /add event/i }));
     expect(screen.getByLabelText(/event name/i)).toBeInTheDocument();
   });
 
   it("create form submits with correct data for shared-date events", () => {
-    render(<ConfigEventsPanel readOnly={false} />);
+    render(<ConfigEventsPanel readOnly={false} />, router);
     // Open the form
     fireEvent.click(screen.getByRole("button", { name: /add event/i }));
 

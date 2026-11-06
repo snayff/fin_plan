@@ -1,4 +1,13 @@
 import { z } from "zod";
+import {
+  boundedDate,
+  idSchema,
+  nameSchema,
+  notesSchema,
+  positiveMoneySchema,
+  sortOrderSchema,
+  subcategoryNameSchema,
+} from "./common.schemas";
 
 export const IncomeFrequencyEnum = z.enum(["monthly", "annual", "one_off", "weekly", "quarterly"]);
 export type IncomeFrequency = z.infer<typeof IncomeFrequencyEnum>;
@@ -33,6 +42,19 @@ export type SpendType = z.infer<typeof SpendTypeEnum>;
 export const WaterfallTierEnum = z.enum(["income", "committed", "discretionary"]);
 export type WaterfallTier = z.infer<typeof WaterfallTierEnum>;
 
+// ─── Date-range refinement ───────────────────────────────────────────────────
+// When both endpoints are supplied, the end must not precede the start.
+// undefined/null endpoints (open-ended ranges) are always allowed.
+function endAfterStart(data: { startDate?: Date | null; endDate?: Date | null }): boolean {
+  if (data.startDate == null || data.endDate == null) return true;
+  return data.endDate >= data.startDate;
+}
+
+const endAfterStartMessage: { message: string; path: (string | number)[] } = {
+  message: "endDate must be on or after startDate",
+  path: ["endDate"],
+};
+
 // ─── Subcategory ─────────────────────────────────────────────────────────────
 
 export interface SubcategoryRow {
@@ -60,27 +82,32 @@ export interface SubcategoryTotal {
 
 // ─── Committed items (replaces CommittedBill + YearlyBill) ───────────────────
 
-export const createCommittedItemSchema = z.object({
-  name: z.string().min(1).trim(),
-  amount: z.number().positive(),
-  subcategoryId: z.string().min(1),
-  spendType: SpendTypeEnum.default("monthly"),
-  notes: z.string().max(500).nullable().optional(),
-  memberId: z.string().nullable().optional(),
-  dueDate: z.coerce.date(),
-  sortOrder: z.number().int().optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-});
+export const createCommittedItemSchema = z
+  .object({
+    name: nameSchema,
+    amount: positiveMoneySchema,
+    subcategoryId: idSchema,
+    spendType: SpendTypeEnum.default("monthly"),
+    notes: notesSchema.nullable().optional(),
+    memberId: idSchema.nullable().optional(),
+    dueDate: boundedDate,
+    sortOrder: sortOrderSchema.optional(),
+    startDate: boundedDate.optional(),
+    endDate: boundedDate.optional(),
+  })
+  .refine(endAfterStart, endAfterStartMessage);
 
 export const updateCommittedItemSchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  subcategoryId: z.string().min(1).optional(),
+  name: nameSchema.optional(),
+  // Amount is stored in the ItemAmountPeriod table, not on the item row. The
+  // service destructures this out and writes it to the current effective period.
+  amount: positiveMoneySchema.optional(),
+  subcategoryId: idSchema.optional(),
   spendType: SpendTypeEnum.optional(),
-  notes: z.string().max(500).nullable().optional(),
-  memberId: z.string().nullable().optional(),
-  dueDate: z.coerce.date().optional(),
-  sortOrder: z.number().int().optional(),
+  notes: notesSchema.nullable().optional(),
+  memberId: idSchema.nullable().optional(),
+  dueDate: boundedDate.optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateCommittedItemInput = z.infer<typeof createCommittedItemSchema>;
@@ -88,28 +115,34 @@ export type UpdateCommittedItemInput = z.infer<typeof updateCommittedItemSchema>
 
 // ─── Discretionary items (replaces DiscretionaryCategory + SavingsAllocation) ─
 
-export const createDiscretionaryItemSchema = z.object({
-  name: z.string().min(1).trim(),
-  amount: z.number().positive(),
-  subcategoryId: z.string().min(1),
-  spendType: SpendTypeEnum.default("monthly"),
-  notes: z.string().max(500).nullable().optional(),
-  memberId: z.string().nullable().optional(),
-  dueDate: z.coerce.date().nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  linkedAccountId: z.string().nullable().optional(),
-});
+export const createDiscretionaryItemSchema = z
+  .object({
+    name: nameSchema,
+    amount: positiveMoneySchema,
+    subcategoryId: idSchema,
+    spendType: SpendTypeEnum.default("monthly"),
+    notes: notesSchema.nullable().optional(),
+    memberId: idSchema.nullable().optional(),
+    dueDate: boundedDate.nullable().optional(),
+    sortOrder: sortOrderSchema.optional(),
+    startDate: boundedDate.optional(),
+    endDate: boundedDate.optional(),
+    linkedAccountId: idSchema.nullable().optional(),
+  })
+  .refine(endAfterStart, endAfterStartMessage);
 
 export const updateDiscretionaryItemSchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  subcategoryId: z.string().min(1).optional(),
+  name: nameSchema.optional(),
+  // Amount is stored in the ItemAmountPeriod table, not on the item row. The
+  // service destructures this out and writes it to the current effective period.
+  amount: positiveMoneySchema.optional(),
+  subcategoryId: idSchema.optional(),
   spendType: SpendTypeEnum.optional(),
-  notes: z.string().max(500).nullable().optional(),
-  memberId: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  linkedAccountId: z.string().nullable().optional(),
+  notes: notesSchema.nullable().optional(),
+  memberId: idSchema.nullable().optional(),
+  dueDate: boundedDate.nullable().optional(),
+  sortOrder: sortOrderSchema.optional(),
+  linkedAccountId: idSchema.nullable().optional(),
 });
 
 export type CreateDiscretionaryItemInput = z.infer<typeof createDiscretionaryItemSchema>;
@@ -117,29 +150,34 @@ export type UpdateDiscretionaryItemInput = z.infer<typeof updateDiscretionaryIte
 
 // ─── Income ──────────────────────────────────────────────────────────────────
 
-export const createIncomeSourceSchema = z.object({
-  name: z.string().min(1).trim(),
-  amount: z.number().positive(),
-  frequency: IncomeFrequencyEnum,
-  incomeType: IncomeTypeEnum.default("other"),
-  dueDate: z.coerce.date(),
-  memberId: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  subcategoryId: z.string().min(1).optional(),
-  notes: z.string().max(500).nullable().optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-});
+export const createIncomeSourceSchema = z
+  .object({
+    name: nameSchema,
+    amount: positiveMoneySchema,
+    frequency: IncomeFrequencyEnum,
+    incomeType: IncomeTypeEnum.default("other"),
+    dueDate: boundedDate,
+    memberId: idSchema.nullable().optional(),
+    sortOrder: sortOrderSchema.optional(),
+    subcategoryId: idSchema.optional(),
+    notes: notesSchema.nullable().optional(),
+    startDate: boundedDate.optional(),
+    endDate: boundedDate.optional(),
+  })
+  .refine(endAfterStart, endAfterStartMessage);
 
 export const updateIncomeSourceSchema = z.object({
-  name: z.string().min(1).trim().optional(),
+  name: nameSchema.optional(),
+  // Amount is stored in the ItemAmountPeriod table, not on the item row. The
+  // service destructures this out and writes it to the current effective period.
+  amount: positiveMoneySchema.optional(),
   frequency: IncomeFrequencyEnum.optional(),
   incomeType: IncomeTypeEnum.optional(),
-  dueDate: z.coerce.date().optional(),
-  memberId: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
-  subcategoryId: z.string().min(1).optional(),
-  notes: z.string().max(500).nullable().optional(),
+  dueDate: boundedDate.optional(),
+  memberId: idSchema.nullable().optional(),
+  sortOrder: sortOrderSchema.optional(),
+  subcategoryId: idSchema.optional(),
+  notes: notesSchema.nullable().optional(),
 });
 
 export type CreateIncomeSourceInput = z.input<typeof createIncomeSourceSchema>;
@@ -148,17 +186,17 @@ export type UpdateIncomeSourceInput = z.infer<typeof updateIncomeSourceSchema>;
 // ─── Committed Bills ──────────────────────────────────────────────────────────
 
 export const createCommittedBillSchema = z.object({
-  name: z.string().min(1).trim(),
-  amount: z.number().positive(),
-  memberId: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema,
+  amount: positiveMoneySchema,
+  memberId: idSchema.nullable().optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export const updateCommittedBillSchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  amount: z.number().positive().optional(),
-  memberId: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema.optional(),
+  amount: positiveMoneySchema.optional(),
+  memberId: idSchema.nullable().optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateCommittedBillInput = z.infer<typeof createCommittedBillSchema>;
@@ -167,17 +205,17 @@ export type UpdateCommittedBillInput = z.infer<typeof updateCommittedBillSchema>
 // ─── Yearly Bills ─────────────────────────────────────────────────────────────
 
 export const createYearlyBillSchema = z.object({
-  name: z.string().min(1).trim(),
-  amount: z.number().positive(),
-  dueDate: z.coerce.date(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema,
+  amount: positiveMoneySchema,
+  dueDate: boundedDate,
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export const updateYearlyBillSchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  amount: z.number().positive().optional(),
-  dueDate: z.coerce.date().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema.optional(),
+  amount: positiveMoneySchema.optional(),
+  dueDate: boundedDate.optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateYearlyBillInput = z.infer<typeof createYearlyBillSchema>;
@@ -186,15 +224,15 @@ export type UpdateYearlyBillInput = z.infer<typeof updateYearlyBillSchema>;
 // ─── Discretionary ────────────────────────────────────────────────────────────
 
 export const createDiscretionaryCategorySchema = z.object({
-  name: z.string().min(1).trim(),
-  monthlyBudget: z.number().positive(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema,
+  monthlyBudget: positiveMoneySchema,
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export const updateDiscretionaryCategorySchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  monthlyBudget: z.number().positive().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema.optional(),
+  monthlyBudget: positiveMoneySchema.optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateDiscretionaryCategoryInput = z.infer<typeof createDiscretionaryCategorySchema>;
@@ -203,15 +241,15 @@ export type UpdateDiscretionaryCategoryInput = z.infer<typeof updateDiscretionar
 // ─── Savings ──────────────────────────────────────────────────────────────────
 
 export const createSavingsAllocationSchema = z.object({
-  name: z.string().min(1).trim(),
-  monthlyAmount: z.number().positive(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema,
+  monthlyAmount: positiveMoneySchema,
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export const updateSavingsAllocationSchema = z.object({
-  name: z.string().min(1).trim().optional(),
-  monthlyAmount: z.number().positive().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema.optional(),
+  monthlyAmount: positiveMoneySchema.optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateSavingsAllocationInput = z.infer<typeof createSavingsAllocationSchema>;
@@ -220,12 +258,14 @@ export type UpdateSavingsAllocationInput = z.infer<typeof updateSavingsAllocatio
 // ─── Batch confirm ────────────────────────────────────────────────────────────
 
 export const confirmBatchSchema = z.object({
-  items: z.array(
-    z.object({
-      type: WaterfallItemTypeEnum,
-      id: z.string(),
-    })
-  ),
+  items: z
+    .array(
+      z.object({
+        type: WaterfallItemTypeEnum,
+        id: idSchema,
+      })
+    )
+    .max(500),
 });
 
 export type ConfirmBatchInput = z.infer<typeof confirmBatchSchema>;
@@ -368,19 +408,26 @@ export type ItemLifecycleState = z.infer<typeof ItemLifecycleStateEnum>;
 export const PeriodItemTypeEnum = z.enum(["income_source", "committed_item", "discretionary_item"]);
 export type PeriodItemType = z.infer<typeof PeriodItemTypeEnum>;
 
-export const createPeriodSchema = z.object({
-  itemType: PeriodItemTypeEnum,
-  itemId: z.string().min(1),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date().optional(),
-  amount: z.number().positive(),
-});
+export const createPeriodSchema = z
+  .object({
+    itemType: PeriodItemTypeEnum,
+    itemId: idSchema,
+    startDate: boundedDate,
+    endDate: boundedDate.optional(),
+    amount: positiveMoneySchema,
+    /** Moves the payment date from this period on; omit/null keeps the item's dueDate. */
+    dueDate: boundedDate.nullable().optional(),
+  })
+  .refine(endAfterStart, endAfterStartMessage);
 
-export const updatePeriodSchema = z.object({
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().nullable().optional(),
-  amount: z.number().positive().optional(),
-});
+export const updatePeriodSchema = z
+  .object({
+    startDate: boundedDate.optional(),
+    endDate: boundedDate.nullable().optional(),
+    amount: positiveMoneySchema.optional(),
+    dueDate: boundedDate.nullable().optional(),
+  })
+  .refine(endAfterStart, endAfterStartMessage);
 
 export type CreatePeriodInput = z.infer<typeof createPeriodSchema>;
 export type UpdatePeriodInput = z.infer<typeof updatePeriodSchema>;
@@ -394,6 +441,7 @@ export interface PeriodRow {
   startDate: Date;
   endDate: Date | null;
   amount: number;
+  dueDate: Date | null;
   createdAt: Date;
 }
 
@@ -407,14 +455,14 @@ export type DeleteAllWaterfallInput = z.infer<typeof deleteAllWaterfallSchema>;
 // ─── Subcategory mutation schemas ────────────────────────────────────────────
 
 const subcategoryReassignmentSchema = z.object({
-  fromSubcategoryId: z.string().min(1),
-  toSubcategoryId: z.string().min(1),
+  fromSubcategoryId: idSchema,
+  toSubcategoryId: idSchema,
 });
 
 const subcategoryEntrySchema = z.object({
-  id: z.string().min(1).optional(), // omitted for new subcategories
-  name: z.string().min(1).max(24).trim(),
-  sortOrder: z.number().int().min(0),
+  id: idSchema.optional(), // omitted for new subcategories
+  name: subcategoryNameSchema,
+  sortOrder: sortOrderSchema,
 });
 
 export const batchSaveSubcategoriesSchema = z.object({
@@ -435,7 +483,7 @@ export type ResetSubcategoriesInput = z.infer<typeof resetSubcategoriesSchema>;
 // ─── Quick-add subcategory ───────────────────────────────────────────────────
 
 export const createSubcategorySchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(40),
+  name: subcategoryNameSchema,
 });
 
 export type CreateSubcategoryInput = z.infer<typeof createSubcategorySchema>;

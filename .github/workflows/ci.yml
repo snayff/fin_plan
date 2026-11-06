@@ -16,19 +16,18 @@ concurrency:
 
 jobs:
   # ─────────────────────────────────────────
-  # Lint & Type Check (runs on PRs)
+  # Lint & Type Check (PRs + branch pushes)
   # ─────────────────────────────────────────
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: "1.4.3"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -50,12 +49,11 @@ jobs:
         run: bun run type-check
 
   # ─────────────────────────────────────────
-  # Tests (runs on PRs)
+  # Tests (PRs + branch pushes)
   # ─────────────────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     services:
       postgres:
@@ -85,7 +83,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: "1.4.3"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -100,8 +98,11 @@ jobs:
       - name: Generate Prisma Client
         run: cd apps/backend && bunx prisma generate
 
-      - name: Push schema to test database
-        run: cd apps/backend && bunx prisma db push
+      - name: Apply migrations to test database
+        # Use migrate deploy (not db push) so CI exercises the exact migration
+        # path production runs — catching drift between the migration history and
+        # schema.prisma, plus any ordering issues in the committed migrations.
+        run: cd apps/backend && bunx prisma migrate deploy
 
       - name: Backend tests with coverage
         run: cd apps/backend && bun run test:coverage
@@ -150,7 +151,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: "1.4.3"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -197,12 +198,34 @@ jobs:
         run: docker compose -f docker-compose.dev.yml down -v
 
   # ─────────────────────────────────────────
-  # Security Audit (runs on PRs)
+  # Security Audit (PRs + branch pushes)
   # ─────────────────────────────────────────
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.3"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run security audit
+        # Fails on high/critical advisories. Accepted advisories live in
+        # scripts/audit-allowlist.json — see docs/3. architecture/dependency-management.md
+        # for the policy and how to add an entry.
+        run: bun scripts/check-audit.ts
+
+  # ─────────────────────────────────────────
+  # Privacy Scan (PRs + branch pushes)
+  # ─────────────────────────────────────────
+  privacy-scan:
+    name: Privacy Scan
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -211,24 +234,21 @@ jobs:
         with:
           bun-version: "1.3.9"
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run security audit
-        # continue-on-error suppresses the 1 known moderate: ajv ReDoS (GHSA-2g4f-4pwh-qvx6)
-        # via ESLint's internal ajv v6 dependency. ESLint uses ajv v6-only APIs that are
-        # incompatible with v8 — forcing v8 crashes the linter at runtime. Suppressed until
-        # ESLint migrates to ajv v8 internally: https://github.com/eslint/eslint/issues/18084
-        run: bun audit
-        continue-on-error: true
+      - name: Scan tracked files for personal data
+        # Fails on personal-provider emails or denylisted real values. The
+        # private denylist (real name / domain) is supplied via the
+        # PRIVACY_DENYLIST secret so it never enters the public repo.
+        # Policy: docs/3. architecture/issue-workflow.md → Privacy rules.
+        env:
+          PRIVACY_DENYLIST: ${{ secrets.PRIVACY_DENYLIST }}
+        run: bun scripts/check-privacy.ts
 
   # ─────────────────────────────────────────
-  # Compile Check (runs on PRs)
+  # Compile Check (PRs + branch pushes)
   # ─────────────────────────────────────────
   check-compile:
     name: Check Compile
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     env:
       DATABASE_URL: postgresql://finplan:unused@localhost:5432/unused
@@ -238,7 +258,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: "1.4.3"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -257,12 +277,11 @@ jobs:
         run: bun run build
 
   # ─────────────────────────────────────────
-  # Frontend bundle size budget (runs on PRs)
+  # Frontend bundle size budget (PRs + branch pushes)
   # ─────────────────────────────────────────
   frontend-perf-size:
     name: Frontend Bundle Size
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     needs: [check-compile]
 
     env:
@@ -273,7 +292,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: "1.4.3"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -295,12 +314,11 @@ jobs:
         run: cd apps/frontend && bun run size
 
   # ─────────────────────────────────────────
-  # Lighthouse CI (runs on PRs)
+  # Lighthouse CI (PRs + branch pushes)
   # ─────────────────────────────────────────
   frontend-perf-lhci:
     name: Frontend Lighthouse
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     needs: [check-compile]
     timeout-minutes: 15
 
@@ -332,7 +350,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.9"
+          bun-version: "1.4.3"
 
       - name: Cache bun dependencies
         uses: actions/cache@v4
@@ -347,8 +365,11 @@ jobs:
       - name: Generate Prisma Client
         run: cd apps/backend && bunx prisma generate
 
-      - name: Push schema to test database
-        run: cd apps/backend && bunx prisma db push
+      - name: Apply migrations to test database
+        # Use migrate deploy (not db push) so CI exercises the exact migration
+        # path production runs — catching drift between the migration history and
+        # schema.prisma, plus any ordering issues in the committed migrations.
+        run: cd apps/backend && bunx prisma migrate deploy
 
       - name: Seed test data
         run: cd apps/backend && bun run db:seed
@@ -391,12 +412,22 @@ jobs:
           include-hidden-files: true
 
   # ─────────────────────────────────────────
-  # Deploy (runs on push to main)
+  # Deploy (runs on push to production, after checks pass)
   # ─────────────────────────────────────────
   deploy:
     name: Deploy to Coolify
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/production'
+    needs:
+      [
+        lint-and-typecheck,
+        test,
+        check-compile,
+        security-audit,
+        privacy-scan,
+        frontend-perf-size,
+        frontend-perf-lhci,
+      ]
     environment: PROD
 
     steps:
@@ -408,4 +439,4 @@ jobs:
           echo "${{ secrets.COOLIFY_HOST_KEY }}" >> ~/.ssh/known_hosts
 
       - name: Trigger Coolify deploy
-        run: ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 gabriel@95.146.81.51
+        run: ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"

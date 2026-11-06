@@ -2,8 +2,8 @@
 feature: audit-log
 status: approved
 creation_date: 2026-03-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Audit Log — Design

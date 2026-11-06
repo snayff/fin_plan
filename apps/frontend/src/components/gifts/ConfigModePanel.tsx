@@ -9,13 +9,18 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { usePrefersReducedMotion } from "@/utils/motion";
 import type { GiftPlannerMode } from "@finplan/shared";
 
-type Drill = "list" | "people" | "events" | "budget" | "mode" | "quickadd";
+export type ConfigDrill = "list" | "people" | "events" | "budget" | "mode" | "quickadd";
+type Drill = ConfigDrill;
 type Props = {
   currentMode: GiftPlannerMode;
   readOnly: boolean;
   year: number;
   annualBudget: number;
   onDirtyChange?: (dirty: boolean) => void;
+  /** Sub-panel to open on mount, e.g. from a search deep link. */
+  initialDrill?: ConfigDrill;
+  /** Open that sub-panel's add form on mount. */
+  initialAdding?: boolean;
 };
 
 export function ConfigModePanel({
@@ -24,8 +29,10 @@ export function ConfigModePanel({
   year,
   annualBudget,
   onDirtyChange,
+  initialDrill = "list",
+  initialAdding = false,
 }: Props) {
-  const [drill, setDrill] = useState<Drill>("list");
+  const [drill, setDrill] = useState<Drill>(initialDrill);
   const [dir, setDir] = useState(1);
   const [quickAddDirty, setQuickAddDirty] = useState(false);
   const [showDiscard, setShowDiscard] = useState(false);
@@ -133,8 +140,19 @@ export function ConfigModePanel({
           >
             ← Config / {labelFor(drill)}
           </button>
-          {drill === "people" && <ConfigPeoplePanel readOnly={readOnly} year={year} />}
-          {drill === "events" && <ConfigEventsPanel readOnly={readOnly} />}
+          {drill === "people" && (
+            <ConfigPeoplePanel
+              readOnly={readOnly}
+              year={year}
+              initialAdding={initialAdding && initialDrill === "people"}
+            />
+          )}
+          {drill === "events" && (
+            <ConfigEventsPanel
+              readOnly={readOnly}
+              initialAdding={initialAdding && initialDrill === "events"}
+            />
+          )}
           {drill === "budget" && (
             <ConfigBudgetPanel year={year} readOnly={readOnly} currentBudget={annualBudget} />
           )}

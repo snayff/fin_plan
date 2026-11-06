@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState } from "react";
 import { useHouseholdMembers, useSettings } from "../../hooks/useSettings.js";
 import { useAllAccounts } from "../../hooks/useAssets.js";
@@ -23,13 +22,14 @@ interface Props {
     disposedAt: string | null;
     disposalAccountId: string | null;
     initialValue?: number;
+    initialValueDate?: string;
   }) => void;
   onCancel: () => void;
   onDeleteRequest?: () => void;
   onConfirm?: () => void;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -37,6 +37,10 @@ function isoDateOnly(value: string | null | undefined): string {
   if (!value) return "";
   // Server returns full ISO; the <input type="date"> needs YYYY-MM-DD
   return value.length >= 10 ? value.slice(0, 10) : value;
+}
+
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0]!;
 }
 
 export function AssetForm({
@@ -61,8 +65,10 @@ export function AssetForm({
     initialGrowthRatePct != null ? String(initialGrowthRatePct) : ""
   );
   const [initialValue, setInitialValue] = useState<string>("");
+  const [initialValueDate, setInitialValueDate] = useState<string>(todayISO());
   const [valueFocused, setValueFocused] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   // Disposal state — start expanded if the asset already has a disposal date.
   const [disposalOpen, setDisposalOpen] = useState<boolean>(initialDisposedAt != null);
@@ -118,13 +124,22 @@ export function AssetForm({
     const parsedGrowth = growthRatePct.trim() === "" ? null : Number(growthRatePct);
     const parsedValue = initialValue.trim() === "" ? undefined : parseValue(initialValue);
 
+    // Initial-value date only applies when an opening value is being recorded.
+    if (mode === "add" && parsedValue !== undefined && initialValueDate > todayISO()) {
+      setDateError("Date cannot be in the future");
+      return;
+    }
+    setDateError(null);
+
     onSave({
       name: name.trim(),
       memberId,
       growthRatePct: parsedGrowth,
       disposedAt: dateSet ? disposedAt : null,
       disposalAccountId: acctSet ? disposalAccountId : null,
-      ...(mode === "add" && parsedValue !== undefined ? { initialValue: parsedValue } : {}),
+      ...(mode === "add" && parsedValue !== undefined
+        ? { initialValue: parsedValue, initialValueDate }
+        : {}),
     });
   }
 
@@ -133,9 +148,9 @@ export function AssetForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Name <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             placeholder="e.g. Family Home"
@@ -146,34 +161,51 @@ export function AssetForm({
             }}
             aria-label="Name"
             autoFocus={mode === "add"}
-            className={[inputClass, "col-span-2", nameError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, "col-span-2", nameError ? "border-attention/60" : ""].join(" ")}
           />
-          {nameError && <p className="-mt-0.5 text-xs text-amber-400">{nameError}</p>}
+          {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
-        {/* Current value (add mode only) + Growth rate — side by side */}
+        {/* Current value + as-of date (add mode only) — side by side */}
         {mode === "add" && (
-          <div className="flex flex-col gap-1">
-            <label className={labelClass}>
-              Current value <span className="text-text-muted">*</span>
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="£0.00"
-              value={displayValue}
-              onChange={(e) => setInitialValue(e.target.value)}
-              onFocus={() => setValueFocused(true)}
-              onBlur={() => setValueFocused(false)}
-              aria-label="Current value"
-              className={[inputClass, "font-numeric"].join(" ")}
-            />
-          </div>
+          <>
+            <div className="flex flex-col gap-1">
+              <span className={labelClass}>
+                Current value <span className="text-text-muted">*</span>
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="£0.00"
+                value={displayValue}
+                onChange={(e) => setInitialValue(e.target.value)}
+                onFocus={() => setValueFocused(true)}
+                onBlur={() => setValueFocused(false)}
+                aria-label="Current value"
+                className={[inputClass, "font-numeric"].join(" ")}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className={labelClass}>As of</span>
+              <input
+                type="date"
+                max={todayISO()}
+                value={initialValueDate}
+                onChange={(e) => {
+                  setInitialValueDate(e.target.value);
+                  setDateError(null);
+                }}
+                aria-label="Initial value date"
+                className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
+              />
+              {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
+            </div>
+          </>
         )}
 
         {/* Growth rate */}
-        <div className={`flex flex-col gap-1 ${mode === "edit" ? "col-span-2" : ""}`}>
-          <label className={labelClass}>Growth rate (% p.a.)</label>
+        <div className="flex flex-col gap-1 col-span-2">
+          <span className={labelClass}>Growth rate (% p.a.)</span>
           <input
             type="text"
             inputMode="decimal"
@@ -187,7 +219,7 @@ export function AssetForm({
 
         {/* Assigned to */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Assigned to</label>
+          <span className={labelClass}>Assigned to</span>
           <select
             value={memberId ?? ""}
             onChange={(e) => setMemberId(e.target.value || null)}
@@ -225,7 +257,7 @@ export function AssetForm({
           {disposalOpen && (
             <div className="grid grid-cols-2 gap-3 pl-1">
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Disposal date</label>
+                <span className={labelClass}>Disposal date</span>
                 <input
                   type="date"
                   value={disposedAt}
@@ -238,7 +270,7 @@ export function AssetForm({
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Proceeds go to</label>
+                <span className={labelClass}>Proceeds go to</span>
                 <select
                   value={disposalAccountId ?? ""}
                   onChange={(e) => {
@@ -257,7 +289,7 @@ export function AssetForm({
                 </select>
               </div>
               {disposalError && (
-                <p className="col-span-2 -mt-1 text-xs text-amber-400">{disposalError}</p>
+                <p className="col-span-2 -mt-1 text-xs text-attention">{disposalError}</p>
               )}
             </div>
           )}

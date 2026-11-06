@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { nameSchema } from "./common.schemas";
 
 export const createSnapshotSchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: nameSchema,
 });
 
 export const renameSnapshotSchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: nameSchema,
 });
 
 export const SparklinePointSchema = z.object({

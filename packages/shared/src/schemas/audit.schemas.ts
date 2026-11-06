@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { idSchema } from "./common.schemas";
 
 export const HouseholdRoleEnum = z.enum(["owner", "admin", "member"]);
 export type HouseholdRole = z.infer<typeof HouseholdRoleEnum>;
@@ -34,6 +35,9 @@ export const ResourceSlugEnum = z.enum([
   "account-balance",
   "session",
   "subcategory",
+  // waterfall-wide delete + item amount-period mutations
+  "waterfall",
+  "item-period",
 ]);
 export type ResourceSlug = z.infer<typeof ResourceSlugEnum>;
 
@@ -51,6 +55,9 @@ export const AuditAction = {
   SESSION_REVOKED: "SESSION_REVOKED",
   ALL_SESSIONS_REVOKED: "ALL_SESSIONS_REVOKED",
   UPDATE_PROFILE: "UPDATE_PROFILE",
+  CHANGE_PASSWORD: "CHANGE_PASSWORD",
+  PASSWORD_RESET_REQUEST: "PASSWORD_RESET_REQUEST",
+  PASSWORD_RESET: "PASSWORD_RESET",
 
   // Household
   CREATE_HOUSEHOLD: "CREATE_HOUSEHOLD",
@@ -79,6 +86,15 @@ export const AuditAction = {
   UPDATE_DISCRETIONARY_ITEM: "UPDATE_DISCRETIONARY_ITEM",
   DELETE_DISCRETIONARY_ITEM: "DELETE_DISCRETIONARY_ITEM",
   CREATE_SUBCATEGORY: "CREATE_SUBCATEGORY",
+  // Mutationless "confirm" (review-touch) of a waterfall item — covers
+  // income/committed/yearly/discretionary/savings confirms and confirm-batch.
+  CONFIRM_WATERFALL_ITEM: "CONFIRM_WATERFALL_ITEM",
+  // Owner/admin-only destructive wipe of the entire household waterfall.
+  DELETE_ALL_WATERFALL: "DELETE_ALL_WATERFALL",
+  // Item amount-period mutations (POST/PATCH/DELETE /waterfall/periods*).
+  CREATE_ITEM_PERIOD: "CREATE_ITEM_PERIOD",
+  UPDATE_ITEM_PERIOD: "UPDATE_ITEM_PERIOD",
+  DELETE_ITEM_PERIOD: "DELETE_ITEM_PERIOD",
 
   // Wealth
   CREATE_WEALTH_ACCOUNT: "CREATE_WEALTH_ACCOUNT",
@@ -159,11 +175,11 @@ export const AuditEntrySchema = z.object({
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 
 export const AuditLogQuerySchema = z.object({
-  actorId: z.string().optional(),
+  actorId: idSchema.optional(),
   resource: ResourceSlugEnum.optional(),
   dateFrom: z.string().datetime({ offset: true }).optional(),
   dateTo: z.string().datetime({ offset: true }).optional(),
-  cursor: z.string().optional(),
+  cursor: idSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
@@ -176,7 +192,7 @@ export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;
 
 /** Security activity — per-user, auth-scoped view. */
 export const SecurityActivityQuerySchema = z.object({
-  cursor: z.string().optional(),
+  cursor: idSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type SecurityActivityQuery = z.infer<typeof SecurityActivityQuerySchema>;

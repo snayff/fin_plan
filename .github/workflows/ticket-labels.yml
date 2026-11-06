@@ -1,0 +1,44 @@
+name: Ticket labels
+
+# Keeps the `ready-to-build` label in sync with the Plan checkbox on `feature`
+# issues — even when a box is ticked manually in the web UI. The checklist is
+# the source of truth; see docs/3. architecture/issue-workflow.md.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  sync-ready-to-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = issue.labels.map((l) => l.name);
+
+            // Only feature tickets carry the build pipeline.
+            if (!labels.includes('feature')) return;
+
+            const body = issue.body || '';
+            // Matches e.g. "- [x] **Plan** — ..." (case-insensitive, optional bold).
+            const planChecked = /-\s*\[x\]\s*\*{0,2}\s*Plan\b/i.test(body);
+            const hasLabel = labels.includes('ready-to-build');
+
+            if (planChecked && !hasLabel) {
+              await github.rest.issues.addLabels({
+                ...context.repo,
+                issue_number: issue.number,
+                labels: ['ready-to-build'],
+              });
+            } else if (!planChecked && hasLabel) {
+              await github.rest.issues.removeLabel({
+                ...context.repo,
+                issue_number: issue.number,
+                name: 'ready-to-build',
+              });
+            }

@@ -31,7 +31,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
-      <div className="w-full max-w-md space-y-6 rounded-lg bg-card p-6 shadow-lg sm:p-8">
+      <div className="w-full max-w-md space-y-6 rounded-lg border border-foreground/10 bg-card p-6 sm:p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
           <p className="mt-2 text-muted-foreground">Sign in to your account</p>
@@ -74,14 +74,19 @@ export default function LoginPage() {
             />
           </div>
 
-          <label htmlFor="rememberMe" className="flex items-center gap-2 text-sm text-foreground">
-            <Checkbox
-              id="rememberMe"
-              checked={rememberMe}
-              onCheckedChange={(checked) => setRememberMe(checked === true)}
-            />
-            Remember me on this device
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="rememberMe" className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
+              Remember me on this device
+            </label>
+            <Link to="/forgot-password" className="text-sm text-page-accent hover:underline">
+              Forgot password?
+            </Link>
+          </div>
 
           <Button type="submit" size="lg" disabled={isLoading} className="w-full">
             {isLoading ? "Signing in..." : "Sign In"}

@@ -6,13 +6,13 @@ The deploy job in `ci.yml` currently tries to curl the Coolify webhook from a Gi
 
 ## Solution
 
-Replace the GitHub-hosted runner with a **self-hosted GitHub Actions runner** installed on the PROD Ubuntu VM. The runner executes the deploy job locally, so it can curl `http://localhost:8000/...` directly — no ports need exposing.
+Replace the GitHub-hosted runner with a **self-hosted GitHub Actions runner** installed on the PROD Ubuntu VM. The runner executes the deploy job locally, so it can curl Coolify's internal webhook port (`http://localhost:<COOLIFY_PORT>/...` — see the private deployment runbook) directly — no ports need exposing.
 
 ```
 Push to main
   → GitHub Actions (CI passes)
     → Self-hosted runner on PROD VM picks up the deploy job
-      → curl http://localhost:8000/api/v1/deploy/TOKEN
+      → curl http://localhost:<COOLIFY_PORT>/api/v1/deploy/TOKEN
         → Coolify deploys finplan
 ```
 
@@ -33,7 +33,7 @@ Push to main
 3. Find the **Webhooks** section
 4. Copy the deploy webhook URL — it will look like:
    ```
-   http://localhost:8000/api/v1/deploy/abc123xyz
+   http://localhost:<COOLIFY_PORT>/api/v1/deploy/abc123xyz
    ```
 5. Note down the full URL — you will need it in Step 4
 
@@ -104,7 +104,7 @@ You should see `active (running)`. Also confirm in GitHub: **Settings** → **Ac
 1. Go to GitHub repo → **Settings** → **Secrets and variables** → **Actions**
 2. Click **New repository secret**
 3. Name: `COOLIFY_DEPLOY_URL`
-4. Value: the full URL from Step 1, e.g. `http://localhost:8000/api/v1/deploy/abc123xyz`
+4. Value: the full URL from Step 1, e.g. `http://localhost:<COOLIFY_PORT>/api/v1/deploy/abc123xyz`
 5. Click **Add secret**
 
 ---
@@ -129,7 +129,7 @@ Key changes:
 
 - `runs-on: self-hosted` — picks up the runner installed in Step 3
 - No SSH setup steps needed — the runner is already on the PROD VM
-- Curls `localhost:8000` via the secret set in Step 5
+- Curls the internal Coolify webhook port via the secret set in Step 5
 
 ---
 

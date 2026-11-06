@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { SettingsLeftPanel, type SettingsNavItem } from "@/components/settings/SettingsLeftPanel";
-import { MobileUnsupportedNotice } from "@/components/common/MobileUnsupportedNotice";
+import { TwoPanelLayout } from "@/components/layout/TwoPanelLayout";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   SettingsRightPanel,
@@ -31,11 +31,6 @@ function useRole(): Role | null {
 
 export default function HouseholdSettingsPage() {
   const isMobile = useIsMobile();
-  if (isMobile) return <MobileUnsupportedNotice pageName="Household Settings" />;
-  return <HouseholdSettingsPageBody />;
-}
-
-function HouseholdSettingsPageBody() {
   const user = useAuthStore((s) => s.user);
   const householdId = user?.activeHouseholdId;
   const role = useRole();
@@ -65,40 +60,51 @@ function HouseholdSettingsPageBody() {
   }, [role]);
 
   const [activeId, setActiveId] = useState<string>("details");
+  const [mobileOpen, setMobileOpen] = useState(false);
   const rightRef = useRef<SettingsRightPanelHandle | null>(null);
   const handleNavClick = useCallback((id: string) => {
     setActiveId(id);
+    setMobileOpen(true);
     rightRef.current?.scrollToSection(id);
   }, []);
 
   if (!householdId) return <Navigate to="/settings/profile" replace />;
 
   return (
-    <div data-page="settings" className="relative flex h-full overflow-hidden">
-      <SettingsLeftPanel
-        title="Household"
-        contextName={householdName}
-        activeId={activeId}
-        items={items}
-        onNavClick={handleNavClick}
+    <div data-page="settings" className="relative h-full">
+      <TwoPanelLayout
+        rightFill
+        selectedKey={isMobile && mobileOpen ? activeId : null}
+        left={
+          <SettingsLeftPanel
+            title="Household"
+            contextName={householdName}
+            activeId={activeId}
+            items={items}
+            onNavClick={handleNavClick}
+          />
+        }
+        right={
+          <SettingsRightPanel
+            ref={rightRef}
+            title="Household"
+            activeId={activeId}
+            onActiveChange={setActiveId}
+            onMobileBack={isMobile ? () => setMobileOpen(false) : undefined}
+          >
+            <HouseholdDetailsSection />
+            <HouseholdMembersSection />
+            <SurplusSection />
+            <IsaSection />
+            <StalenessSection />
+            {(role === "owner" || role === "admin") && <GrowthRatesSection />}
+            <SubcategoriesSection />
+            {role === "owner" && <DataSection />}
+            {role === "owner" && <RebuildWaterfallSection />}
+            {(role === "owner" || role === "admin") && <AuditLogSection />}
+          </SettingsRightPanel>
+        }
       />
-      <SettingsRightPanel
-        ref={rightRef}
-        title="Household"
-        activeId={activeId}
-        onActiveChange={setActiveId}
-      >
-        <HouseholdDetailsSection />
-        <HouseholdMembersSection />
-        <SurplusSection />
-        <IsaSection />
-        <StalenessSection />
-        {(role === "owner" || role === "admin") && <GrowthRatesSection />}
-        <SubcategoriesSection />
-        {role === "owner" && <DataSection />}
-        {role === "owner" && <RebuildWaterfallSection />}
-        {(role === "owner" || role === "admin") && <AuditLogSection />}
-      </SettingsRightPanel>
     </div>
   );
 }

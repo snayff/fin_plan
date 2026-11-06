@@ -7,7 +7,7 @@ export type PaletteAction = {
   /**
    * `true` when the route is soft-blocked on mobile. The palette renders a
    * "(desktop only)" badge alongside such entries; tapping still navigates,
-   * which lands on the MobileUnsupportedNotice. Decision 1 + Item 2 amendment.
+   * which lands on the MobileUnsupportedNotice. See docs/5. built/ui/universal-search/universal-search-spec.md § Mobile (amended).
    */
   desktopOnly?: boolean;
 };
@@ -74,6 +74,7 @@ export const CREATE_ACTIONS: PaletteAction[] = [
     kind: "create",
     route: "/gifts",
     addParam: "person",
+    desktopOnly: true,
   },
   {
     id: "create.gift-event",
@@ -81,14 +82,17 @@ export const CREATE_ACTIONS: PaletteAction[] = [
     kind: "create",
     route: "/gifts",
     addParam: "event",
-  },
-  {
-    id: "create.purchase-item",
-    label: "Add purchase item",
-    kind: "create",
-    route: "/goals",
-    addParam: "1",
+    desktopOnly: true,
   },
 ];
 
 export const ALL_ACTIONS: PaletteAction[] = [...NAV_ACTIONS, ...CREATE_ACTIONS];
+
+/**
+ * `true` when `route` soft-blocks on mobile, per the nav actions' flags. Data
+ * results and recents have no flag of their own, so the palette badges them
+ * by where they land.
+ */
+export function isDesktopOnlyRoute(route: string): boolean {
+  return NAV_ACTIONS.some((a) => a.desktopOnly === true && a.route === route);
+}

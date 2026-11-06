@@ -30,6 +30,7 @@ export function HouseholdMembersSection() {
   const leaveHousehold = useLeaveHousehold();
 
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
   const [inviteResult, setInviteResult] = useState<{
     token: string;
     invitedEmail: string;
@@ -39,17 +40,20 @@ export function HouseholdMembersSection() {
   const currentUserId = user?.id;
   const currentMember = household?.memberProfiles.find((m) => m.userId === currentUserId);
   const isOwner = currentMember?.role === "owner";
+  // Inviting and cancelling invites are household-level changes: owners and admins.
+  const canManageMembers = isOwner || currentMember?.role === "admin";
   const ownerCount = household?.memberProfiles.filter((m) => m.role === "owner").length ?? 0;
   const isSoleOwner = isOwner && ownerCount <= 1;
 
   function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     inviteMember.mutate(
-      { householdId, email: inviteEmail },
+      { householdId, email: inviteEmail, name: inviteName },
       {
         onSuccess: (result) => {
           setInviteResult(result);
           setInviteEmail("");
+          setInviteName("");
           toast.success("Invite created");
         },
         onError: (error) => {
@@ -102,22 +106,32 @@ export function HouseholdMembersSection() {
       )}
 
       {/* Invite form */}
-      {isOwner && (
+      {canManageMembers && (
         <div className="space-y-3">
           <p className="text-sm font-medium">Invite member</p>
-          <form onSubmit={handleInvite} className="flex items-center gap-2 max-w-sm">
+          <form onSubmit={handleInvite} className="flex flex-col gap-2 max-w-sm">
             <Input
-              type="email"
-              placeholder="Email address"
-              className="flex-1"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              type="text"
+              placeholder="Name"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
               required
-              aria-label="Invite email address"
+              aria-label="Invited person's name"
             />
-            <Button type="submit" size="sm" disabled={inviteMember.isPending}>
-              {inviteMember.isPending ? "Creating…" : "Create link"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Input
+                type="email"
+                placeholder="Email address"
+                className="flex-1"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                required
+                aria-label="Invite email address"
+              />
+              <Button type="submit" size="sm" disabled={inviteMember.isPending}>
+                {inviteMember.isPending ? "Creating…" : "Create link"}
+              </Button>
+            </div>
           </form>
 
           {inviteResult && inviteUrl && (

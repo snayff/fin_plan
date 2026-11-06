@@ -6,6 +6,7 @@ import { Check, ChevronDown, Plus, Settings } from "lucide-react";
 import { householdService } from "@/services/household.service";
 import { authService } from "@/services/auth.service";
 import { useAuthStore } from "@/stores/authStore";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { CreateHouseholdDialog } from "./CreateHouseholdDialog";
 
 export function HouseholdSwitcher() {
@@ -30,10 +31,15 @@ export function HouseholdSwitcher() {
     mutationFn: (id: string) => householdService.switchHousehold(id),
     onSuccess: async () => {
       if (accessToken) {
-        const { user: updatedUser } = await authService.getCurrentUser(accessToken);
-        setUser(updatedUser, accessToken);
+        try {
+          const { user: updatedUser } = await authService.getCurrentUser(accessToken);
+          setUser(updatedUser, accessToken);
+        } catch {
+          // /me failed transiently — still purge caches and navigate; auth
+          // state resyncs on the next request.
+        }
       }
-      qc.invalidateQueries();
+      purgeStaleQueries(qc);
       navigate("/overview");
       setIsOpen(false);
     },
@@ -46,10 +52,15 @@ export function HouseholdSwitcher() {
     mutationFn: (name: string) => householdService.createHousehold(name),
     onSuccess: async () => {
       if (accessToken) {
-        const { user: updatedUser } = await authService.getCurrentUser(accessToken);
-        setUser(updatedUser, accessToken);
+        try {
+          const { user: updatedUser } = await authService.getCurrentUser(accessToken);
+          setUser(updatedUser, accessToken);
+        } catch {
+          // /me failed transiently — still purge caches and navigate; auth
+          // state resyncs on the next request.
+        }
       }
-      qc.invalidateQueries();
+      purgeStaleQueries(qc);
       navigate("/overview");
       setShowCreate(false);
       toast.success("Household created");
@@ -127,9 +138,7 @@ export function HouseholdSwitcher() {
             }
           }}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground/40 px-2.5 pt-1 pb-1">
-            Switch household
-          </p>
+          <p className="label-chart px-2.5 pt-1 pb-1">Switch household</p>
           {households.map(({ household }) => (
             <button
               key={household.id}

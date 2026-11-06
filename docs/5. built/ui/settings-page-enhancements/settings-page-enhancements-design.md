@@ -2,8 +2,8 @@
 feature: settings-page-enhancements
 status: approved
 creation_date: 2026-03-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Settings Page Enhancements — Design

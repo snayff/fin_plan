@@ -14,6 +14,17 @@ Full-stack TypeScript monorepo: Fastify backend + React/Vite frontend + shared Z
 
 ---
 
+## Issue Workflow
+
+Work is tracked on GitHub issues. Full reference: `docs/3. architecture/issue-workflow.md` (single source of truth for ticket structure).
+
+- **Three tracks:** `feature` (full pipeline: Design → Spec → Plan → Build → Verify), `enhancement` (small improvement, implement directly), and `bug` (defect fix, implement directly). `a11y` and `documentation` are domain tags layered on top. Stage is tracked by the **checklist in the issue body**; `ready-to-build` is auto-managed by `.github/workflows/ticket-labels.yml`.
+- **Create tickets** with `/create-new-ticket` (or the UI issue forms) — never ad hoc; structure must match the canonical anatomy.
+- **Advance tickets** with `/progress-ticket <N>` — runs the next stage and does the bookkeeping.
+- **Public repo:** never put personal/financial/infra detail in issues or generated docs. Security weaknesses go to **private Security Advisories**, never public issues.
+
+---
+
 ## Code Quality
 
 - After every edit, run `bun run lint && bun run type-check` before committing. (Never use npm — see Commands.)
@@ -117,10 +128,11 @@ Structural layout is in **Architecture** above. Domain rules:
 - **Auth middleware required:** Every new route must use `authMiddleware` in `preHandler` unless explicitly public
 - **householdId from middleware only:** Never accept householdId from URL params for data scoping — always use `req.householdId!`
 - **Throw, don't inline errors:** Use error class hierarchy (`NotFoundError`, `AuthenticationError`, etc.), never `reply.status().send()` for errors
-- **Audit all actions:** Wrap mutations in `audited()` with `actorCtx(req)`. For mutationless events (login attempts, logout, refresh) use `auditEvent()` from `audit.service.ts`. Never call `prisma.auditLog.create` directly — enforced by ESLint.
+- **Audit all actions:** Wrap mutations in `audited()` with `actorCtx(req)`. For mutationless events (login attempts, logout, refresh) use `auditEvent()` from `audit.service.ts`. Never call `auditLog.create` directly (on `prisma` or a transaction client) — enforced by ESLint.
 - **No `any` in security paths:** Auth middleware, token handling, and API client must be fully typed
 - **Generic auth messages:** Login/register errors must never reveal whether an account exists
 - **Error masking:** Use `NotFoundError` for both "not found" and "not owned" — never reveal resource existence to unauthorised callers
+- **No real personal data in the repo:** The repo is public. Never commit a real name, personal email, or production domain — this includes test fixtures and HTML mockups, not just docs/issues. Use placeholders (`Jane Smith` / `jane@example.com` / `test@test.com` / `example.com`). Enforced by `bun run privacy:check` (CI + pre-commit); real values to catch go in the private denylist (`PRIVACY_DENYLIST` secret or gitignored `scripts/privacy-denylist.local.txt`), never the repo. Full policy: `docs/3. architecture/issue-workflow.md` → Privacy rules.
 
 ---
 
@@ -157,7 +169,7 @@ Before implementing any feature, read the relevant specs in `docs/`:
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`): lint + type-check → test (real postgres service) → build → deploy to Coolify (webhook on push to main).
+GitHub Actions (`.github/workflows/ci.yml`) runs on PRs to `stage` and on pushes to `stage`/`production`: lint + type-check, test (real postgres service), compile check, and security audit run in parallel. **Deploy runs only on push to `production`** — the `deploy` job `needs` lint-and-typecheck + test + check-compile + security-audit, then triggers Coolify over SSH (`environment: PROD`). CodeQL (`.github/workflows/codeql.yml`) scans `main` and PRs into `main`/`stage`.
 
 Frontend perf budgets (bundle size + Lighthouse): see `docs/3. architecture/frontend-perf.md`. Local: `cd apps/frontend && bun run size` (bundle) or `bun run lhci` (Lighthouse, needs full stack running).
 

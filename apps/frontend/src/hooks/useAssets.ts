@@ -2,7 +2,8 @@ import { useQueries, useQuery, useMutation, useQueryClient } from "@tanstack/rea
 import { assetsApiService, type AccountItem } from "../services/assets.service.js";
 import { showError } from "@/lib/toast";
 import type { AssetType, AccountType } from "@finplan/shared";
-import { ISA_ALLOWANCE_KEY } from "./queryKeys.js";
+import { queryKeys, ISA_ALLOWANCE_KEY } from "./queryKeys.js";
+import { invalidateAssetDependents } from "./invalidation.js";
 
 const ALL_ACCOUNT_TYPES: AccountType[] = [
   "Current",
@@ -12,12 +13,14 @@ const ALL_ACCOUNT_TYPES: AccountType[] = [
   "Other",
 ];
 
+/**
+ * Re-exported for existing consumers. Sourced from the central `queryKeys`
+ * module; values are unchanged.
+ */
 export const ASSETS_QUERY_KEYS = {
-  summary: ["assets", "summary"] as const,
-  assetsByType: (type: AssetType, includeDisposed = false) =>
-    ["assets", "assets", type, includeDisposed ? "all" : "active"] as const,
-  accountsByType: (type: AccountType, includeDisposed = false) =>
-    ["assets", "accounts", type, includeDisposed ? "all" : "active"] as const,
+  summary: queryKeys.assets.summary,
+  assetsByType: queryKeys.assets.assetsByType,
+  accountsByType: queryKeys.assets.accountsByType,
 };
 
 export function useAssetsSummary() {
@@ -46,9 +49,7 @@ export function useCreateAsset() {
   return useMutation({
     mutationFn: assetsApiService.createAsset,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to create asset");
@@ -67,9 +68,7 @@ export function useUpdateAsset() {
       data: Parameters<typeof assetsApiService.updateAsset>[1];
     }) => assetsApiService.updateAsset(assetId, data),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to update asset");
@@ -82,9 +81,7 @@ export function useDeleteAsset() {
   return useMutation({
     mutationFn: assetsApiService.deleteAsset,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to delete asset");
@@ -103,9 +100,7 @@ export function useRecordAssetBalance() {
       data: Parameters<typeof assetsApiService.recordAssetBalance>[1];
     }) => assetsApiService.recordAssetBalance(assetId, data),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to record balance");
@@ -118,9 +113,7 @@ export function useCreateAccount() {
   return useMutation({
     mutationFn: assetsApiService.createAccount,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
       void qc.invalidateQueries({ queryKey: ISA_ALLOWANCE_KEY });
     },
     onError: (error: unknown) => {
@@ -140,9 +133,7 @@ export function useUpdateAccount() {
       data: Parameters<typeof assetsApiService.updateAccount>[1];
     }) => assetsApiService.updateAccount(accountId, data),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
       void qc.invalidateQueries({ queryKey: ISA_ALLOWANCE_KEY });
     },
     onError: (error: unknown) => {
@@ -156,9 +147,7 @@ export function useDeleteAccount() {
   return useMutation({
     mutationFn: assetsApiService.deleteAccount,
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
       void qc.invalidateQueries({ queryKey: ISA_ALLOWANCE_KEY });
     },
     onError: (error: unknown) => {
@@ -178,9 +167,7 @@ export function useRecordAccountBalance() {
       data: Parameters<typeof assetsApiService.recordAccountBalance>[1];
     }) => assetsApiService.recordAccountBalance(accountId, data),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
     onError: (error: unknown) => {
       showError(error instanceof Error ? error.message : "Failed to record balance");
@@ -191,7 +178,7 @@ export function useRecordAccountBalance() {
 type AssetRow = { id: string; lastReviewedAt: Date | string; [key: string]: unknown };
 
 function bumpLastReviewedAt(
-  prefix: ["assets", "assets" | "accounts"],
+  prefix: typeof queryKeys.assets.assetsPrefix | typeof queryKeys.assets.accountsPrefix,
   qc: ReturnType<typeof useQueryClient>,
   id: string
 ) {
@@ -213,8 +200,8 @@ export function useConfirmAsset() {
   return useMutation({
     mutationFn: assetsApiService.confirmAsset,
     onMutate: async (id: string) => {
-      await qc.cancelQueries({ queryKey: ["assets", "assets"] });
-      const snapshots = bumpLastReviewedAt(["assets", "assets"], qc, id);
+      await qc.cancelQueries({ queryKey: queryKeys.assets.assetsPrefix });
+      const snapshots = bumpLastReviewedAt(queryKeys.assets.assetsPrefix, qc, id);
       return { snapshots };
     },
     onError: (error: unknown, _vars, ctx) => {
@@ -224,9 +211,7 @@ export function useConfirmAsset() {
       showError(error instanceof Error ? error.message : "Failed to confirm asset");
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
   });
 }
@@ -252,8 +237,8 @@ export function useConfirmAccount() {
   return useMutation({
     mutationFn: assetsApiService.confirmAccount,
     onMutate: async (id: string) => {
-      await qc.cancelQueries({ queryKey: ["assets", "accounts"] });
-      const snapshots = bumpLastReviewedAt(["assets", "accounts"], qc, id);
+      await qc.cancelQueries({ queryKey: queryKeys.assets.accountsPrefix });
+      const snapshots = bumpLastReviewedAt(queryKeys.assets.accountsPrefix, qc, id);
       return { snapshots };
     },
     onError: (error: unknown, _vars, ctx) => {
@@ -263,9 +248,7 @@ export function useConfirmAccount() {
       showError(error instanceof Error ? error.message : "Failed to confirm account");
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-      void qc.invalidateQueries({ queryKey: ["forecast"] });
-      void qc.invalidateQueries({ queryKey: ["cashflow", "shortfall"] });
+      invalidateAssetDependents(qc);
     },
   });
 }

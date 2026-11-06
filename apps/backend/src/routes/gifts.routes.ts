@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { giftsService } from "../services/gifts.service.js";
 import { actorCtx } from "../lib/actor-ctx.js";
@@ -12,6 +13,8 @@ import {
   bulkUpsertAllocationsSchema,
   setGiftBudgetSchema,
   setGiftPlannerModeSchema,
+  idParamSchema,
+  idSchema,
 } from "@finplan/shared";
 
 function parseYear(raw: string | undefined): number {
@@ -21,6 +24,27 @@ function parseYear(raw: string | undefined): number {
   }
   return y;
 }
+
+/**
+ * People-config filter query. Only the three known audiences are accepted;
+ * anything else surfaces as a consistent 400 rather than flowing raw into the
+ * service as an unchecked `req.query as` cast (#SEC-6).
+ */
+const configPeopleQuerySchema = z.object({
+  filter: z.enum(["all", "household", "non-household"]).optional(),
+  year: z.string().optional(),
+});
+
+/**
+ * Allocation route params. `personId`/`eventId` are bounded via the shared id
+ * schema so malformed ids surface as a 400 instead of flowing raw into Prisma;
+ * `year` is validated by {@link parseYear}. (#SEC-6)
+ */
+const allocationParamsSchema = z.object({
+  personId: idSchema,
+  eventId: idSchema,
+  year: z.string(),
+});
 
 export async function giftsRoutes(fastify: FastifyInstance) {
   const pre = { preHandler: [authMiddleware] };
@@ -45,7 +69,7 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get("/people/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const { year } = req.query as { year?: string };
     const y = parseYear(year);
     const detail = await giftsService.getPersonDetail(req.householdId!, id, y);
@@ -65,10 +89,7 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get("/config/people", pre, async (req, reply) => {
-    const { filter, year } = req.query as {
-      filter?: "all" | "household" | "non-household";
-      year?: string;
-    };
+    const { filter, year } = configPeopleQuerySchema.parse(req.query);
     const y = parseYear(year);
     const list = await giftsService.listPeopleForConfig(req.householdId!, filter ?? "all", y);
     return reply.send(list);
@@ -95,14 +116,14 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/people/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateGiftPersonSchema.parse(req.body);
     const person = await giftsService.updatePerson(req.householdId!, id, data, actorCtx(req));
     return reply.send(person);
   });
 
   fastify.delete("/people/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await giftsService.deletePerson(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
@@ -116,14 +137,14 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.patch("/events/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     const data = updateGiftEventSchema.parse(req.body);
     const event = await giftsService.updateEvent(req.householdId!, id, data, actorCtx(req));
     return reply.send(event);
   });
 
   fastify.delete("/events/:id", pre, async (req, reply) => {
-    const { id } = req.params as { id: string };
+    const { id } = idParamSchema.parse(req.params);
     await giftsService.deleteEvent(req.householdId!, id, actorCtx(req));
     return reply.status(204).send();
   });
@@ -131,11 +152,7 @@ export async function giftsRoutes(fastify: FastifyInstance) {
   // ─── Allocation mutations ───────────────────────────────────────────────────
 
   fastify.put("/allocations/:personId/:eventId/:year", pre, async (req, reply) => {
-    const { personId, eventId, year } = req.params as {
-      personId: string;
-      eventId: string;
-      year: string;
-    };
+    const { personId, eventId, year } = allocationParamsSchema.parse(req.params);
     const data = upsertGiftAllocationSchema.parse(req.body);
     const y = parseYear(year);
     const result = await giftsService.upsertAllocation(

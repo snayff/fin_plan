@@ -20,6 +20,8 @@ mock.module("framer-motion", () => ({
       transition: _t,
       ...props
     }: any) => React.createElement("div", { "data-layout-id": layoutId, ...props }, children),
+    nav: ({ children, variants: _v, initial: _i, animate: _a, ...props }: any) =>
+      React.createElement("nav", props, children),
     button: ({ children, variants: _v, initial: _i, animate: _a, ...props }: any) =>
       React.createElement("button", props, children),
   },
@@ -53,7 +55,6 @@ function renderList(selectedId = "sub-housing", onSelect = mock(() => {})) {
       config={TIER_CONFIGS.committed}
       subcategories={subcategories}
       subcategoryTotals={subcategoryTotals}
-      tierTotal={1500}
       selectedId={selectedId}
       onSelect={onSelect}
       isLoading={false}
@@ -68,14 +69,14 @@ describe("SubcategoryList", () => {
     expect(screen.getByTestId("subcategory-row-sub-utilities")).toBeTruthy();
   });
 
-  it("marks the selected row with aria-selected", () => {
+  it("marks the selected row with aria-current", () => {
     renderList("sub-housing");
-    expect(screen.getByTestId("subcategory-row-sub-housing").getAttribute("aria-selected")).toBe(
+    expect(screen.getByTestId("subcategory-row-sub-housing").getAttribute("aria-current")).toBe(
       "true"
     );
-    expect(screen.getByTestId("subcategory-row-sub-utilities").getAttribute("aria-selected")).toBe(
-      "false"
-    );
+    expect(
+      screen.getByTestId("subcategory-row-sub-utilities").getAttribute("aria-current")
+    ).toBeNull();
   });
 
   it("calls onSelect when a row is clicked", () => {
@@ -83,12 +84,6 @@ describe("SubcategoryList", () => {
     renderList("sub-housing", onSelect);
     fireEvent.click(screen.getByTestId("subcategory-row-sub-utilities"));
     expect(onSelect).toHaveBeenCalledWith("sub-utilities");
-  });
-
-  it("shows tier total at the bottom", () => {
-    renderList();
-    expect(screen.getByTestId("tier-total")).toBeTruthy();
-    expect(screen.getByText(/1,500/)).toBeTruthy();
   });
 
   it("shows amounts for each subcategory", () => {
@@ -133,7 +128,6 @@ describe("SubcategoryList", () => {
         config={TIER_CONFIGS.committed}
         subcategories={subcategories}
         subcategoryTotals={totalsWithStaleItem}
-        tierTotal={1500}
         selectedId="sub-housing"
         onSelect={() => {}}
         isLoading={false}

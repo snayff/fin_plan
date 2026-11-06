@@ -1,10 +1,14 @@
 import { OverBudgetSignal } from "./OverBudgetSignal";
 import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
+import { formatCurrency } from "@/utils/format";
+import { useSettings } from "@/hooks/useSettings";
 import type { GiftBudgetSummary } from "@finplan/shared";
 
 type Props = { budget: GiftBudgetSummary; readOnly: boolean };
 
 export function GiftsBudgetSummary({ budget }: Props) {
+  const { data: settings } = useSettings();
+  const showPence = settings?.showPence ?? false;
   return (
     <div className="space-y-3 px-4 py-4">
       <div>
@@ -15,7 +19,7 @@ export function GiftsBudgetSummary({ budget }: Props) {
           data-testid="gifts-budget-annual"
           className="font-mono text-2xl tabular-nums text-foreground"
         >
-          £{budget.annualBudget.toLocaleString()}
+          {formatCurrency(budget.annualBudget, showPence)}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -27,7 +31,7 @@ export function GiftsBudgetSummary({ budget }: Props) {
             data-testid="gifts-budget-planned"
             className="font-mono text-base tabular-nums text-foreground/65"
           >
-            £{budget.planned.toLocaleString()}
+            {formatCurrency(budget.planned, showPence)}
           </div>
         </div>
         <div>
@@ -38,7 +42,7 @@ export function GiftsBudgetSummary({ budget }: Props) {
             data-testid="gifts-budget-spent"
             className="font-mono text-base tabular-nums text-foreground/65"
           >
-            £{budget.spent.toLocaleString()}
+            {formatCurrency(budget.spent, showPence)}
           </div>
         </div>
       </div>

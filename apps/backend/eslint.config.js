@@ -7,7 +7,9 @@ export default tseslint.config(
   {
     files: ["src/**/*.ts"],
     rules: {
-      "@typescript-eslint/no-explicit-any": "off",
+      // Source must stay `any`-free (SCALE-4). Test files relax this below
+      // because they legitimately stub Fastify/Prisma internals with `any`.
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
@@ -18,11 +20,14 @@ export default tseslint.config(
     files: ["src/**/*.test.ts", "src/test/**/*.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
   {
-    // Block direct prisma.auditLog.create calls outside audit.service.ts.
-    // Use audited() for mutations or auditEvent() for mutationless events.
+    // Block direct auditLog.create calls outside audit.service.ts, on any
+    // client (prisma, tx, or a cast thereof). Use audited() for mutations,
+    // auditEvent() for mutationless events, or auditEventTx() inside an
+    // existing transaction.
     files: ["src/**/*.ts"],
     ignores: ["src/services/audit.service.ts"],
     rules: {
@@ -30,9 +35,9 @@ export default tseslint.config(
         "error",
         {
           selector:
-            "CallExpression[callee.type='MemberExpression'][callee.property.name='create'][callee.object.type='MemberExpression'][callee.object.property.name='auditLog'][callee.object.object.name='prisma']",
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='create'][callee.object.type='MemberExpression'][callee.object.property.name='auditLog']",
           message:
-            "Do not call prisma.auditLog.create directly. Use audited() for mutations or auditEvent() for mutationless events.",
+            "Do not call auditLog.create directly (on prisma or a transaction client). Use audited() for mutations, auditEvent() for mutationless events, or auditEventTx() inside an existing transaction.",
         },
       ],
     },

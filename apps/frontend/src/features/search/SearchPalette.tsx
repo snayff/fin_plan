@@ -6,7 +6,9 @@ import { SearchResultRow } from "./SearchResultRow";
 import { SearchResultGroup } from "./SearchResultGroup";
 import { useSearchQuery } from "./useSearchQuery";
 import { useSearchRecents, type RecentEntry } from "./useSearchRecents";
-import type { PaletteAction } from "./actions";
+import { isDesktopOnlyRoute, type PaletteAction } from "./actions";
+import type { SearchResult } from "@finplan/shared";
+import { destinationFor } from "./destinations";
 
 type Props = {
   open: boolean;
@@ -16,7 +18,7 @@ type Props = {
 
 export function SearchPalette({ open, onOpenChange, userId }: Props) {
   const [query, setQuery] = useState("");
-  const { groups } = useSearchQuery(query);
+  const { groups, isPending, error, retry } = useSearchQuery(query);
   const { list: recents, push } = useSearchRecents(userId);
   const navigate = useNavigate();
 
@@ -31,23 +33,18 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
     close();
   };
 
-  const selectData = (r: {
-    kind: string;
-    id: string;
-    name: string;
-    subtitle: string;
-    route: string;
-    focusId: string;
-  }) => {
+  const selectData = (r: SearchResult) => {
+    const { route, params } = destinationFor(r);
     push({
       kind: "data",
       id: r.id,
       label: r.name,
       subtitle: r.subtitle,
-      route: r.route,
+      route,
       focusId: r.focusId,
+      params,
     });
-    navigateTo(r.route, { focus: r.focusId });
+    navigateTo(route, params);
   };
 
   const selectHelp = (h: { id: string; title: string; subtitle: string }) => {
@@ -74,6 +71,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
   };
 
   const selectRecent = (r: RecentEntry) => {
+    if (r.kind === "data" && r.params) return navigateTo(r.route, r.params);
     if (r.kind === "data" && r.focusId) return navigateTo(r.route, { focus: r.focusId });
     if (r.kind === "help") return navigateTo(r.route, { entry: r.id });
     if (r.kind === "create" && r.addParam) return navigateTo(r.route, { add: r.addParam });
@@ -88,16 +86,22 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-background/60 backdrop-blur-[1px]" />
-        {/* Mobile: full-viewport overlay (Decision 10). Desktop: top-anchored
+        {/* Mobile: full-viewport overlay. Desktop: top-anchored
             command-palette card. Both flow input → results so the iOS/Android
-            keyboard expansion doesn't reorder content. */}
+            keyboard expansion doesn't reorder content. See
+            docs/5. built/ui/universal-search/universal-search-spec.md
+            § Mobile (amended). */}
         <Dialog.Content
           className="fixed left-0 right-0 top-0 z-50 mx-auto h-[100dvh] w-screen max-w-none md:h-auto md:max-w-3xl"
           aria-describedby={undefined}
         >
           <Dialog.Title className="sr-only">Search</Dialog.Title>
+          {/* Matching happens server-side (data) and in useSearchQuery (help,
+              actions). cmdk's own fuzzy filter would match the query against
+              each row's internal `value` key and hide real results. */}
           <Command
             label="Universal search"
+            shouldFilter={false}
             className="flex h-full flex-col overflow-hidden border border-foreground/10 bg-background shadow-lg md:h-auto md:rounded-b-md"
           >
             <div className="border-b border-foreground/5 px-3 py-2">
@@ -128,16 +132,32 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                         title={r.label}
                         subtitle={r.subtitle}
                         onSelect={() => selectRecent(r)}
+                        desktopOnly={isDesktopOnlyRoute(r.route)}
                       />
                     ))}
                   </SearchResultGroup>
                 )
-              ) : !hasAnyResults ? (
-                <Command.Empty className="px-3 py-6 text-xs text-foreground/50">
-                  No results
-                </Command.Empty>
               ) : (
                 <>
+                  {/* Status rows: only one shows. "No results" waits until the
+                      data request has settled without error, so a failure or
+                      a slow response never reads as a genuine miss. */}
+                  <div role="status" aria-live="polite">
+                    {error ? (
+                      <Command.Item
+                        value="search-error-retry"
+                        onSelect={retry}
+                        className="flex cursor-pointer items-center justify-between rounded-sm px-3 py-2 text-xs data-[selected=true]:bg-foreground/[0.06]"
+                      >
+                        <span className="text-foreground/70">Search unavailable</span>
+                        <span className="text-foreground/50">Try again</span>
+                      </Command.Item>
+                    ) : !hasAnyResults && isPending ? (
+                      <p className="px-3 py-6 text-xs text-foreground/50">Searching…</p>
+                    ) : !hasAnyResults ? (
+                      <p className="px-3 py-6 text-xs text-foreground/50">No results</p>
+                    ) : null}
+                  </div>
                   <SearchResultGroup heading="Data" hidden={groups.data.length === 0}>
                     {groups.data.map((r) => (
                       <SearchResultRow
@@ -146,6 +166,7 @@ export function SearchPalette({ open, onOpenChange, userId }: Props) {
                         title={r.name}
                         subtitle={r.subtitle}
                         onSelect={() => selectData(r)}
+                        desktopOnly={isDesktopOnlyRoute(destinationFor(r).route)}
                       />
                     ))}
                   </SearchResultGroup>

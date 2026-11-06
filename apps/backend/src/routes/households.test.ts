@@ -199,7 +199,7 @@ beforeEach(() => {
     if (!authHeader?.startsWith("Bearer ")) {
       throw new AuthenticationError("No authorization token provided");
     }
-    request.user = { userId: "user-1", email: "test@test.com" };
+    request.user = { userId: "user-1", email: "test@test.com", role: mockCallerMember?.role };
     request.householdId = "household-1";
   });
   (userOnlyAuth as any).mockImplementation(async (request: any) => {
@@ -440,12 +440,12 @@ describe("POST /api/households/:id/switch", () => {
 });
 
 describe("POST /api/households/:id/invite", () => {
-  it("returns 201 with a token when email is provided", async () => {
+  it("returns 201 with a token when email and name are provided", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: { email: "invitee@example.com" },
+      payload: { email: "invitee@example.com", name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(201);
@@ -458,24 +458,36 @@ describe("POST /api/households/:id/invite", () => {
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: {},
+      payload: { name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(400);
   });
 
-  it("calls service with householdId, userId, and email", async () => {
-    await app.inject({
+  it("returns 400 when name is missing", async () => {
+    const response = await app.inject({
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
       payload: { email: "invitee@example.com" },
     });
 
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("calls service with householdId, userId, email, and name", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/api/households/household-1/invite",
+      headers: authHeaders,
+      payload: { email: "invitee@example.com", name: "Invited Person" },
+    });
+
     expect(householdService.inviteMember).toHaveBeenCalledWith(
       "household-1",
       "user-1",
       "invitee@example.com",
+      "Invited Person",
       "member",
       expect.any(Object)
     );
@@ -491,7 +503,7 @@ describe("POST /api/households/:id/invite", () => {
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: { email: "invitee@example.com" },
+      payload: { email: "invitee@example.com", name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(201);
@@ -504,7 +516,7 @@ describe("POST /api/households/:id/invite", () => {
       method: "POST",
       url: "/api/households/household-1/invite",
       headers: authHeaders,
-      payload: { email: "bad-email" },
+      payload: { email: "bad-email", name: "Invited Person" },
     });
 
     expect(response.statusCode).toBe(400);
@@ -692,67 +704,6 @@ describe("DELETE /api/households/:id (delete household)", () => {
   });
 });
 
-describe("PATCH /api/households/:householdId/members/:userId/profile", () => {
-  it("allows member to update own profile fields", async () => {
-    // Caller is user-1 updating their own profile
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-1/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2055 },
-    });
-
-    expect(response.statusCode).toBe(200);
-  });
-
-  it("rejects member updating another member's profile", async () => {
-    mockCallerMember = { role: "member" };
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-2/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2060 },
-    });
-
-    expect(response.statusCode).toBe(403);
-  });
-
-  it("allows owner to update any member's profile", async () => {
-    mockCallerMember = { role: "owner" };
-
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-2/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2060 },
-    });
-
-    expect(response.statusCode).toBe(200);
-  });
-
-  it("rejects request when householdId does not match active household", async () => {
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/other-household/members/user-1/profile",
-      headers: authHeaders,
-      payload: { retirementYear: 2055 },
-    });
-
-    expect(response.statusCode).toBe(403);
-  });
-
-  it("returns 401 without auth", async () => {
-    const response = await app.inject({
-      method: "PATCH",
-      url: "/api/households/household-1/members/user-1/profile",
-      payload: { retirementYear: 2055 },
-    });
-
-    expect(response.statusCode).toBe(401);
-  });
-});
-
 describe("GET /api/households/:id/member-profiles", () => {
   it("returns 200 with list of members", async () => {
     const response = await app.inject({
@@ -767,6 +718,28 @@ describe("GET /api/households/:id/member-profiles", () => {
     expect(Array.isArray(body.members)).toBe(true);
     expect(body.members).toHaveLength(1);
     expect(memberService.listMembers).toHaveBeenCalledWith("household-1");
+  });
+
+  it("returns 404 when requesting another household's member profiles", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/households/other-household/member-profiles",
+      headers: authHeaders,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.listMembers).not.toHaveBeenCalled();
+  });
+
+  it("scopes the service call to the active household, never the URL param", async () => {
+    await app.inject({
+      method: "GET",
+      url: "/api/households/household-1/member-profiles",
+      headers: authHeaders,
+    });
+
+    expect(memberService.listMembers).toHaveBeenCalledWith("household-1");
+    expect(memberService.listMembers).toHaveBeenCalledTimes(1);
   });
 
   it("returns 401 without auth", async () => {
@@ -839,6 +812,33 @@ describe("POST /api/households/:id/member-profiles", () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it("returns 404 when targeting another household", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/households/other-household/member-profiles",
+      headers: authHeaders,
+      payload: { name: "New Member" },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.createMember).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 (not 400) when targeting another household with an invalid body", async () => {
+    // The active-household guard must run before body validation so a caller
+    // cannot distinguish "household exists" from "household does not exist"
+    // via a validation-error differential.
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/households/other-household/member-profiles",
+      headers: authHeaders,
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.createMember).not.toHaveBeenCalled();
+  });
+
   it("returns 401 without auth", async () => {
     const response = await app.inject({
       method: "POST",
@@ -880,6 +880,18 @@ describe("PATCH /api/households/:id/member-profiles/:memberId", () => {
       expect.objectContaining({ name: "Updated Name", retirementYear: 2060 }),
       expect.objectContaining({ actorId: "user-1" })
     );
+  });
+
+  it("returns 404 when targeting another household", async () => {
+    const response = await app.inject({
+      method: "PATCH",
+      url: "/api/households/other-household/member-profiles/member-profile-1",
+      headers: authHeaders,
+      payload: { name: "Updated Name" },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.updateMember).not.toHaveBeenCalled();
   });
 
   it("returns 401 without auth", async () => {
@@ -939,6 +951,17 @@ describe("DELETE /api/households/:id/member-profiles/:memberId", () => {
     );
   });
 
+  it("returns 404 when targeting another household", async () => {
+    const response = await app.inject({
+      method: "DELETE",
+      url: "/api/households/other-household/member-profiles/member-profile-1",
+      headers: authHeaders,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(memberService.deleteMember).not.toHaveBeenCalled();
+  });
+
   it("returns 401 without auth", async () => {
     const response = await app.inject({
       method: "DELETE",
@@ -946,5 +969,74 @@ describe("DELETE /api/households/:id/member-profiles/:memberId", () => {
     });
 
     expect(response.statusCode).toBe(401);
+  });
+});
+
+describe("route param validation (#SEC-6)", () => {
+  const oversized = "x".repeat(65); // exceeds ID_MAX (64) → idSchema rejects
+
+  it("GET /api/households/:id returns 400 for a malformed (over-length) id", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/households/${oversized}`,
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(householdService.getHouseholdDetails).not.toHaveBeenCalled();
+  });
+
+  it("POST /api/households/:id/switch returns 400 for a malformed id", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/households/${oversized}/switch`,
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(householdService.switchHousehold).not.toHaveBeenCalled();
+  });
+
+  it("DELETE /api/households/:id/members/:memberId returns 400 for a malformed memberId", async () => {
+    const response = await app.inject({
+      method: "DELETE",
+      url: `/api/households/household-1/members/${oversized}`,
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(householdService.removeMember).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /api/households/:householdId/members/:userId/role returns 400 for a malformed userId", async () => {
+    const response = await app.inject({
+      method: "PATCH",
+      url: `/api/households/household-1/members/${oversized}/role`,
+      headers: authHeaders,
+      payload: { role: "member" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("still accepts a well-formed id (valid path unchanged)", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/households/household-1",
+      headers: authHeaders,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(householdService.getHouseholdDetails).toHaveBeenCalledWith("household-1", "user-1");
+  });
+});
+
+describe("export/import route co-location", () => {
+  // The household URL-space is defined in one module: registering householdRoutes
+  // alone must expose the export/import household routes (sub-registered), with the
+  // emitted paths unchanged.
+  it.each([
+    ["GET", "/api/households/export"],
+    ["POST", "/api/households/import"],
+    ["POST", "/api/households/import/restore/:backupId"],
+    ["POST", "/api/households/validate-import"],
+  ])("registers %s %s under the household module", (method, url) => {
+    expect(app.hasRoute({ method: method as any, url })).toBe(true);
   });
 });

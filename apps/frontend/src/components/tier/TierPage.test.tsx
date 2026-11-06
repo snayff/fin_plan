@@ -6,9 +6,10 @@ import type { TierKey } from "./tierConfig";
 import type { TierShortfallResult } from "@/hooks/useShortfall";
 
 let _searchParams = new URLSearchParams();
+let _setSearchParams: (...args: unknown[]) => void = () => {};
 
 mock.module("react-router-dom", () => ({
-  useSearchParams: () => [_searchParams, () => {}],
+  useSearchParams: () => [_searchParams, _setSearchParams],
   useNavigate: () => () => {},
   Link: ({
     to,
@@ -25,13 +26,17 @@ mock.module("react-router-dom", () => ({
   ),
 }));
 
+const _defaultSubcategories = [
+  { id: "sub-housing", name: "Housing", tier: "committed", sortOrder: 0, isLocked: false },
+  { id: "sub-utilities", name: "Utilities", tier: "committed", sortOrder: 1, isLocked: false },
+];
+// `undefined` simulates the subcategories query still loading.
+let _subcategoriesData: unknown = _defaultSubcategories;
+
 mock.module("@/hooks/useWaterfall", () => ({
   useSubcategories: mock(() => ({
-    isLoading: false,
-    data: [
-      { id: "sub-housing", name: "Housing", tier: "committed", sortOrder: 0, isLocked: false },
-      { id: "sub-utilities", name: "Utilities", tier: "committed", sortOrder: 1, isLocked: false },
-    ],
+    isLoading: _subcategoriesData === undefined,
+    data: _subcategoriesData,
   })),
   useTierItems: mock(() => ({
     isLoading: false,
@@ -79,13 +84,30 @@ describe("TierPage", () => {
   it("selects the first subcategory by default", () => {
     renderTierPage();
     const housing = screen.getByTestId("subcategory-row-sub-housing");
-    expect(housing.getAttribute("aria-selected")).toBe("true");
+    expect(housing.getAttribute("aria-current")).toBe("true");
   });
 
   it("selects a subcategory from the URL ?subcategory= param", () => {
     renderTierPage(new URLSearchParams("subcategory=sub-utilities"));
     const utilities = screen.getByTestId("subcategory-row-sub-utilities");
-    expect(utilities.getAttribute("aria-selected")).toBe("true");
+    expect(utilities.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("keeps a deep-linked ?subcategory= while subcategories are still loading (#140)", async () => {
+    const setSpy = mock((..._args: unknown[]) => {});
+    _setSearchParams = setSpy;
+    _subcategoriesData = undefined; // query pending
+    try {
+      renderTierPage(new URLSearchParams("subcategory=sub-utilities"));
+      // Allow the validate-effect a chance to run.
+      await new Promise((r) => setTimeout(r, 50));
+      // The invalid-value clear effect must NOT fire while data is pending,
+      // so setSearchParams is never called to strip the param.
+      expect(setSpy).not.toHaveBeenCalled();
+    } finally {
+      _subcategoriesData = _defaultSubcategories;
+      _setSearchParams = () => {};
+    }
   });
 
   it("sets data-page attribute matching the tier", () => {
@@ -98,7 +120,7 @@ describe("TierPage", () => {
     renderTierPage();
     const aside = document.querySelector("aside");
     expect(aside).toBeTruthy();
-    expect(aside!.querySelector("[role='tablist']")).toBeTruthy();
+    expect(aside!.querySelector("nav[aria-label='Subcategories']")).toBeTruthy();
   });
 
   it("renders the AttentionStrip on the Committed tier when shortfall items exist", async () => {

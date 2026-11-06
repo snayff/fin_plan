@@ -1,5 +1,11 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/database.js";
-import { NotFoundError, ConflictError, ValidationError } from "../utils/errors.js";
+import {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+  isUniqueConstraintError,
+} from "../utils/errors.js";
 import type {
   CreateGiftPersonInput,
   UpdateGiftPersonInput,
@@ -11,13 +17,9 @@ import type {
   GiftPlannerMode,
 } from "@finplan/shared";
 import { AuditAction } from "@finplan/shared";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
-
-function assertOwned(item: { householdId: string } | null, householdId: string, label: string) {
-  if (!item) throw new NotFoundError(`${label} not found`);
-  if (item.householdId !== householdId) throw new NotFoundError(`${label} not found`);
-}
+import { assertOwned } from "./ownership.js";
 
 export const giftsService = {
   async getOrCreateSettings(householdId: string) {
@@ -53,7 +55,9 @@ export const giftsService = {
           householdId,
           subcategoryId: giftsSubcategory.id,
           name: "Gifts",
-          spendType: "monthly",
+          // Annual gift budget: store as a yearly spendType so the waterfall
+          // divides it by 12 (an annual budget of £X contributes £X/12 per month).
+          spendType: "yearly",
           isPlannerOwned: true,
           lastReviewedAt: new Date(),
         },
@@ -65,8 +69,10 @@ export const giftsService = {
             itemId: created.id,
             startDate,
           },
+          householdId,
         },
         create: {
+          householdId,
           itemType: "discretionary_item",
           itemId: created.id,
           startDate,
@@ -108,8 +114,8 @@ export const giftsService = {
         beforeFetch: async () => null,
         mutation: (tx) => tx.giftPerson.create({ data: { householdId, ...data } }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift person with that name already exists");
       }
       throw err;
@@ -130,8 +136,8 @@ export const giftsService = {
           tx.giftPerson.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
         mutation: (tx) => tx.giftPerson.update({ where: { id }, data }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift person with that name already exists");
       }
       throw err;
@@ -165,7 +171,7 @@ export const giftsService = {
   },
 
   async createEvent(householdId: string, data: CreateGiftEventInput, ctx: ActorCtx) {
-    const payload: any = {
+    const payload: Prisma.GiftEventUncheckedCreateInput = {
       householdId,
       name: data.name,
       dateType: data.dateType,
@@ -186,8 +192,8 @@ export const giftsService = {
         beforeFetch: async () => null,
         mutation: (tx) => tx.giftEvent.create({ data: payload }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift event with that name already exists");
       }
       throw err;
@@ -211,8 +217,8 @@ export const giftsService = {
           tx.giftEvent.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
         mutation: (tx) => tx.giftEvent.update({ where: { id }, data }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A gift event with that name already exists");
       }
       throw err;
@@ -307,61 +313,67 @@ export const giftsService = {
   ) {
     this._assertCurrentYear(year);
 
-    // Resolve virtual `member:<id>` personId by finding or creating the
-    // backing GiftPerson record, mirroring bulkUpsertAllocations.
-    let resolvedPersonId = personId;
-    if (personId.startsWith("member:")) {
-      const memberId = personId.slice("member:".length);
-      const member = await prisma.member.findUnique({ where: { id: memberId } });
-      assertOwned(member, householdId, "Gift person");
-      const existing = await prisma.giftPerson.findFirst({
-        where: { householdId, memberId },
-      });
-      if (existing) {
-        resolvedPersonId = existing.id;
-      } else {
-        const created = await prisma.giftPerson.create({
-          data: { householdId, memberId, name: member!.name, sortOrder: 999 },
+    // Resolve the person/event and write the allocation atomically so the
+    // ownership checks and the upsert can't interleave with other writes.
+    return prisma.$transaction(async (tx) => {
+      // Resolve virtual `member:<id>` personId by finding or creating the
+      // backing GiftPerson record, mirroring bulkUpsertAllocations.
+      let resolvedPersonId = personId;
+      if (personId.startsWith("member:")) {
+        const memberId = personId.slice("member:".length);
+        const member = await tx.member.findUnique({ where: { id: memberId } });
+        assertOwned(member, householdId, "Gift person");
+        const existing = await tx.giftPerson.findFirst({
+          where: { householdId, memberId },
         });
-        resolvedPersonId = created.id;
+        if (existing) {
+          resolvedPersonId = existing.id;
+        } else {
+          const created = await tx.giftPerson.create({
+            data: { householdId, memberId, name: member!.name, sortOrder: 999 },
+          });
+          resolvedPersonId = created.id;
+        }
       }
-    }
 
-    const person = await prisma.giftPerson.findUnique({ where: { id: resolvedPersonId } });
-    assertOwned(person, householdId, "Gift person");
-    const event = await prisma.giftEvent.findUnique({ where: { id: eventId } });
-    assertOwned(event, householdId, "Gift event");
+      const person = await tx.giftPerson.findUnique({ where: { id: resolvedPersonId } });
+      assertOwned(person, householdId, "Gift person");
+      const event = await tx.giftEvent.findUnique({ where: { id: eventId } });
+      assertOwned(event, householdId, "Gift event");
 
-    const status = this._resolveStatus(input);
-    const writable: Record<string, unknown> = {};
-    if (input.planned !== undefined) writable.planned = input.planned;
-    if (input.spent !== undefined) writable.spent = input.spent;
-    if (input.notes !== undefined) writable.notes = input.notes;
-    if (input.dateMonth !== undefined) writable.dateMonth = input.dateMonth;
-    if (input.dateDay !== undefined) writable.dateDay = input.dateDay;
-    if (status !== undefined) writable.status = status;
+      const status = this._resolveStatus(input);
+      const writable: Record<string, unknown> = {};
+      if (input.planned !== undefined) writable.planned = input.planned;
+      if (input.spent !== undefined) writable.spent = input.spent;
+      if (input.notes !== undefined) writable.notes = input.notes;
+      if (input.dateMonth !== undefined) writable.dateMonth = input.dateMonth;
+      if (input.dateDay !== undefined) writable.dateDay = input.dateDay;
+      if (status !== undefined) writable.status = status;
 
-    return prisma.giftAllocation.upsert({
-      where: {
-        giftPersonId_giftEventId_year: {
+      return tx.giftAllocation.upsert({
+        where: {
+          giftPersonId_giftEventId_year: {
+            giftPersonId: resolvedPersonId,
+            giftEventId: eventId,
+            year,
+          },
+          // Defence-in-depth: never update a row belonging to another household.
+          householdId,
+        },
+        create: {
+          householdId,
           giftPersonId: resolvedPersonId,
           giftEventId: eventId,
           year,
+          planned: input.planned ?? 0,
+          spent: input.spent ?? null,
+          status: status ?? "planned",
+          notes: input.notes ?? null,
+          dateMonth: input.dateMonth ?? null,
+          dateDay: input.dateDay ?? null,
         },
-      },
-      create: {
-        householdId,
-        giftPersonId: resolvedPersonId,
-        giftEventId: eventId,
-        year,
-        planned: input.planned ?? 0,
-        spent: input.spent ?? null,
-        status: status ?? "planned",
-        notes: input.notes ?? null,
-        dateMonth: input.dateMonth ?? null,
-        dateDay: input.dateDay ?? null,
-      },
-      update: writable,
+        update: writable,
+      });
     });
   },
 
@@ -445,6 +457,8 @@ export const giftsService = {
               giftEventId: cell.eventId,
               year: cell.year,
             },
+            // Defence-in-depth: never update a row belonging to another household.
+            householdId,
           },
           create: {
             householdId,
@@ -461,18 +475,16 @@ export const giftsService = {
         ...(updated > 0 ? [{ field: "updated", after: updated }] : []),
       ];
       // durable: committed atomically with the surrounding $transaction
-      await tx.auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.UPSERT_GIFT_ALLOCATIONS,
-          resource: "gift-allocation",
-          resourceId: "bulk",
-          changes,
-        },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.UPSERT_GIFT_ALLOCATIONS,
+        resource: "gift-allocation",
+        resourceId: "bulk",
+        changes,
       });
     });
     return { count: resolvedCells.length };
@@ -501,8 +513,10 @@ export const giftsService = {
             itemId: settings.syncedDiscretionaryItemId,
             startDate,
           },
+          householdId,
         },
         create: {
+          householdId,
           itemType: "discretionary_item",
           itemId: settings.syncedDiscretionaryItemId,
           startDate,
@@ -885,8 +899,8 @@ export const giftsService = {
     const currentMonth = new Date().getMonth() + 1;
 
     for (const a of allocations) {
-      const event = (a as any).giftEvent;
-      const person = (a as any).giftPerson;
+      const event = a.giftEvent;
+      const person = a.giftPerson;
       const month =
         event.dateType === "shared"
           ? (a.dateMonth ?? event.dateMonth ?? null)
@@ -995,49 +1009,71 @@ export const giftsService = {
       where: { householdId, year: year - 1 },
     });
 
-    await prisma.plannerYearBudget.create({
-      data: { householdId, year, giftBudget: prior.giftBudget },
-    });
-
-    if (priorAllocations.length > 0) {
-      await prisma.giftAllocation.createMany({
-        data: priorAllocations.map((a) => ({
-          householdId,
-          giftPersonId: a.giftPersonId,
-          giftEventId: a.giftEventId,
-          year,
-          planned: a.planned,
-          spent: null,
-          status: "planned" as const,
-          notes: a.notes,
-          dateMonth: a.dateMonth,
-          dateDay: a.dateDay,
-        })),
-      });
-    }
-
+    // Resolve the synced item (which manages its own transaction) up front so
+    // the rollover writes below can all share a single transaction.
     let settings = await this.getOrCreateSettings(householdId);
     if (settings.mode === "synced" && !settings.syncedDiscretionaryItemId) {
       settings = await this._ensureSyncedDiscretionaryItem(householdId, settings);
     }
-    if (settings.mode === "synced" && settings.syncedDiscretionaryItemId) {
-      await prisma.itemAmountPeriod.upsert({
-        where: {
-          itemType_itemId_startDate: {
-            itemType: "discretionary_item",
-            itemId: settings.syncedDiscretionaryItemId,
-            startDate: new Date(Date.UTC(year, 0, 1)),
-          },
-        },
-        create: {
-          itemType: "discretionary_item",
-          itemId: settings.syncedDiscretionaryItemId,
-          startDate: new Date(Date.UTC(year, 0, 1)),
-          endDate: null,
-          amount: prior.giftBudget,
-        },
-        update: { amount: prior.giftBudget },
+    const syncedItemId = settings.mode === "synced" ? settings.syncedDiscretionaryItemId : null;
+
+    // TODO(#133): audit coverage deferred pending decision
+    // New-year budget, rolled-over allocations and the synced period write must
+    // commit together — a mid-way failure used to leave a budget row with no
+    // allocations. A concurrent rollover that already inserted this year's
+    // budget surfaces as P2002; treat that as benign and return the winner's
+    // result rather than 500ing.
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.plannerYearBudget.create({
+          data: { householdId, year, giftBudget: prior.giftBudget },
+        });
+
+        if (priorAllocations.length > 0) {
+          await tx.giftAllocation.createMany({
+            data: priorAllocations.map((a) => ({
+              householdId,
+              giftPersonId: a.giftPersonId,
+              giftEventId: a.giftEventId,
+              year,
+              planned: a.planned,
+              spent: null,
+              status: "planned" as const,
+              notes: a.notes,
+              dateMonth: a.dateMonth,
+              dateDay: a.dateDay,
+            })),
+          });
+        }
+
+        if (syncedItemId) {
+          await tx.itemAmountPeriod.upsert({
+            where: {
+              itemType_itemId_startDate: {
+                itemType: "discretionary_item",
+                itemId: syncedItemId,
+                startDate: new Date(Date.UTC(year, 0, 1)),
+              },
+              householdId,
+            },
+            create: {
+              householdId,
+              itemType: "discretionary_item",
+              itemId: syncedItemId,
+              startDate: new Date(Date.UTC(year, 0, 1)),
+              endDate: null,
+              amount: prior.giftBudget,
+            },
+            update: { amount: prior.giftBudget },
+          });
+        }
       });
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
+        // Another request rolled this year over first — not an error.
+        return false;
+      }
+      throw err;
     }
 
     return true;
@@ -1066,7 +1102,7 @@ export const giftsService = {
       await prisma.$transaction(async (tx) => {
         if (itemId) {
           await tx.itemAmountPeriod.deleteMany({
-            where: { itemType: "discretionary_item", itemId },
+            where: { householdId, itemType: "discretionary_item", itemId },
           });
           await tx.discretionaryItem.delete({ where: { id: itemId } });
         }

@@ -5,6 +5,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { householdService } from "../../services/household.service";
 import { authService } from "../../services/auth.service";
 import type { ApiError } from "../../lib/api";
+import { purgeStaleQueries } from "../../lib/queryClient";
 import { Input } from "@/components/ui/input";
 
 type PageState =
@@ -57,7 +58,7 @@ export default function AcceptInvitePage() {
           useAuthStore.getState().accessToken!
         );
         setUser(updatedUser, useAuthStore.getState().accessToken!);
-        void qc.invalidateQueries();
+        purgeStaleQueries(qc);
         setTimeout(() => navigate("/overview"), 1500);
       } catch (err) {
         setPageState({ status: "ready", householdName, emailRequired, maskedInvitedEmail });
@@ -156,7 +157,7 @@ export default function AcceptInvitePage() {
   if (pageState.status === "invalid") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
-        <div className="w-full max-w-md rounded-lg bg-card p-6 text-center shadow-lg sm:p-8">
+        <div className="w-full max-w-md rounded-lg border border-foreground/10 bg-card p-6 text-center sm:p-8">
           <h1 className="text-2xl font-bold text-foreground mb-3">Invite Link Invalid</h1>
           <p className="text-muted-foreground">{pageState.message}</p>
         </div>
@@ -167,7 +168,7 @@ export default function AcceptInvitePage() {
   if (pageState.status === "joining") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
-        <div className="w-full max-w-md rounded-lg bg-card p-6 text-center shadow-lg sm:p-8">
+        <div className="w-full max-w-md rounded-lg border border-foreground/10 bg-card p-6 text-center sm:p-8">
           <h1 className="text-2xl font-bold text-foreground mb-3">
             Joining {pageState.householdName}…
           </h1>
@@ -180,7 +181,7 @@ export default function AcceptInvitePage() {
   if (pageState.status === "success") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
-        <div className="w-full max-w-md rounded-lg bg-card p-6 text-center shadow-lg sm:p-8">
+        <div className="w-full max-w-md rounded-lg border border-foreground/10 bg-card p-6 text-center sm:p-8">
           <h1 className="text-2xl font-bold text-foreground mb-3">You're in!</h1>
           <p className="text-muted-foreground">
             You've joined <strong>{pageState.householdName}</strong>. Redirecting...
@@ -196,7 +197,7 @@ export default function AcceptInvitePage() {
   if (isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
-        <div className="w-full max-w-md space-y-6 rounded-lg bg-card p-6 shadow-lg sm:p-8">
+        <div className="w-full max-w-md space-y-6 rounded-lg border border-foreground/10 bg-card p-6 sm:p-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-foreground">You're Invited</h1>
             <p className="mt-2 text-muted-foreground">
@@ -235,7 +236,7 @@ export default function AcceptInvitePage() {
   // Not logged in — show mode toggle + form
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6 sm:px-6">
-      <div className="w-full max-w-md space-y-6 rounded-lg bg-card p-6 shadow-lg sm:p-8">
+      <div className="w-full max-w-md space-y-6 rounded-lg border border-foreground/10 bg-card p-6 sm:p-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-foreground">You're Invited</h1>
           <p className="mt-2 text-muted-foreground">

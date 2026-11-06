@@ -56,6 +56,31 @@ describe("IsaAllowanceIndicator", () => {
     expect(screen.getByText(/Resets 6 April/i)).toBeInTheDocument();
   });
 
+  it("derives the tax-year label from taxYearStart/taxYearEnd", async () => {
+    server.use(
+      http.get("/api/assets/accounts/isa-allowance", () =>
+        HttpResponse.json({
+          ...empty,
+          taxYearStart: "2027-04-06",
+          taxYearEnd: "2028-04-05",
+          byMember: [
+            {
+              memberId: "m1",
+              name: "Alice",
+              used: 1000,
+              forecast: 500,
+              forecastedYearTotal: 1500,
+              monthlyPlanned: 100,
+              estimatedFlag: false,
+            },
+          ],
+        })
+      )
+    );
+    renderWithProviders(<IsaAllowanceIndicator />);
+    expect(await screen.findByText(/ISA allowance · 2027\/28 tax year/)).toBeInTheDocument();
+  });
+
   it("renders a single nudge when most-over member exists", async () => {
     server.use(
       http.get("/api/assets/accounts/isa-allowance", () =>

@@ -250,8 +250,9 @@ describe("Household Journey", () => {
     const userA = await registerUser("owner-invite@test.com", "Owner");
     const { householdId: hhA } = await createHousehold(userA.accessToken, "Shared Household");
 
-    // Create an invite for user B's email
+    // Create an invite for user B's email — now carries a name for the placeholder
     const inviteeEmail = "invitee@test.com";
+    const placeholderName = "Invited Partner";
     const csrfInvite = await getCsrfToken();
     const inviteRes = await app.inject({
       method: "POST",
@@ -262,7 +263,7 @@ describe("Household Journey", () => {
         "x-csrf-token": csrfInvite.token,
         cookie: csrfInvite.cookie,
       },
-      payload: { email: inviteeEmail },
+      payload: { email: inviteeEmail, name: placeholderName },
     });
 
     expect(inviteRes.statusCode).toBe(201);
@@ -270,6 +271,19 @@ describe("Household Journey", () => {
     const inviteToken = inviteBody.token as string;
     expect(inviteToken).toBeDefined();
     expect(typeof inviteToken).toBe("string");
+
+    // Inviting immediately creates a placeholder member (userId null) in the roster
+    const preJoinDetails = await app.inject({
+      method: "GET",
+      url: `/api/households/${hhA}`,
+      headers: { authorization: `Bearer ${userA.accessToken}` },
+    });
+    const preJoinBody = JSON.parse(preJoinDetails.body);
+    const placeholder = preJoinBody.household.memberProfiles.find(
+      (m: { name: string }) => m.name === placeholderName
+    );
+    expect(placeholder).toBeDefined();
+    expect(placeholder.userId).toBeNull();
 
     // Validate the invite token (public endpoint)
     const validateRes = await app.inject({
@@ -314,6 +328,15 @@ describe("Household Journey", () => {
     const detailsBody = JSON.parse(detailsRes.body);
     // memberProfiles includes linked user-members
     expect(detailsBody.household.memberProfiles.length).toBeGreaterThanOrEqual(2);
+
+    // Joining linked user B to the existing placeholder rather than creating a
+    // duplicate: the placeholder row now carries user B's id and there is still
+    // exactly one member with the placeholder name.
+    const linked = detailsBody.household.memberProfiles.filter(
+      (m: { name: string }) => m.name === placeholderName
+    );
+    expect(linked).toHaveLength(1);
+    expect(linked[0].userId).toBe(userB.userId);
 
     // Create income in the shared household as user A
     const csrfIncome = await getCsrfToken();
@@ -379,7 +402,7 @@ describe("Household Journey", () => {
         "x-csrf-token": csrfInvite.token,
         cookie: csrfInvite.cookie,
       },
-      payload: { email: inviteeEmail },
+      payload: { email: inviteeEmail, name: "Removable Member" },
     });
 
     expect(inviteRes.statusCode).toBe(201);

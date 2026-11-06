@@ -1,10 +1,10 @@
 ---
 feature: planner-purchases
-status: backlog
+status: implemented
 priority: medium
 deferred: false
 phase: 9
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Planner — Purchases

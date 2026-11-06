@@ -24,7 +24,7 @@ import GhostAddButton from "@/components/tier/GhostAddButton";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { formatCurrency } from "@/utils/format";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths } from "@/hooks/useSettings";
 
 const TYPE_LABELS: Record<AssetType, string> = {
   Property: "Property",
@@ -42,6 +42,7 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
   const { data: allItems } = useAssetsByType(type, { includeDisposed: true });
   const { data: settings } = useSettings();
   const showPence = settings?.showPence ?? false;
+  const assetStaleness = getStalenessMonths(settings, "asset_item");
 
   const [isAddingItem, setIsAddingItem] = useState(initialIsAdding ?? false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -145,6 +146,7 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
                   disposedAt,
                   disposalAccountId,
                   initialValue,
+                  initialValueDate,
                 }) => {
                   try {
                     await createAsset.mutateAsync({
@@ -153,6 +155,7 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
                       memberId: memberId ?? undefined,
                       growthRatePct,
                       initialValue,
+                      initialValueDate,
                       disposedAt: disposedAt ?? undefined,
                       disposalAccountId: disposalAccountId ?? undefined,
                     });
@@ -183,14 +186,20 @@ export function AssetItemArea({ type, initialIsAdding }: Props) {
             <AssetAccountRow
               item={item}
               itemKind="asset"
-              stalenessThresholdMonths={12}
+              stalenessThresholdMonths={assetStaleness}
               isExpanded={expandedId === item.id}
               isEditing={editingId === item.id}
               isRecording={recordingId === item.id}
               isSavingEdit={updateAsset.isPending}
               isSavingRecord={recordBalance.isPending}
               isSavingConfirm={confirmAsset.isPending}
-              onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+              onToggle={() => {
+                // Moving to another row abandons any in-progress edit/record — otherwise
+                // that row stays in edit mode and its header ignores clicks.
+                if (editingId !== null && editingId !== item.id) setEditingId(null);
+                if (recordingId !== null && recordingId !== item.id) setRecordingId(null);
+                setExpandedId(expandedId === item.id ? null : item.id);
+              }}
               onStartEdit={() => {
                 setEditingId(item.id);
                 setExpandedId(item.id);

@@ -1,10 +1,16 @@
 import { prisma } from "../config/database.js";
+import type {
+  IncomeSource,
+  CommittedItem,
+  DiscretionaryItem,
+  ItemAmountPeriod,
+} from "@prisma/client";
 import { NotFoundError, ValidationError } from "../utils/errors.js";
-import { audited, computeDiff } from "./audit.service.js";
+import { audited, auditEventTx, computeDiff } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { findEffectivePeriod } from "./period.service.js";
-import { compoundForwardYears } from "./forecast.service.js";
-import { toMonthlyAmount } from "@finplan/shared";
+import { computeDisposalProceeds } from "./forecast.service.js";
+import { toMonthlyAmount, clampedUTCDate } from "@finplan/shared";
 import type {
   LinkableAccountRow,
   BulkUpdateLinkedAccountsInput,
@@ -59,6 +65,8 @@ interface DisposalSource {
   startBalanceDate: Date | null; // null if no balance recorded yet
   /** Effective annual growth rate (decimal, e.g. 0.05 for 5%). */
   annualRate: number;
+  /** Monthly contribution accruing into the source before disposal (#128). */
+  monthlyContribution: number;
 }
 
 const DEFAULT_RATES = {
@@ -100,10 +108,17 @@ function buildLiquidationEvent(
   if (source.disposedAt < from || source.disposedAt >= to) return null;
   // No balance recorded → skip (we can't project from nothing).
   if (source.startBalanceDate == null) return null;
-  const yearsForward =
-    (source.disposedAt.getTime() - Math.max(source.startBalanceDate.getTime(), now.getTime())) /
-    (365.25 * 24 * 60 * 60 * 1000);
-  const projectedValue = compoundForwardYears(source.startBalance, source.annualRate, yearsForward);
+  // Shared with the forecast service so the two never disagree (#128): date-precise
+  // monthly-compounded growth AND pro-rata contribution accrual to the disposal date.
+  const projectedValue = computeDisposalProceeds({
+    startBalance: source.startBalance,
+    startBalanceDate: source.startBalanceDate,
+    disposedAt: source.disposedAt,
+    annualRate: source.annualRate,
+    monthlyContribution: source.monthlyContribution,
+    now,
+  });
+  if (projectedValue == null) return null;
   return {
     date: source.disposedAt,
     amount: Math.round(projectedValue * 100) / 100,
@@ -127,7 +142,7 @@ function startOfMonth(y: number, m: number): Date {
   return new Date(Date.UTC(y, m - 1, 1));
 }
 
-function periodActiveOn(periods: Array<any>, date: Date): number {
+function periodActiveOn(periods: ItemAmountPeriod[], date: Date): number {
   const eff = findEffectivePeriod(periods, date);
   return eff?.amount ?? 0;
 }
@@ -135,27 +150,60 @@ function periodActiveOn(periods: Array<any>, date: Date): number {
 function buildEvents(
   from: Date,
   to: Date,
-  income: Array<any>,
-  committed: Array<any>,
-  discretionary: Array<any>,
-  periodsByKey: Map<string, any[]>,
+  income: IncomeSource[],
+  committed: CommittedItem[],
+  discretionary: DiscretionaryItem[],
+  periodsByKey: Map<string, ItemAmountPeriod[]>,
   disposalSources: DisposalSource[] = [],
   linkedAccountIds: Set<string> = new Set(),
   now: Date = new Date()
 ): ProjectionEvent[] {
   const events: ProjectionEvent[] = [];
 
+  type FrequencyKey = "monthly" | "annual" | "yearly" | "one_off" | "weekly" | "quarterly";
+
   function expandRecurring(
-    item: any,
+    item: IncomeSource | CommittedItem,
     itemType: "income_source" | "committed_item",
     sign: 1 | -1,
-    frequencyKey: "monthly" | "annual" | "yearly" | "one_off" | "weekly" | "quarterly"
+    frequencyKey: FrequencyKey
   ) {
     const periods = periodsByKey.get(`${itemType}:${item.id}`) ?? [];
-    const due: Date = item.dueDate;
+    // A period can move the payment date as well as the amount. With no such
+    // period (or for a one-off), expand the whole window off the item's own
+    // dueDate; otherwise expand each period's span off the payment date in
+    // force for it — the latest period dueDate so far, else the item's.
+    if (frequencyKey === "one_off" || !periods.some((p) => p.dueDate)) {
+      expandSpan(item, itemType, sign, frequencyKey, periods, item.dueDate, from, to);
+      return;
+    }
+    let anchor: Date = item.dueDate;
+    for (const p of periods) {
+      if (p.dueDate) anchor = p.dueDate;
+      const spanFrom: Date = p.startDate > from ? p.startDate : from;
+      const spanTo: Date = p.endDate && p.endDate < to ? p.endDate : to;
+      if (spanFrom >= spanTo) continue;
+      expandSpan(item, itemType, sign, frequencyKey, periods, anchor, spanFrom, spanTo);
+    }
+  }
+
+  function expandSpan(
+    item: IncomeSource | CommittedItem,
+    itemType: "income_source" | "committed_item",
+    sign: 1 | -1,
+    frequencyKey: FrequencyKey,
+    periods: ItemAmountPeriod[],
+    due: Date,
+    from: Date,
+    to: Date
+  ) {
     if (frequencyKey === "monthly") {
       const day = due.getUTCDate();
-      const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), day));
+      // Step by month-offset from the window start, clamping day 29-31 to each
+      // month's last day. Stepping via setUTCMonth would overflow (Jan 31 ->
+      // "Feb 31" -> Mar 3), drifting and skipping February entirely.
+      let offset = 0;
+      let cursor = clampedUTCDate(from.getUTCFullYear(), from.getUTCMonth(), day);
       while (cursor < to) {
         if (cursor >= from) {
           const amount = periodActiveOn(periods, cursor);
@@ -168,7 +216,8 @@ function buildEvents(
               itemId: item.id,
             });
         }
-        cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+        offset += 1;
+        cursor = clampedUTCDate(from.getUTCFullYear(), from.getUTCMonth() + offset, day);
       }
     } else if (frequencyKey === "weekly") {
       // Anchor on the weekday of dueDate. Find the first occurrence on-or-after max(from, due).
@@ -198,7 +247,8 @@ function buildEvents(
       // so a future-dated annual bill never emits phantom past occurrences.
       let year = Math.max(from.getUTCFullYear(), due.getUTCFullYear());
       while (true) {
-        const occ = new Date(Date.UTC(year, month, day));
+        // Clamp Feb 29 anchors to Feb 28 in non-leap years (never roll to Mar 1).
+        const occ = clampedUTCDate(year, month, day);
         if (occ >= to) break;
         if (occ >= from && occ >= due) {
           const amount = periodActiveOn(periods, occ);
@@ -221,7 +271,7 @@ function buildEvents(
       let curYear = due.getUTCFullYear();
       let curMonth = due.getUTCMonth();
       while (true) {
-        const occ = new Date(Date.UTC(curYear, curMonth, day));
+        const occ = clampedUTCDate(curYear, curMonth, day);
         if (occ >= anchorDate) break;
         curMonth += 3;
         if (curMonth >= 12) {
@@ -230,7 +280,8 @@ function buildEvents(
         }
       }
       while (true) {
-        const occ = new Date(Date.UTC(curYear, curMonth, day));
+        // Clamp day 29-31 anchors to each quarter's month length.
+        const occ = clampedUTCDate(curYear, curMonth, day);
         if (occ >= to) break;
         if (occ >= from && occ >= due) {
           const amount = periodActiveOn(periods, occ);
@@ -305,10 +356,41 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
     }),
     prisma.account.findMany({
       where: { householdId, disposedAt: { not: null }, disposalAccountId: { not: null } },
-      include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
+      include: {
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        linkedItems: { select: { id: true, spendType: true } },
+      },
     }),
     prisma.householdSettings.findUnique({ where: { householdId } }),
   ]);
+
+  // Derive each disposing account's monthly contribution from its linked
+  // discretionary items' active amount periods (mirrors the forecast service),
+  // so proceeds include contribution accrual up to the disposal date (#128).
+  const now = new Date();
+  const linkedItemIds = accounts.flatMap((a) => (a.linkedItems ?? []).map((i) => i.id));
+  const activePeriods =
+    linkedItemIds.length > 0
+      ? await prisma.itemAmountPeriod.findMany({
+          where: {
+            householdId,
+            itemType: "discretionary_item",
+            itemId: { in: linkedItemIds },
+            startDate: { lte: now },
+            OR: [{ endDate: null }, { endDate: { gt: now } }],
+          },
+        })
+      : [];
+  const amountByItemId = new Map<string, number>();
+  for (const period of activePeriods) amountByItemId.set(period.itemId, period.amount);
+  const contributionByAccountId = new Map<string, number>();
+  for (const acc of accounts) {
+    const total = (acc.linkedItems ?? []).reduce(
+      (sum, item) => sum + toMonthlyAmount(amountByItemId.get(item.id) ?? 0, item.spendType),
+      0
+    );
+    contributionByAccountId.set(acc.id, total);
+  }
 
   const overrides = {
     currentRatePct: settingsRow?.currentRatePct ?? DEFAULT_RATES.currentRatePct,
@@ -332,6 +414,7 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
       startBalance: latest?.value ?? 0,
       startBalanceDate: latest?.date ?? null,
       annualRate: a.growthRatePct != null ? a.growthRatePct / 100 : 0,
+      monthlyContribution: 0,
     });
   }
 
@@ -347,6 +430,7 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
       startBalance: latest?.value ?? 0,
       startBalanceDate: latest?.date ?? null,
       annualRate: defaultAccountRate(acc.type, acc.growthRatePct),
+      monthlyContribution: contributionByAccountId.get(acc.id) ?? 0,
     });
   }
 
@@ -354,8 +438,8 @@ async function loadDisposalSources(householdId: string): Promise<DisposalSource[
 }
 
 function computeMonthlyDiscretionaryBaseline(
-  discretionary: Array<any>,
-  periodsByKey: Map<string, any[]>,
+  discretionary: DiscretionaryItem[],
+  periodsByKey: Map<string, ItemAmountPeriod[]>,
   refDate: Date
 ): number {
   let total = 0;
@@ -376,18 +460,21 @@ async function loadPlanContext(householdId: string) {
     loadDisposalSources(householdId),
   ]);
   const allRefs = [
-    ...income.map((i) => ({ type: "income_source", id: i.id })),
-    ...committed.map((c) => ({ type: "committed_item", id: c.id })),
-    ...discretionary.map((d) => ({ type: "discretionary_item", id: d.id })),
+    ...income.map((i) => ({ type: "income_source" as const, id: i.id })),
+    ...committed.map((c) => ({ type: "committed_item" as const, id: c.id })),
+    ...discretionary.map((d) => ({ type: "discretionary_item" as const, id: d.id })),
   ];
   const periods =
     allRefs.length > 0
       ? await prisma.itemAmountPeriod.findMany({
-          where: { OR: allRefs.map((r) => ({ itemType: r.type as any, itemId: r.id })) },
+          where: {
+            householdId,
+            OR: allRefs.map((r) => ({ itemType: r.type, itemId: r.id })),
+          },
           orderBy: { startDate: "asc" },
         })
       : [];
-  const periodsByKey = new Map<string, any[]>();
+  const periodsByKey = new Map<string, ItemAmountPeriod[]>();
   for (const p of periods) {
     const k = `${p.itemType}:${p.itemId}`;
     const arr = periodsByKey.get(k) ?? [];
@@ -492,18 +579,16 @@ export const cashflowService = {
         });
 
         // durable: committed atomically with the surrounding $transaction
-        await (tx as any).auditLog.create({
-          data: {
-            householdId,
-            actorId: ctx.actorId,
-            actorName: ctx.actorName,
-            ipAddress: ctx.ipAddress,
-            userAgent: ctx.userAgent,
-            action: "UPDATE_ACCOUNT_CASHFLOW_LINK",
-            resource: "account",
-            resourceId: update.accountId,
-            changes,
-          },
+        await auditEventTx(tx, {
+          householdId,
+          actorId: ctx.actorId,
+          actorName: ctx.actorName,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+          action: "UPDATE_ACCOUNT_CASHFLOW_LINK",
+          resource: "account",
+          resourceId: update.accountId,
+          changes,
         });
 
         results.push(toLinkableRow(updated));
@@ -675,8 +760,19 @@ export const cashflowService = {
     }
 
     const projectedEndBalance = months[months.length - 1]?.closingBalance ?? balance;
+
+    // Average monthly surplus must reflect a *typical* full month. When the
+    // window opens on the real-time current month, month[0] is only partially
+    // elapsed — including it skews the average (#117). Drop it from the average
+    // (but keep it in `months` and in projectedEndBalance). Guard against a
+    // single-month window, where there is nothing left to average over.
+    const firstIsCurrentMonth =
+      startYear === today.getUTCFullYear() && startMonth === today.getUTCMonth() + 1;
+    const averagedMonths = firstIsCurrentMonth && months.length > 1 ? months.slice(1) : months;
     const avgMonthlySurplus =
-      months.length > 0 ? months.reduce((s, m) => s + m.netChange, 0) / months.length : 0;
+      averagedMonths.length > 0
+        ? averagedMonths.reduce((s, m) => s + m.netChange, 0) / averagedMonths.length
+        : 0;
 
     return {
       startingBalance: balance,

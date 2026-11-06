@@ -1,67 +1,55 @@
 import { useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { TwoPanelLayout } from "../components/layout/TwoPanelLayout.js";
 import { AssetsLeftPanel } from "../components/assets/AssetsLeftPanel.js";
 import { AssetItemArea } from "../components/assets/AssetItemArea.js";
 import { AccountItemArea } from "../components/assets/AccountItemArea.js";
 import { useAssetsSummary } from "../hooks/useAssets.js";
 import { useUrlSelection } from "@/hooks/useUrlSelection";
-import type { AssetType, AccountType } from "@finplan/shared";
 import { useFocusParam } from "@/features/search/useFocusParam";
 import { useAddParam } from "@/features/search/useAddParam";
+import {
+  keyToSelection,
+  selectionToKey,
+  type AssetsSelection,
+} from "../components/assets/assetsSelection.js";
 
-type SelectedType = AssetType | AccountType;
-const ASSET_TYPES: AssetType[] = ["Property", "Vehicle", "Other"];
-const ACCOUNT_TYPES: AccountType[] = ["Current", "Savings", "Pension", "StocksAndShares", "Other"];
-// "Other" appears in both unions — dedupe for the validator.
-const ALL_TYPES = Array.from(new Set<string>([...ASSET_TYPES, ...ACCOUNT_TYPES]));
+const DEFAULT_SELECTION: AssetsSelection = { kind: "asset", type: "Property" };
 
 export default function AssetsPage() {
   const { data: summary } = useAssetsSummary();
-  const [searchParams] = useSearchParams();
-  const addKind = searchParams.get("add");
+  // Captured on arrival: the item area that opens the form may mount later.
+  const addKind = useAddParam();
 
   // URL is the single source of truth for selected type.
   // Validator accepts only known asset/account enum members; invalid values clear.
-  const validateType = useCallback((v: string) => ALL_TYPES.includes(v), []);
-  const [urlSelected, setSelected] = useUrlSelection({ param: "type", validate: validateType });
-  const selected: SelectedType = (urlSelected as SelectedType) ?? "Property";
+  const validateType = useCallback((v: string) => keyToSelection(v) !== null, []);
+  const [urlSelected, setSelectedKey] = useUrlSelection({ param: "type", validate: validateType });
+  const selected = keyToSelection(urlSelected) ?? DEFAULT_SELECTION;
+  const setSelected = (s: AssetsSelection) => setSelectedKey(selectionToKey(s));
 
   // If ?add=account, switch to the account view on first mount.
   useEffect(() => {
-    if (addKind === "account" && ASSET_TYPES.includes(selected as AssetType)) {
-      setSelected("Current");
+    if (addKind === "account" && selected.kind === "asset") {
+      setSelected({ kind: "account", type: "Current" });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useAddParam((_kind) => {
-    // add param consumed — initialIsAdding prop handles modal
-  });
-  useFocusParam((id) => {
-    const el = document.querySelector(`[data-search-focus="${id}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("search-focus-pulse");
-      setTimeout(() => el.classList.remove("search-focus-pulse"), 1200);
-    }
-  });
-
-  const isAssetType = ASSET_TYPES.includes(selected as AssetType);
+  // Rows load inside the per-type item area, so start immediately and let the
+  // hook wait for the row; search deep links also set ?type= to select it.
+  useFocusParam({ ready: true });
 
   return (
     <TwoPanelLayout
       selectedKey={urlSelected}
-      left={
-        <AssetsLeftPanel summary={summary} selected={selected} onSelect={(t) => setSelected(t)} />
-      }
+      left={<AssetsLeftPanel summary={summary} selected={selected} onSelect={setSelected} />}
       right={
-        isAssetType ? (
+        selected.kind === "asset" ? (
           <AssetItemArea
-            type={selected as AssetType}
+            type={selected.type}
             initialIsAdding={addKind === "asset" || addKind === "1"}
           />
         ) : (
-          <AccountItemArea type={selected as AccountType} initialIsAdding={addKind === "account"} />
+          <AccountItemArea type={selected.type} initialIsAdding={addKind === "account"} />
         )
       }
     />

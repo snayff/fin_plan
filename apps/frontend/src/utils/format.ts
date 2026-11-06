@@ -1,4 +1,4 @@
-export const formatCurrency = (n: number, showPence = false): string =>
+export const formatCurrency = (n: number, showPence: boolean): string =>
   new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency: "GBP",

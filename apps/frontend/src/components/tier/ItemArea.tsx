@@ -11,7 +11,7 @@ import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import { getEmptyStateCopy } from "./emptyStateCopy";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useCreateItem, useDeleteItem, type TierItemRow } from "@/hooks/useWaterfall";
-import { toGBP } from "@finplan/shared";
+import { toGBP, toMonthlyAmount } from "@finplan/shared";
 import type { ItemLifecycleState } from "@finplan/shared";
 import { AnimatedCurrency } from "@/components/common/AnimatedCurrency";
 import type { TierConfig, TierKey } from "./tierConfig";
@@ -33,6 +33,11 @@ export interface LockedManager {
   label: string;
   path: string;
 }
+
+// Planner-owned items only exist while the Gift Planner is synced, so fall back
+// to it if the planner settings haven't resolved yet — the row must never be
+// editable, since the API rejects edits/deletes to planner-owned items.
+const GIFT_PLANNER: LockedManager = { label: "Gift Planner", path: "/gifts" };
 
 interface MemberOption {
   id: string;
@@ -119,8 +124,8 @@ export default function ItemArea({
       } else if (sortField === "createdAt") {
         cmp = a.createdAt.getTime() - b.createdAt.getTime();
       } else {
-        const aMonthly = a.spendType === "monthly" ? a.amount : Math.round(a.amount / 12);
-        const bMonthly = b.spendType === "monthly" ? b.amount : Math.round(b.amount / 12);
+        const aMonthly = toMonthlyAmount(a.amount, a.spendType);
+        const bMonthly = toMonthlyAmount(b.amount, b.spendType);
         cmp = aMonthly - bMonthly;
       }
       return sortDir === "asc" ? cmp : -cmp;
@@ -133,8 +138,7 @@ export default function ItemArea({
 
   // Monthly-equivalent total
   const total = items.reduce((sum, item) => {
-    const monthly = item.spendType === "monthly" ? item.amount : Math.round(item.amount / 12);
-    return sum + monthly;
+    return sum + toMonthlyAmount(item.amount, item.spendType);
   }, 0);
 
   const deletingItem = items.find((it) => it.id === deletingItemId);
@@ -229,7 +233,7 @@ export default function ItemArea({
             >
               <option value="name">Name</option>
               <option value="createdAt">Date added</option>
-              <option value="monthlyValue">Value / month</option>
+              <option value="monthlyValue">Amount / month</option>
             </select>
             <button
               onClick={() => {
@@ -339,12 +343,18 @@ export default function ItemArea({
               members={members}
               expandedItemId={expandedItemId}
               editingItemId={editingItemId}
-              onToggleExpand={(id) => setExpandedItemId(expandedItemId === id ? null : id)}
+              onToggleExpand={(id) => {
+                // Moving to another row abandons any in-progress edit — otherwise the
+                // edited row stays in edit mode and its header ignores clicks.
+                if (editingItemId !== null && editingItemId !== id) setEditingItemId(null);
+                setExpandedItemId(expandedItemId === id ? null : id);
+              }}
               onStartEdit={setEditingItemId}
               onCancelEdit={() => setEditingItemId(null)}
               onDeleteRequest={setDeletingItemId}
               now={now}
               stalenessMonths={stalenessMonths}
+              managedBy={item.isPlannerOwned ? (lockedManager ?? GIFT_PLANNER) : undefined}
             />
           </div>
         ))}

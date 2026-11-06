@@ -160,8 +160,9 @@ describe("useSettings mutation hooks", () => {
     await run(renderHook(() => hooks.useInviteMember(), { wrapper: w }).result, {
       householdId: "h1",
       email: "a@b.com",
+      name: "Alex",
     });
-    expect(householdService.inviteMember).toHaveBeenCalledWith("h1", "a@b.com");
+    expect(householdService.inviteMember).toHaveBeenCalledWith("h1", "a@b.com", "Alex");
 
     await run(renderHook(() => hooks.useCancelInvite(), { wrapper: w }).result, {
       householdId: "h1",
@@ -204,6 +205,51 @@ describe("useSettings mutation hooks", () => {
 
     await run(renderHook(() => hooks.useDeleteHousehold(), { wrapper: w }).result, "h1");
     expect(householdService.deleteHousehold).toHaveBeenCalledWith("h1");
+  });
+
+  it("leaving a household purges cached data from other queries", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["waterfall", "summary"], { surplus: 100 });
+    qc.setQueryData(["accounts"], [{ id: "ac1", name: "Joint account" }]);
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    await run(renderHook(() => hooks.useLeaveHousehold(), { wrapper }).result, "h1");
+
+    expect(qc.getQueryData(["waterfall", "summary"])).toBeUndefined();
+    expect(qc.getQueryData(["accounts"])).toBeUndefined();
+  });
+
+  it("deleting a household purges cached data from other queries", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["forecast"], { years: [2026] });
+    qc.setQueryData(["gifts", "state"], { people: [] });
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    await run(renderHook(() => hooks.useDeleteHousehold(), { wrapper }).result, "h1");
+
+    expect(qc.getQueryData(["forecast"])).toBeUndefined();
+    expect(qc.getQueryData(["gifts", "state"])).toBeUndefined();
+  });
+
+  it("still purges caches when the post-delete getCurrentUser fails (#146g)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(["forecast"], { years: [2026] });
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    authService.getCurrentUser.mockRejectedValueOnce(new Error("me failed"));
+
+    await run(renderHook(() => hooks.useDeleteHousehold(), { wrapper }).result, "h1");
+
+    // The /me failure must not abort the cache purge.
+    expect(qc.getQueryData(["forecast"])).toBeUndefined();
   });
 
   it("useUpdateMemberRole optimistically updates the cached role", async () => {

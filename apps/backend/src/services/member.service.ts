@@ -1,24 +1,15 @@
 import { prisma } from "../config/database.js";
 import {
-  AuthorizationError,
   ConflictError,
   NotFoundError,
   ValidationError,
+  isUniqueConstraintError,
 } from "../utils/errors.js";
 import type { CreateMemberInput, UpdateMemberInput } from "@finplan/shared";
 import { AuditAction } from "@finplan/shared";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
-
-async function assertCallerIsOwner(householdId: string, userId: string) {
-  const caller = await prisma.member.findFirst({
-    where: { householdId, userId },
-  });
-  if (!caller || caller.role !== "owner") {
-    throw new AuthorizationError("Only household owners can manage members");
-  }
-  return caller;
-}
+import { assertCallerOwnerOrAdmin } from "./household.service.js";
 
 export const memberService = {
   async createMember(
@@ -27,7 +18,7 @@ export const memberService = {
     data: CreateMemberInput,
     ctx: ActorCtx
   ) {
-    await assertCallerIsOwner(householdId, callerUserId);
+    await assertCallerOwnerOrAdmin(householdId, callerUserId);
 
     try {
       const created = await audited({
@@ -60,8 +51,8 @@ export const memberService = {
       }
 
       return created;
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
@@ -85,11 +76,16 @@ export const memberService = {
     data: UpdateMemberInput,
     ctx: ActorCtx
   ) {
-    await assertCallerIsOwner(householdId, callerUserId);
-
     const member = await prisma.member.findUnique({ where: { id: memberId } });
     if (!member || member.householdId !== householdId) {
       throw new NotFoundError("Member not found");
+    }
+
+    // A member may edit their own profile; any other target requires
+    // owner-or-admin authority (the household capability matrix).
+    const isSelf = member.userId !== null && member.userId === callerUserId;
+    if (!isSelf) {
+      await assertCallerOwnerOrAdmin(householdId, callerUserId);
     }
 
     try {
@@ -116,8 +112,8 @@ export const memberService = {
             },
           }),
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
@@ -131,7 +127,7 @@ export const memberService = {
     ctx: ActorCtx,
     reassignToMemberId?: string
   ) {
-    await assertCallerIsOwner(householdId, callerUserId);
+    await assertCallerOwnerOrAdmin(householdId, callerUserId);
 
     const member = await prisma.member.findUnique({ where: { id: memberId } });
     if (!member || member.householdId !== householdId) {
@@ -203,17 +199,15 @@ export const memberService = {
 
       // Write audit row inside transaction
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.DELETE_MEMBER_PROFILE,
-          resource: "member-profile",
-          resourceId: memberId,
-        },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_MEMBER_PROFILE,
+        resource: "member-profile",
+        resourceId: memberId,
       });
     });
   },

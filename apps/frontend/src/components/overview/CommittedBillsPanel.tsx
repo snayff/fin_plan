@@ -2,7 +2,7 @@ import type { CommittedBillRow } from "@finplan/shared";
 import { formatCurrency } from "@/utils/format";
 import { cn } from "@/lib/utils";
 import { StalenessIndicator } from "@/components/common/StalenessIndicator";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths } from "@/hooks/useSettings";
 
 const ROW_CLASS =
   "flex items-center justify-between py-2 px-3 rounded cursor-pointer hover:bg-accent/50 transition-colors text-[13px] font-body text-text-secondary";
@@ -29,7 +29,7 @@ export function CommittedBillsPanel({
   selectedItemId,
 }: CommittedBillsPanelProps) {
   const { data: settings } = useSettings();
-  const threshold = settings?.stalenessThresholds?.committed_bill ?? 6;
+  const threshold = getStalenessMonths(settings, "committed_item");
   const showPence = settings?.showPence ?? false;
 
   return (

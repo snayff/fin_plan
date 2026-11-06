@@ -77,4 +77,84 @@ describe("useAutoSave", () => {
     act(() => result.current.setValue("c"));
     expect(result.current.status).toBe("idle");
   });
+
+  it("flushes a pending value on unmount instead of dropping it (#139)", async () => {
+    const save = createSaveMock();
+    const { result, unmount } = renderHook(() =>
+      useAutoSave({ initialValue: "a", onSave: save, debounceMs: 600 })
+    );
+    act(() => result.current.setValue("b"));
+    // Unmount before the 600ms debounce fires.
+    unmount();
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0]).toBe("b");
+  });
+
+  it("does not rewind when an error resolves after a newer keystroke (#139)", async () => {
+    // First save fails slowly; a newer edit happens before it rejects.
+    let rejectFirst: (e: Error) => void = () => {};
+    const save = mock((value: string) => {
+      if (value === "b") {
+        return new Promise((_resolve, reject) => {
+          rejectFirst = reject;
+        });
+      }
+      return Promise.resolve(value);
+    });
+    const { result } = renderHook(() =>
+      useAutoSave({ initialValue: "a", onSave: save, debounceMs: 0 })
+    );
+    act(() => result.current.setValue("b"));
+    await waitFor(() => expect(result.current.status).toBe("saving"));
+    // Newer keystroke supersedes the in-flight "b" save.
+    act(() => result.current.setValue("c"));
+    // Now the stale "b" save fails.
+    await act(async () => {
+      rejectFirst(new Error("stale fail"));
+      await Promise.resolve();
+    });
+    // The newer value must survive; no rewind to "a", no error status.
+    expect(result.current.value).toBe("c");
+    expect(result.current.status).not.toBe("error");
+  });
+
+  it("ignores an out-of-order success from a superseded commit (#139)", async () => {
+    let resolveFirst: (v: unknown) => void = () => {};
+    const save = mock((value: string) => {
+      if (value === "b") {
+        return new Promise((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.resolve(value);
+    });
+    const { result } = renderHook(() =>
+      useAutoSave({ initialValue: "a", onSave: save, debounceMs: 0 })
+    );
+    act(() => result.current.setValue("b"));
+    await waitFor(() => expect(result.current.status).toBe("saving"));
+    act(() => result.current.setValue("c"));
+    await waitFor(() => expect(result.current.value).toBe("c"));
+    // The stale "b" resolves late — it must not mark "b" as last-saved.
+    await act(async () => {
+      resolveFirst("b");
+      await Promise.resolve();
+    });
+    // A later edit back to a different value should still save (lastSaved is "c").
+    act(() => result.current.setValue("d"));
+    await waitFor(() => expect(save.mock.calls.map((c) => c[0])).toContain("d"));
+  });
+
+  it("does not clobber an in-flight edit when initialValue changes mid-edit (#139)", async () => {
+    const save = createSaveMock();
+    const { result, rerender } = renderHook(
+      ({ initial }) => useAutoSave({ initialValue: initial, onSave: save, debounceMs: 600 }),
+      { initialProps: { initial: "a" } }
+    );
+    act(() => result.current.setValue("b"));
+    // A server refetch delivers a new initialValue while "b" is pending.
+    rerender({ initial: "server" });
+    // The user's pending edit must not be overwritten by the refetch.
+    expect(result.current.value).toBe("b");
+  });
 });

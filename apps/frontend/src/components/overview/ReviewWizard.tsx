@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for inline edit fields */
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -6,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/utils/format";
 import { isStale } from "@/utils/staleness";
-import { useSettings } from "@/hooks/useSettings";
+import { useSettings, getStalenessMonths, type StalenessItemType } from "@/hooks/useSettings";
 import { useCreateSnapshot } from "@/hooks/useSettings";
 import { waterfallService } from "@/services/waterfall.service";
 import type { WaterfallItemType } from "@finplan/shared";
@@ -19,7 +18,6 @@ import {
   useReviewCommitted,
   useReviewYearly,
   useReviewDiscretionary,
-  useReviewSavings,
 } from "@/hooks/useReviewSession";
 import { useWaterfallSummary } from "@/hooks/useWaterfall";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,6 +33,7 @@ interface ReviewItem {
   monthlyBudget?: number;
   monthlyAmount?: number;
   balance?: number;
+  spendType?: string;
 }
 
 interface ReviewWizardProps {
@@ -126,6 +125,7 @@ function ItemCard({
         <div className="flex items-center gap-2">
           <input
             type="number"
+            aria-label="New amount"
             className="flex-1 rounded border px-2 py-1 text-sm bg-background focus:outline-none focus:border-primary"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
@@ -150,17 +150,24 @@ function useStepItems(step: number): ReviewItem[] {
   const { data: committed = [] } = useReviewCommitted();
   const { data: yearly = [] } = useReviewYearly();
   const { data: discretionary = [] } = useReviewDiscretionary();
-  const { data: savings = [] } = useReviewSavings();
 
   switch (step) {
     case 0:
       return income as ReviewItem[];
     case 1:
-      return committed as ReviewItem[];
+      // `listCommitted` returns every committed item regardless of cadence;
+      // yearly/quarterly bills get their own step (case 2). Filter them out
+      // here so the same item never appears in two steps (#113).
+      return (committed as ReviewItem[]).filter(
+        (it) => it.spendType !== "yearly" && it.spendType !== "quarterly"
+      );
     case 2:
       return yearly as ReviewItem[];
     case 3:
-      return [...(discretionary as ReviewItem[]), ...(savings as ReviewItem[])];
+      // `listDiscretionary` already includes the Savings subcategory, so the
+      // separate savings list would duplicate those items — use the
+      // discretionary list as the single canonical source (#113).
+      return discretionary as ReviewItem[];
     default:
       return [];
   }
@@ -223,13 +230,6 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
   }, [session, sessionLoading, initialized]);
 
   const items = useStepItems(currentStep);
-  const thresholds = settings?.stalenessThresholds ?? {
-    income_source: 12,
-    committed_bill: 6,
-    yearly_bill: 12,
-    discretionary_category: 12,
-    savings_allocation: 12,
-  };
 
   const TYPE_MAP: Record<number, WaterfallItemType> = {
     0: "income_source",
@@ -245,15 +245,16 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
     3: "discretionary",
   };
 
-  function getThreshold(step: number, item: ReviewItem): number {
-    if (step === 3) {
-      return item.monthlyBudget !== undefined
-        ? ((thresholds as Record<string, number | undefined>)["discretionary_category"] ?? 12)
-        : ((thresholds as Record<string, number | undefined>)["savings_allocation"] ?? 12);
-    }
-    const key = TYPE_MAP[step];
-    if (!key) return 12;
-    return (thresholds as Record<string, number | undefined>)[key] ?? 12;
+  // Steps map onto canonical staleness keys so custom thresholds are honoured.
+  const STEP_STALENESS: Record<number, StalenessItemType> = {
+    0: "income_source",
+    1: "committed_item",
+    2: "committed_item",
+    3: "discretionary_item",
+  };
+
+  function getThreshold(step: number, _item: ReviewItem): number {
+    return getStalenessMonths(settings, STEP_STALENESS[step] ?? "discretionary_item");
   }
 
   function getItemAmount(item: ReviewItem): number {
@@ -309,16 +310,18 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
     const svcType = getServiceType(currentStep, item);
     const fromAmount = getItemAmount(item);
     try {
-      // Amount updates for income go through periods now; confirm only for review
-      if (svcType === "income") await waterfallService.confirmIncome(item.id);
+      // Amounts live in the ItemAmountPeriod table; the update endpoints now
+      // persist `amount` by writing the current effective period. The summary
+      // below only records changes that actually succeeded here.
+      if (svcType === "income") await waterfallService.updateIncome(item.id, { amount: newAmount });
       else if (svcType === "committed")
         await waterfallService.updateCommitted(item.id, { amount: newAmount });
       else if (svcType === "yearly")
         await waterfallService.updateYearly(item.id, { amount: newAmount });
-      // Amount updates for discretionary go through periods now; confirm only for review
-      else if (svcType === "discretionary") await waterfallService.confirmDiscretionary(item.id);
+      else if (svcType === "discretionary")
+        await waterfallService.updateDiscretionary(item.id, { amount: newAmount });
       else if (svcType === "savings")
-        await waterfallService.updateSavings(item.id, { monthlyAmount: newAmount });
+        await waterfallService.updateSavings(item.id, { amount: newAmount });
 
       const newUpdated = {
         ...updatedItems,
@@ -556,8 +559,12 @@ export function ReviewWizard({ onClose }: ReviewWizardProps) {
                 )}
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Snapshot name</label>
+                  <label className="text-sm font-medium" htmlFor="review-snapshot-name">
+                    Snapshot name
+                  </label>
                   <input
+                    id="review-snapshot-name"
+                    aria-label="Snapshot name"
                     className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:border-primary"
                     value={snapshotName}
                     onChange={(e) => setSnapshotName(e.target.value)}

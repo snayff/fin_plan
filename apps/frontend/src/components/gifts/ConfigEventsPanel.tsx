@@ -1,6 +1,9 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for UX on form open */
 import { useState } from "react";
 import { useConfigEvents, useCreateGiftEvent, useDeleteGiftEvent } from "@/hooks/useGifts";
+import GhostAddButton from "@/components/tier/GhostAddButton";
+import { useFocusParam } from "@/features/search/useFocusParam";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
 import {
   Select,
   SelectContent,
@@ -9,51 +12,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GlossaryTermMarker } from "@/components/help/GlossaryTermMarker";
-import type { GiftDateType } from "@finplan/shared";
+import type { GiftDateType, CreateGiftEventInput } from "@finplan/shared";
+import { MONTHS, daysForMonth } from "./giftDates";
 
-type Props = { readOnly: boolean };
+type Props = {
+  readOnly: boolean;
+  /** Open the add-event form on mount (search "Add gift event"). */
+  initialAdding?: boolean;
+};
 
-const MONTHS = [
-  { value: "1", label: "January" },
-  { value: "2", label: "February" },
-  { value: "3", label: "March" },
-  { value: "4", label: "April" },
-  { value: "5", label: "May" },
-  { value: "6", label: "June" },
-  { value: "7", label: "July" },
-  { value: "8", label: "August" },
-  { value: "9", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
-];
-
-function daysForMonth(month: number): { value: string; label: string }[] {
-  const count = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 31;
-  return Array.from({ length: count }, (_, i) => ({
-    value: String(i + 1),
-    label: String(i + 1),
-  }));
+/**
+ * Fields of a gift-event config row consumed by this panel. Mirrors the
+ * backend giftEventResponse contract; declared locally because the gifts
+ * service layer is not yet fully typed.
+ */
+interface ConfigEvent {
+  id: string;
+  name: string;
+  isLocked: boolean;
+  dateType: GiftDateType;
+  dateMonth: number | null;
+  dateDay: number | null;
 }
 
-export function ConfigEventsPanel({ readOnly }: Props) {
-  const { data, isLoading } = useConfigEvents();
+export function ConfigEventsPanel({ readOnly, initialAdding = false }: Props) {
+  const { data, isLoading, isError, refetch } = useConfigEvents();
+  // Search deep links arrive with ?focus=<eventId>; focus the row once events load.
+  useFocusParam({ ready: !isLoading });
   const create = useCreateGiftEvent();
   const remove = useDeleteGiftEvent();
   const [name, setName] = useState("");
   const [dateType, setDateType] = useState<GiftDateType>("personal");
   const [month, setMonth] = useState("");
   const [day, setDay] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(initialAdding && !readOnly);
 
   const submit = () => {
     if (!name.trim()) return;
-    const payload: Record<string, unknown> = { name: name.trim(), dateType };
+    const payload: CreateGiftEventInput = { name: name.trim(), dateType };
     if (dateType === "shared") {
       payload.dateMonth = parseInt(month, 10);
       payload.dateDay = parseInt(day, 10);
     }
-    create.mutate(payload as any);
+    create.mutate(payload);
     setName("");
     setMonth("");
     setDay("");
@@ -68,11 +69,15 @@ export function ConfigEventsPanel({ readOnly }: Props) {
     setShowForm(false);
   };
 
-  if (isLoading || !data) return <div className="p-6 text-sm text-text-muted">Loading…</div>;
-  const locked = data.filter((e: any) => e.isLocked);
-  const custom = data.filter((e: any) => !e.isLocked);
+  if (isError)
+    return (
+      <PanelError variant="detail" onRetry={() => void refetch()} message="Couldn't load events." />
+    );
+  if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
+  const locked = (data as ConfigEvent[]).filter((e) => e.isLocked);
+  const custom = (data as ConfigEvent[]).filter((e) => !e.isLocked);
 
-  const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+  const labelClass = "label-chart";
   const inputClass =
     "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
   const selectTriggerClass =
@@ -96,10 +101,11 @@ export function ConfigEventsPanel({ readOnly }: Props) {
             <GlossaryTermMarker entryId="gifts-locked-event">Locked</GlossaryTermMarker>
           </h3>
           <ul className="mt-2 divide-y divide-foreground/5">
-            {locked.map((e: any) => (
+            {locked.map((e) => (
               <li
                 key={e.id}
                 data-testid={`event-row-${e.id}`}
+                data-search-focus={e.id}
                 className="flex items-center justify-between py-2"
               >
                 <span className="text-sm text-text-secondary">
@@ -124,10 +130,11 @@ export function ConfigEventsPanel({ readOnly }: Props) {
         <section className="mt-6">
           <h3 className={labelClass}>Custom</h3>
           <ul className="mt-2 divide-y divide-foreground/5">
-            {custom.map((e: any) => (
+            {custom.map((e) => (
               <li
                 key={e.id}
                 data-testid={`event-row-${e.id}`}
+                data-search-focus={e.id}
                 className="flex items-center justify-between py-2"
               >
                 <span className="text-sm text-text-secondary">{e.name}</span>
@@ -146,13 +153,9 @@ export function ConfigEventsPanel({ readOnly }: Props) {
 
           {/* Add event form */}
           {!readOnly && !showForm && (
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="mt-3 rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-            >
-              + Add event
-            </button>
+            <div className="mt-3">
+              <GhostAddButton onClick={() => setShowForm(true)} label="+ Add event" />
+            </div>
           )}
 
           {!readOnly && showForm && (
@@ -160,9 +163,9 @@ export function ConfigEventsPanel({ readOnly }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 {/* Event name */}
                 <div className="col-span-2 flex flex-col gap-1">
-                  <label className={labelClass}>
+                  <span className={labelClass}>
                     Name <span className="text-text-muted">*</span>
-                  </label>
+                  </span>
                   <input
                     type="text"
                     placeholder="e.g. Halloween, Anniversary"
@@ -176,7 +179,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
 
                 {/* Date type */}
                 <div className="col-span-2 flex flex-col gap-1">
-                  <label className={labelClass}>Date type</label>
+                  <span className={labelClass}>Date type</span>
                   <Select value={dateType} onValueChange={(v) => setDateType(v as GiftDateType)}>
                     <SelectTrigger aria-label="Date type" className={selectTriggerClass}>
                       <SelectValue />
@@ -192,7 +195,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
                 {dateType === "shared" && (
                   <>
                     <div className="flex flex-col gap-1">
-                      <label className={labelClass}>Month</label>
+                      <span className={labelClass}>Month</span>
                       <Select value={month} onValueChange={setMonth}>
                         <SelectTrigger aria-label="Month" className={selectTriggerClass}>
                           <SelectValue placeholder="Month" />
@@ -207,7 +210,7 @@ export function ConfigEventsPanel({ readOnly }: Props) {
                       </Select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className={labelClass}>Day</label>
+                      <span className={labelClass}>Day</span>
                       <Select value={day} onValueChange={setDay}>
                         <SelectTrigger aria-label="Day" className={selectTriggerClass}>
                           <SelectValue placeholder="Day" />

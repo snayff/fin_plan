@@ -1,4 +1,25 @@
 import { z } from "zod";
+import {
+  idSchema,
+  nameSchema,
+  nonNegativeMoneySchema,
+  notesSchema,
+  positiveMoneySchema,
+} from "./common.schemas";
+
+// List query (shared by the assets and accounts list-by-type routes).
+// `disposed` is the only boolean query param in the route layer; parse it via
+// Zod so the coercion is explicit and consistent. Only "true"/"false" are
+// accepted (anything else 400s); absence preserves the default of excluding
+// disposed items.
+export const listDisposedQuerySchema = z.object({
+  disposed: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+});
+
+export type ListDisposedQuery = z.infer<typeof listDisposedQuerySchema>;
 
 export const assetTypeSchema = z.enum(["Property", "Vehicle", "Other"]);
 export const accountTypeSchema = z.enum([
@@ -16,7 +37,7 @@ const isoDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY
 
 const disposalPair = {
   disposedAt: isoDateString.nullable().optional(),
-  disposalAccountId: z.string().min(1).nullable().optional(),
+  disposalAccountId: idSchema.nullable().optional(),
 };
 
 type DisposalShape = { disposedAt?: string | null; disposalAccountId?: string | null };
@@ -40,28 +61,29 @@ const disposalRefineMessage: { message: string; path: (string | number)[] } = {
 // Asset CRUD
 export const createAssetSchema = z
   .object({
-    name: z.string().min(1).max(100).trim(),
+    name: nameSchema,
     type: assetTypeSchema,
-    memberId: z.string().nullable().optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
-    initialValue: z.number().positive().optional(),
+    initialValue: positiveMoneySchema.optional(),
+    initialValueDate: isoDateString.optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage);
 
 export const updateAssetSchema = z
   .object({
-    name: z.string().min(1).max(100).trim().optional(),
-    memberId: z.string().nullable().optional(),
+    name: nameSchema.optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(-100).max(100).nullable().optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage);
 
 export const recordAssetBalanceSchema = z.object({
-  value: z.number().positive(),
+  value: positiveMoneySchema,
   date: isoDateString,
-  note: z.string().max(500).nullable().optional(),
+  note: notesSchema.nullable().optional(),
 });
 
 // ISA helpers
@@ -84,47 +106,63 @@ const isaRefineMessage: { message: string; path: (string | number)[] } = {
   path: ["isISA"],
 };
 
+// Pension helpers
+// A pension is inherently individual, so a Pension-type account must belong to
+// exactly one member. Only meaningful where `type` is present in the payload
+// (create); update payloads omit `type`, so the account form enforces the rule
+// on edit. Existing memberless pensions are untouched (no migration).
+type PensionShape = {
+  type?: "Current" | "Savings" | "Pension" | "StocksAndShares" | "Other";
+  memberId?: string | null;
+};
+
+function pensionRefine(data: PensionShape): boolean {
+  if (data.type !== "Pension") return true;
+  return data.memberId != null;
+}
+
+const pensionRefineMessage: { message: string; path: (string | number)[] } = {
+  message: "Pension accounts must be assigned to a member",
+  path: ["memberId"],
+};
+
 // Account CRUD
 export const createAccountSchema = z
   .object({
-    name: z.string().min(1).max(100).trim(),
+    name: nameSchema,
     type: accountTypeSchema,
-    memberId: z.string().nullable().optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(0).max(100).nullable().optional(),
-    monthlyContributionLimit: z.number().min(0).nullable().optional(),
+    monthlyContributionLimit: nonNegativeMoneySchema.nullable().optional(),
     isCashflowLinked: z.boolean().optional(),
-    initialValue: z.number().positive().optional(),
+    initialValue: positiveMoneySchema.optional(),
+    initialValueDate: isoDateString.optional(),
     isISA: z.boolean().optional(),
-    isaYearContribution: z.number().min(0).nullable().optional(),
+    isaYearContribution: nonNegativeMoneySchema.nullable().optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage)
-  .refine(isaRefine, isaRefineMessage);
+  .refine(isaRefine, isaRefineMessage)
+  .refine(pensionRefine, pensionRefineMessage);
 
 export const updateAccountSchema = z
   .object({
-    name: z.string().min(1).max(100).trim().optional(),
-    memberId: z.string().nullable().optional(),
+    name: nameSchema.optional(),
+    memberId: idSchema.nullable().optional(),
     growthRatePct: z.number().min(0).max(100).nullable().optional(),
-    monthlyContributionLimit: z.number().min(0).nullable().optional(),
+    monthlyContributionLimit: nonNegativeMoneySchema.nullable().optional(),
     isCashflowLinked: z.boolean().optional(),
     isISA: z.boolean().optional(),
-    isaYearContribution: z.number().min(0).nullable().optional(),
+    isaYearContribution: nonNegativeMoneySchema.nullable().optional(),
     ...disposalPair,
   })
   .refine(disposalRefine, disposalRefineMessage)
   .refine(isaRefine, isaRefineMessage);
 
 export const recordAccountBalanceSchema = z.object({
-  value: z.number().positive(),
+  value: positiveMoneySchema,
   date: isoDateString,
-  note: z.string().max(500).nullable().optional(),
-});
-
-// Member profile (retirement fields)
-export const updateMemberProfileSchema = z.object({
-  dateOfBirth: z.string().datetime().nullable().optional(),
-  retirementYear: z.number().int().min(2000).max(2100).nullable().optional(),
+  note: notesSchema.nullable().optional(),
 });
 
 export type AssetType = z.infer<typeof assetTypeSchema>;
@@ -135,7 +173,6 @@ export type RecordAssetBalanceInput = z.infer<typeof recordAssetBalanceSchema>;
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
 export type RecordAccountBalanceInput = z.infer<typeof recordAccountBalanceSchema>;
-export type UpdateMemberProfileInput = z.infer<typeof updateMemberProfileSchema>;
 
 // ISA allowance summary (response schema)
 export const isaMemberPositionSchema = z.object({
@@ -154,6 +191,11 @@ export const isaAllowanceSummarySchema = z.object({
   daysRemaining: z.number().int().min(0),
   annualLimit: z.number().min(0),
   byMember: z.array(isaMemberPositionSchema),
+  // Count of active ISA accounts excluded from byMember because they have no
+  // owning member (data-quality signal; see #143). Defaults to 0 so existing
+  // payloads/fixtures that predate this field still parse; the backend always
+  // sends the real count.
+  memberlessIsaCount: z.number().int().min(0).default(0),
 });
 
 export type IsaMemberPosition = z.infer<typeof isaMemberPositionSchema>;

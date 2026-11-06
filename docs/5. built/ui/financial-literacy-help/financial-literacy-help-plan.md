@@ -2,7 +2,7 @@
 feature: financial-literacy-help
 spec: docs/4. planning/financial-literacy-help/financial-literacy-help-spec.md
 creation_date: 2026-03-26
-status: backlog
+status: implemented
 ---
 
 # Financial Literacy Help — Implementation Plan

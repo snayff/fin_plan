@@ -4,9 +4,10 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
+  isUniqueConstraintError,
 } from "../utils/errors.js";
 import { exportService } from "./export.service.js";
-import type { ActorCtx } from "./audit.service.js";
+import { auditEventTx, type ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 import {
   CURRENT_EXPORT_SCHEMA_VERSION,
@@ -164,8 +165,8 @@ export const importService = {
                 role: "owner",
               },
             });
-          } catch (err: any) {
-            if (err?.code === "P2002") {
+          } catch (err: unknown) {
+            if (isUniqueConstraintError(err)) {
               throw new ConflictError("A member with that name already exists in this household");
             }
             throw err;
@@ -186,22 +187,9 @@ export const importService = {
           await tx.householdInvite.deleteMany({ where: { householdId } });
           await tx.reviewSession.deleteMany({ where: { householdId } });
 
-          // Collect existing waterfall item ids so we can purge periods/history.
-          const [existingIncome, existingCommitted, existingDiscretionary] = await Promise.all([
-            tx.incomeSource.findMany({ where: { householdId }, select: { id: true } }),
-            tx.committedItem.findMany({ where: { householdId }, select: { id: true } }),
-            tx.discretionaryItem.findMany({ where: { householdId }, select: { id: true } }),
-          ]);
-          const allItemIds = [
-            ...existingIncome.map((i) => i.id),
-            ...existingCommitted.map((i) => i.id),
-            ...existingDiscretionary.map((i) => i.id),
-          ];
-
-          if (allItemIds.length > 0) {
-            await tx.itemAmountPeriod.deleteMany({ where: { itemId: { in: allItemIds } } });
-            await tx.waterfallHistory.deleteMany({ where: { itemId: { in: allItemIds } } });
-          }
+          // Purge amount periods and history — both are household-scoped.
+          await tx.itemAmountPeriod.deleteMany({ where: { householdId } });
+          await tx.waterfallHistory.deleteMany({ where: { householdId } });
 
           await tx.incomeSource.deleteMany({ where: { householdId } });
           await tx.committedItem.deleteMany({ where: { householdId } });
@@ -251,8 +239,8 @@ export const importService = {
                 retirementYear: m.retirementYear ?? null,
               },
             });
-          } catch (err: any) {
-            if (err?.code === "P2002") {
+          } catch (err: unknown) {
+            if (isUniqueConstraintError(err)) {
               throw new ConflictError("A member with that name already exists in this household");
             }
             throw err;
@@ -318,11 +306,13 @@ export const importService = {
             for (const p of i.periods) {
               await tx.itemAmountPeriod.create({
                 data: {
+                  householdId,
                   itemType: "income_source",
                   itemId: created.id,
                   startDate: new Date(p.startDate),
                   endDate: p.endDate ? new Date(p.endDate) : null,
                   amount: p.amount,
+                  dueDate: p.dueDate ? new Date(p.dueDate) : null,
                 },
               });
             }
@@ -354,11 +344,13 @@ export const importService = {
             for (const p of i.periods) {
               await tx.itemAmountPeriod.create({
                 data: {
+                  householdId,
                   itemType: "committed_item",
                   itemId: created.id,
                   startDate: new Date(p.startDate),
                   endDate: p.endDate ? new Date(p.endDate) : null,
                   amount: p.amount,
+                  dueDate: p.dueDate ? new Date(p.dueDate) : null,
                 },
               });
             }
@@ -390,11 +382,13 @@ export const importService = {
             for (const p of i.periods) {
               await tx.itemAmountPeriod.create({
                 data: {
+                  householdId,
                   itemType: "discretionary_item",
                   itemId: created.id,
                   startDate: new Date(p.startDate),
                   endDate: p.endDate ? new Date(p.endDate) : null,
                   amount: p.amount,
+                  dueDate: p.dueDate ? new Date(p.dueDate) : null,
                 },
               });
             }
@@ -421,6 +415,7 @@ export const importService = {
           }
           await tx.waterfallHistory.create({
             data: {
+              householdId,
               itemType: h.itemType,
               itemId,
               value: h.value,
@@ -634,28 +629,26 @@ export const importService = {
         // Write single IMPORT_DATA audit row with counts
         if (ctx) {
           // durable: committed atomically with the surrounding $transaction
-          await (tx as any).auditLog.create({
-            data: {
-              householdId,
-              actorId: ctx.actorId,
-              actorName: ctx.actorName,
-              ipAddress: ctx.ipAddress,
-              userAgent: ctx.userAgent,
-              action: AuditAction.IMPORT_DATA,
-              resource: "household",
-              resourceId: householdId,
-              metadata: {
-                counts: {
-                  incomeSources: data.incomeSources.length,
-                  committedItems: data.committedItems.length,
-                  discretionaryItems: data.discretionaryItems.length,
-                  assets: data.assets?.length ?? 0,
-                  accounts: data.accounts?.length ?? 0,
-                  members: data.members.length,
-                  giftPeople: data.gifts?.people.length ?? 0,
-                  giftEvents: data.gifts?.events.length ?? 0,
-                  giftAllocations: data.gifts?.allocations.length ?? 0,
-                },
+          await auditEventTx(tx, {
+            householdId,
+            actorId: ctx.actorId,
+            actorName: ctx.actorName,
+            ipAddress: ctx.ipAddress,
+            userAgent: ctx.userAgent,
+            action: AuditAction.IMPORT_DATA,
+            resource: "household",
+            resourceId: householdId,
+            metadata: {
+              counts: {
+                incomeSources: data.incomeSources.length,
+                committedItems: data.committedItems.length,
+                discretionaryItems: data.discretionaryItems.length,
+                assets: data.assets?.length ?? 0,
+                accounts: data.accounts?.length ?? 0,
+                members: data.members.length,
+                giftPeople: data.gifts?.people.length ?? 0,
+                giftEvents: data.gifts?.events.length ?? 0,
+                giftAllocations: data.gifts?.allocations.length ?? 0,
               },
             },
           });
@@ -676,7 +669,8 @@ export const importService = {
   async restoreFromBackup(
     householdId: string,
     callerUserId: string,
-    backupId: string
+    backupId: string,
+    ctx?: ActorCtx
   ): Promise<{ success: boolean; householdId: string }> {
     await assertOwner(householdId, callerUserId);
 
@@ -688,12 +682,14 @@ export const importService = {
       throw new ValidationError("Backup has expired");
     }
 
-    // Import the backup data as an overwrite (this will create its own backup of current state)
+    // Import the backup data as an overwrite (this will create its own backup of
+    // current state). Pass the actor ctx so the restore-overwrite is audited (#123).
     const result = await this.importHousehold(
       householdId,
       callerUserId,
       backupRecord.data,
-      "overwrite"
+      "overwrite",
+      ctx
     );
 
     // Delete the used backup

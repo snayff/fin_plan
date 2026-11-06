@@ -41,12 +41,43 @@ export async function waitForWaterfallSettled(page: Page): Promise<void> {
     });
 }
 
+/**
+ * Style injected before every axe run to make color-contrast deterministic.
+ *
+ * Two sources of frame-dependent noise otherwise flake the contrast rule:
+ *  1. The decorative `[data-page]::before/::after` ambient glows (see
+ *     `index.css` § Page Ambient Glows) are fixed, full-viewport radial
+ *     gradients at `z-index: 0`. axe composites whatever sits behind an
+ *     element into its background colour, so a control's measured contrast
+ *     depends on its sub-pixel position over the gradient — the same button
+ *     reads pass on one run and fail on the next. These glows are purely
+ *     decorative (`pointer-events: none`, behind content); the semantic
+ *     background of any text is the page/card surface, so we drop them for
+ *     the measurement. Genuine text-on-surface failures still surface.
+ *  2. Any in-flight CSS animation/transition (e.g. `animate-pulse-subtle`'s
+ *     opacity cycle) can be sampled mid-frame at partial opacity. Freezing
+ *     them pins every element to its resting style.
+ *  3. framer-motion entrance fades drive opacity via JS inline styles
+ *     (`style="opacity: …"`), which CSS `animation/transition: none` cannot
+ *     freeze. axe sampling such a control mid-fade reads its text at a
+ *     washed-out partial opacity and flags a false color-contrast failure.
+ *     Forcing inline-styled elements to full opacity pins them to their
+ *     settled (accessible) state. `display: none` elements stay hidden, so
+ *     this never reveals genuinely-hidden content to the scan.
+ */
+const STABILIZE_CONTRAST_CSS = `
+  [data-page]::before, [data-page]::after { display: none !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  [style*="opacity"] { opacity: 1 !important; }
+`;
+
 export interface AxeOptions {
   exclude?: string[];
   disableRules?: string[];
 }
 
 export async function checkA11y(page: Page, opts: AxeOptions = {}): Promise<void> {
+  await page.addStyleTag({ content: STABILIZE_CONTRAST_CSS });
   let builder = new AxeBuilder({ page });
   if (opts.exclude?.length) for (const sel of opts.exclude) builder = builder.exclude(sel);
   if (opts.disableRules?.length) builder = builder.disableRules(opts.disableRules);

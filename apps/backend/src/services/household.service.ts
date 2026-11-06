@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../config/database.js";
-import { hashPassword } from "../utils/password.js";
+import { hashPassword, MAX_PASSWORD_LENGTH } from "../utils/password.js";
 import { subcategoryService } from "./subcategory.service.js";
 import {
   generateAccessToken,
@@ -14,8 +14,9 @@ import {
   AuthorizationError,
   ConflictError,
   ValidationError,
+  isUniqueConstraintError,
 } from "../utils/errors.js";
-import { audited } from "./audit.service.js";
+import { audited, auditEventTx } from "./audit.service.js";
 import type { ActorCtx } from "./audit.service.js";
 import { AuditAction } from "@finplan/shared";
 
@@ -61,28 +62,45 @@ export function assertOwnerOrAdmin(role: string): void {
   }
 }
 
+/**
+ * Single source of the household capability matrix: an admin may perform every
+ * household-level change except deleting the household, which remains owner-only
+ * (see `assertOwner`/`householdService.delete`). Loads the caller's membership
+ * and asserts owner-or-admin, returning the membership for any follow-up checks.
+ */
+export async function assertCallerOwnerOrAdmin(householdId: string, userId: string) {
+  const m = await prisma.member.findFirst({
+    where: { householdId, userId },
+  });
+  if (!m) throw new AuthorizationError("Not a member of this household");
+  assertOwnerOrAdmin(m.role);
+  return m;
+}
+
 type UpdateMemberRoleParams = {
   householdId: string;
-  callerId: string;
+  /**
+   * Caller's role in `householdId`, resolved by the auth middleware. The calling
+   * route must be active-household-scoped (verify the route param matches
+   * `request.householdId`) so this role is the caller's role for this household.
+   */
+  callerRole: string;
   targetUserId: string;
   newRole: "member" | "admin";
 };
 
 export async function updateMemberRole(
   db: PrismaClient,
-  { householdId, callerId, targetUserId, newRole }: UpdateMemberRoleParams,
+  { householdId, callerRole, targetUserId, newRole }: UpdateMemberRoleParams,
   ctx: ActorCtx
 ) {
-  const [caller, target] = await Promise.all([
-    db.member.findFirst({
-      where: { householdId, userId: callerId },
-    }),
-    db.member.findFirst({
-      where: { householdId, userId: targetUserId },
-    }),
-  ]);
+  // The caller's membership + role are already resolved by the auth middleware;
+  // only the target still needs a lookup.
+  const target = await db.member.findFirst({
+    where: { householdId, userId: targetUserId },
+  });
 
-  if (!caller || !target) throw new NotFoundError("Member not found");
+  if (!target) throw new NotFoundError("Member not found");
 
   // Cannot change owner role
   if (target.role === "owner") {
@@ -90,17 +108,17 @@ export async function updateMemberRole(
   }
 
   // Admin cannot act on another admin
-  if (caller.role === "admin" && target.role === "admin") {
+  if (callerRole === "admin" && target.role === "admin") {
     throw new AuthorizationError("Admins cannot change the role of another admin");
   }
 
   // Admin cannot demote — only promote
-  if (caller.role === "admin" && newRole === "member") {
+  if (callerRole === "admin" && newRole === "member") {
     throw new AuthorizationError("Admins can only promote members, not demote");
   }
 
   // Must be owner or admin
-  assertOwnerOrAdmin(caller.role);
+  assertOwnerOrAdmin(callerRole);
 
   return audited({
     db: prisma,
@@ -128,31 +146,35 @@ export const householdService = {
       where: { id: userId },
       select: { name: true },
     });
-    const household = await prisma.household.create({
-      data: { name },
-    });
+
+    // All five writes (household → member → settings → seeded subcategories →
+    // user.activeHouseholdId) must commit together; a failure midway used to
+    // leave a half-built household behind (#135).
     try {
-      await prisma.member.create({
-        data: {
-          householdId: household.id,
-          userId,
-          name: user?.name ?? "Owner",
-          role: "owner",
-        },
+      return await prisma.$transaction(async (tx) => {
+        const household = await tx.household.create({ data: { name } });
+        await tx.member.create({
+          data: {
+            householdId: household.id,
+            userId,
+            name: user?.name ?? "Owner",
+            role: "owner",
+          },
+        });
+        await tx.householdSettings.create({ data: { householdId: household.id } });
+        await subcategoryService.seedDefaults(household.id, tx);
+        await tx.user.update({
+          where: { id: userId },
+          data: { activeHouseholdId: household.id },
+        });
+        return household;
       });
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
     }
-    await prisma.householdSettings.create({ data: { householdId: household.id } });
-    await subcategoryService.seedDefaults(household.id);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { activeHouseholdId: household.id },
-    });
-    return household;
   },
 
   async getUserHouseholds(userId: string) {
@@ -197,8 +219,8 @@ export const householdService = {
     });
   },
 
-  async renameHousehold(householdId: string, ownerUserId: string, name: string, ctx: ActorCtx) {
-    await assertOwner(householdId, ownerUserId);
+  async renameHousehold(householdId: string, callerUserId: string, name: string, ctx: ActorCtx) {
+    await assertCallerOwnerOrAdmin(householdId, callerUserId);
 
     return audited({
       db: prisma,
@@ -217,14 +239,23 @@ export const householdService = {
 
   // ─── Members ───────────────────────────────────────────────────────────────
 
-  async removeMember(householdId: string, ownerUserId: string, memberId: string, ctx: ActorCtx) {
-    await assertOwner(householdId, ownerUserId);
+  async removeMember(householdId: string, callerUserId: string, memberId: string, ctx: ActorCtx) {
+    const caller = await assertCallerOwnerOrAdmin(householdId, callerUserId);
     const target = await prisma.member.findUnique({ where: { id: memberId } });
     if (!target || target.householdId !== householdId) {
       throw new NotFoundError("Member not found");
     }
-    if (target.userId === ownerUserId) {
-      throw new ValidationError("Owner cannot remove themselves from the household");
+    if (target.userId === callerUserId) {
+      throw new ValidationError("You cannot remove yourself. Use 'Leave household' instead.");
+    }
+    // The owner is never removable by another member; ownership is only
+    // relinquished by leaving. This also stops an admin from removing the owner.
+    if (target.role === "owner") {
+      throw new AuthorizationError("The household owner cannot be removed");
+    }
+    // Admins cannot act on a peer admin (mirrors the role-change rules).
+    if (caller.role === "admin" && target.role === "admin") {
+      throw new AuthorizationError("Admins cannot remove another admin");
     }
 
     await audited({
@@ -312,19 +343,17 @@ export const householdService = {
     householdId: string,
     ownerUserId: string,
     email: string,
+    name: string,
     role: "member" | "admin" = "member",
     ctx: ActorCtx
   ) {
-    const callerMembership = await prisma.member.findFirst({
-      where: { householdId, userId: ownerUserId },
-    });
-    if (!callerMembership) throw new AuthorizationError("Not a member of this household");
-    assertOwnerOrAdmin(callerMembership.role);
+    await assertCallerOwnerOrAdmin(householdId, ownerUserId);
 
     const household = await prisma.household.findUnique({ where: { id: householdId } });
     if (!household) throw new NotFoundError("Household not found");
 
     const normalizedEmail = normalizeEmail(email)!;
+    const trimmedName = name.trim();
 
     const existingMember = await prisma.member.findFirst({
       where: {
@@ -354,31 +383,51 @@ export const householdService = {
     const tokenHash = hashInviteToken(rawToken);
     const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS);
 
-    await audited({
-      db: prisma,
-      ctx,
-      action: AuditAction.INVITE_MEMBER,
-      resource: "household-invite",
-      resourceId: tokenHash,
-      beforeFetch: async () => null,
-      mutation: async (tx) =>
-        tx.householdInvite.create({
-          data: {
-            householdId,
-            email: normalizedEmail,
-            tokenHash,
-            expiresAt,
-            createdByUserId: ownerUserId,
-            intendedRole: role,
-          },
-        }),
-    });
+    try {
+      await audited({
+        db: prisma,
+        ctx,
+        action: AuditAction.INVITE_MEMBER,
+        resource: "household-invite",
+        resourceId: tokenHash,
+        beforeFetch: async () => null,
+        // Inviting immediately creates a placeholder member (userId null) so the
+        // invited person shows in the roster right away; the invite links to it
+        // via memberId, and acceptance/join sets userId on this same row.
+        mutation: async (tx) => {
+          const placeholder = await tx.member.create({
+            data: {
+              householdId,
+              userId: null,
+              name: trimmedName,
+              role,
+            },
+          });
+          return tx.householdInvite.create({
+            data: {
+              householdId,
+              email: normalizedEmail,
+              tokenHash,
+              expiresAt,
+              createdByUserId: ownerUserId,
+              intendedRole: role,
+              memberId: placeholder.id,
+            },
+          });
+        },
+      });
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
+        throw new ConflictError("A member with that name already exists in this household");
+      }
+      throw err;
+    }
 
     return { token: rawToken, email: normalizedEmail };
   },
 
-  async cancelInvite(householdId: string, ownerUserId: string, inviteId: string, ctx: ActorCtx) {
-    await assertOwner(householdId, ownerUserId);
+  async cancelInvite(householdId: string, callerUserId: string, inviteId: string, ctx: ActorCtx) {
+    await assertCallerOwnerOrAdmin(householdId, callerUserId);
 
     const invite = await prisma.householdInvite.findUnique({ where: { id: inviteId } });
     if (!invite || invite.householdId !== householdId) throw new NotFoundError("Invite not found");
@@ -427,6 +476,9 @@ export const householdService = {
     if (newUser.password.length < 12) {
       throw new ValidationError("Password must be at least 12 characters long");
     }
+    if (newUser.password.length > MAX_PASSWORD_LENGTH) {
+      throw new ValidationError(`Password must be at most ${MAX_PASSWORD_LENGTH} characters long`);
+    }
 
     if (normalizedEmail !== invite.email) {
       throw new ValidationError("This invite must be used with the invited email address");
@@ -444,7 +496,7 @@ export const householdService = {
     const passwordHash = await hashPassword(newUser.password);
 
     // Create user + personal household in a transaction
-    const { user, personalHouseholdId } = await prisma.$transaction(async (tx) => {
+    const { user } = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           email: normalizedEmail!,
@@ -474,26 +526,39 @@ export const householdService = {
             role: "owner",
           },
         });
-      } catch (err: any) {
-        if (err?.code === "P2002") {
+      } catch (err: unknown) {
+        if (isUniqueConstraintError(err)) {
           throw new ConflictError("A member with that name already exists in this household");
         }
         throw err;
       }
       await tx.householdSettings.create({ data: { householdId: personal.id } });
+      // Seed the personal household's subcategories inside the transaction so
+      // the whole personal household is atomic (#135).
+      await subcategoryService.seedDefaults(personal.id, tx);
 
-      // Join the invited household and set it as active
+      // Join the invited household and set it as active. New invites carry a
+      // placeholder member (created at invite time) — link the new user to it
+      // rather than creating a duplicate. Legacy invites with no placeholder
+      // fall back to creating the member.
       try {
-        await tx.member.create({
-          data: {
-            householdId: invite.householdId,
-            userId: created.id,
-            name: newUser.name,
-            role: invite.intendedRole ?? "member",
-          },
-        });
-      } catch (err: any) {
-        if (err?.code === "P2002") {
+        if (invite.memberId) {
+          await tx.member.update({
+            where: { id: invite.memberId },
+            data: { userId: created.id },
+          });
+        } else {
+          await tx.member.create({
+            data: {
+              householdId: invite.householdId,
+              userId: created.id,
+              name: newUser.name,
+              role: invite.intendedRole ?? "member",
+            },
+          });
+        }
+      } catch (err: unknown) {
+        if (isUniqueConstraintError(err)) {
           throw new ConflictError("A member with that name already exists in this household");
         }
         throw err;
@@ -512,24 +577,20 @@ export const householdService = {
 
       // Audit the acceptance — actor is the newly created user
       // durable: committed atomically with the surrounding $transaction
-      await (tx as any).auditLog.create({
-        data: {
-          householdId: invite.householdId,
-          actorId: created.id,
-          actorName: newUser.name,
-          ipAddress: requestCtx?.ipAddress,
-          userAgent: requestCtx?.userAgent,
-          action: AuditAction.ACCEPT_INVITE,
-          resource: "household-invite",
-          resourceId: invite.id,
-          changes: [],
-        },
+      await auditEventTx(tx, {
+        householdId: invite.householdId,
+        actorId: created.id,
+        actorName: newUser.name,
+        ipAddress: requestCtx?.ipAddress,
+        userAgent: requestCtx?.userAgent,
+        action: AuditAction.ACCEPT_INVITE,
+        resource: "household-invite",
+        resourceId: invite.id,
+        changes: [],
       });
 
-      return { user: updated, personalHouseholdId: personal.id };
+      return { user: updated };
     });
-
-    await subcategoryService.seedDefaults(personalHouseholdId);
 
     // Generate auth tokens
     const accessToken = generateAccessToken({ userId: user.id, email: user.email });
@@ -582,15 +643,22 @@ export const householdService = {
           resource: "household-member",
           resourceId: existingUserId,
           beforeFetch: async () => null,
+          // New invites carry a placeholder member — link the joining user to it
+          // rather than creating a duplicate. Legacy invites fall back to create.
           mutation: async (tx) => {
-            const member = await tx.member.create({
-              data: {
-                householdId: invite.householdId,
-                userId: existingUserId,
-                name: user.name,
-                role: invite.intendedRole ?? "member",
-              },
-            });
+            const member = invite.memberId
+              ? await tx.member.update({
+                  where: { id: invite.memberId },
+                  data: { userId: existingUserId },
+                })
+              : await tx.member.create({
+                  data: {
+                    householdId: invite.householdId,
+                    userId: existingUserId,
+                    name: user.name,
+                    role: invite.intendedRole ?? "member",
+                  },
+                });
             await tx.user.update({
               where: { id: existingUserId },
               data: { activeHouseholdId: invite.householdId },
@@ -604,14 +672,19 @@ export const householdService = {
         });
       } else {
         await prisma.$transaction([
-          prisma.member.create({
-            data: {
-              householdId: invite.householdId,
-              userId: existingUserId,
-              name: user.name,
-              role: invite.intendedRole ?? "member",
-            },
-          }),
+          invite.memberId
+            ? prisma.member.update({
+                where: { id: invite.memberId },
+                data: { userId: existingUserId },
+              })
+            : prisma.member.create({
+                data: {
+                  householdId: invite.householdId,
+                  userId: existingUserId,
+                  name: user.name,
+                  role: invite.intendedRole ?? "member",
+                },
+              }),
           prisma.user.update({
             where: { id: existingUserId },
             data: { activeHouseholdId: invite.householdId },
@@ -622,8 +695,8 @@ export const householdService = {
           }),
         ]);
       }
-    } catch (err: any) {
-      if (err?.code === "P2002") {
+    } catch (err: unknown) {
+      if (isUniqueConstraintError(err)) {
         throw new ConflictError("A member with that name already exists in this household");
       }
       throw err;
@@ -635,44 +708,85 @@ export const householdService = {
   async delete(householdId: string, ctx: ActorCtx) {
     await assertOwner(householdId, ctx.actorId);
     return prisma.$transaction(async (tx) => {
-      const [members, assets, accounts, income, committed, discretionary, snapshots, goals] =
-        await Promise.all([
-          tx.member.count({ where: { householdId } }),
-          tx.asset.count({ where: { householdId } }),
-          tx.account.count({ where: { householdId } }),
-          tx.incomeSource.count({ where: { householdId } }),
-          tx.committedItem.count({ where: { householdId } }),
-          tx.discretionaryItem.count({ where: { householdId } }),
-          tx.snapshot.count({ where: { householdId } }),
-          tx.purchaseItem.count({ where: { householdId } }),
-        ]);
+      const [members, assets, accounts, snapshots, goals] = await Promise.all([
+        tx.member.count({ where: { householdId } }),
+        tx.asset.count({ where: { householdId } }),
+        tx.account.count({ where: { householdId } }),
+        tx.snapshot.count({ where: { householdId } }),
+        tx.purchaseItem.count({ where: { householdId } }),
+      ]);
+
+      // Waterfall item ids are needed up front: history and amount-period rows
+      // reference items polymorphically (itemType/itemId) without a FK, so they
+      // can only be removed by id.
+      const [incomeItems, committedItems, discretionaryItems] = await Promise.all([
+        tx.incomeSource.findMany({ where: { householdId }, select: { id: true } }),
+        tx.committedItem.findMany({ where: { householdId }, select: { id: true } }),
+        tx.discretionaryItem.findMany({ where: { householdId }, select: { id: true } }),
+      ]);
 
       // durable: committed atomically with the surrounding $transaction
-      await tx.auditLog.create({
-        data: {
-          householdId: ctx.householdId,
-          actorId: ctx.actorId,
-          actorName: ctx.actorName,
-          ipAddress: ctx.ipAddress,
-          userAgent: ctx.userAgent,
-          action: AuditAction.DELETE_HOUSEHOLD,
-          resource: "household",
-          resourceId: householdId,
-          metadata: {
-            cascaded: {
-              members,
-              assets,
-              accounts,
-              income,
-              committed,
-              discretionary,
-              snapshots,
-              goals,
-            },
+      await auditEventTx(tx, {
+        householdId: ctx.householdId,
+        actorId: ctx.actorId,
+        actorName: ctx.actorName,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        action: AuditAction.DELETE_HOUSEHOLD,
+        resource: "household",
+        resourceId: householdId,
+        metadata: {
+          cascaded: {
+            members,
+            assets,
+            accounts,
+            income: incomeItems.length,
+            committed: committedItems.length,
+            discretionary: discretionaryItems.length,
+            snapshots,
+            goals,
           },
         },
       });
 
+      // Remove every household-scoped row. Most of these tables carry a plain
+      // householdId column without a FK to households, so deleting the
+      // household row alone would leave them behind. Order matters: waterfall
+      // items reference subcategories with ON DELETE RESTRICT, so items go
+      // before subcategories.
+      const itemIds = [
+        ...incomeItems.map((i) => i.id),
+        ...committedItems.map((i) => i.id),
+        ...discretionaryItems.map((i) => i.id),
+      ];
+      if (itemIds.length > 0) {
+        await tx.itemAmountPeriod.deleteMany({ where: { itemId: { in: itemIds } } });
+        await tx.waterfallHistory.deleteMany({ where: { itemId: { in: itemIds } } });
+      }
+      await tx.incomeSource.deleteMany({ where: { householdId } });
+      await tx.committedItem.deleteMany({ where: { householdId } });
+      await tx.discretionaryItem.deleteMany({ where: { householdId } });
+      await tx.subcategory.deleteMany({ where: { householdId } });
+
+      // Planner & gifts (allocations cascade from persons/events, but are
+      // deleted explicitly so this list stays the full household-scope set)
+      await tx.giftAllocation.deleteMany({ where: { householdId } });
+      await tx.giftPerson.deleteMany({ where: { householdId } });
+      await tx.giftEvent.deleteMany({ where: { householdId } });
+      await tx.giftPlannerSettings.deleteMany({ where: { householdId } });
+      await tx.giftRolloverDismissal.deleteMany({ where: { householdId } });
+      await tx.purchaseItem.deleteMany({ where: { householdId } });
+      await tx.plannerYearBudget.deleteMany({ where: { householdId } });
+
+      // Snapshots, wizard sessions and settings
+      await tx.snapshot.deleteMany({ where: { householdId } });
+      await tx.reviewSession.deleteMany({ where: { householdId } });
+      await tx.householdSettings.deleteMany({ where: { householdId } });
+
+      // The household row cascades the FK-linked rows: members, invites,
+      // assets/accounts (and their balances), and import backups. Audit logs
+      // are retained with householdId set to null, and users' active
+      // household reference is cleared (ON DELETE SET NULL).
       await tx.household.delete({ where: { id: householdId } });
     });
   },

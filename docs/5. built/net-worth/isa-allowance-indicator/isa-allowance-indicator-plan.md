@@ -3,8 +3,8 @@ feature: isa-allowance-indicator
 category: surplus
 spec: docs/4. planning/isa-allowance-indicator/isa-allowance-indicator-spec.md
 creation_date: 2026-04-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # ISA Allowance Indicator — Implementation Plan

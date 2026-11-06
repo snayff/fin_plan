@@ -4,7 +4,7 @@ import ValueSparkline from "./ValueSparkline";
 import { buildChartData } from "./buildValueChartData";
 
 describe("ValueSparkline", () => {
-  it("renders the Value History label with multiple periods", () => {
+  it("renders the Amount history label with multiple periods", () => {
     const periods = [
       { id: "p1", startDate: new Date("2020-01-01"), endDate: new Date("2023-01-01"), amount: 7 },
       { id: "p2", startDate: new Date("2023-01-01"), endDate: null, amount: 9 },
@@ -14,7 +14,7 @@ describe("ValueSparkline", () => {
       <ValueSparkline periods={periods} color="text-tier-committed" now={new Date("2026-04-04")} />
     );
 
-    expect(getByText("Value History")).toBeTruthy();
+    expect(getByText("Amount history")).toBeTruthy();
   });
 
   it("renders with a single period", () => {
@@ -24,7 +24,7 @@ describe("ValueSparkline", () => {
       <ValueSparkline periods={periods} color="text-tier-committed" now={new Date("2026-04-04")} />
     );
 
-    expect(getByText("Value History")).toBeTruthy();
+    expect(getByText("Amount history")).toBeTruthy();
   });
 
   it("does not extend to now when the last period is scheduled in the future", () => {

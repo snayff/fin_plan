@@ -48,10 +48,8 @@ export default function SurplusPage() {
                           Total monthly income across all members
                         </div>
                         <div className="flex justify-between items-baseline mt-0.5">
-                          <span className="text-[10px] uppercase tracking-wider text-foreground/30">
-                            Balance
-                          </span>
-                          <span className="font-numeric text-[13px] font-semibold text-secondary">
+                          <span className="label-chart">Balance</span>
+                          <span className="font-numeric text-[13px] font-semibold text-body-secondary">
                             {formatCurrency(toGBP(income), showPence)}
                           </span>
                         </div>
@@ -70,10 +68,8 @@ export default function SurplusPage() {
                           Fixed obligations deducted from income
                         </div>
                         <div className="flex justify-between items-baseline mt-0.5">
-                          <span className="text-[10px] uppercase tracking-wider text-foreground/30">
-                            Remaining
-                          </span>
-                          <span className="font-numeric text-[13px] font-semibold text-secondary">
+                          <span className="label-chart">Remaining</span>
+                          <span className="font-numeric text-[13px] font-semibold text-body-secondary">
                             {formatCurrency(toGBP(income - committed), showPence)}
                           </span>
                         </div>
@@ -92,10 +88,8 @@ export default function SurplusPage() {
                           Planned variable spend deducted
                         </div>
                         <div className="flex justify-between items-baseline mt-0.5">
-                          <span className="text-[10px] uppercase tracking-wider text-foreground/30">
-                            Remaining
-                          </span>
-                          <span className="font-numeric text-[13px] font-semibold text-secondary">
+                          <span className="label-chart">Remaining</span>
+                          <span className="font-numeric text-[13px] font-semibold text-body-secondary">
                             {formatCurrency(toGBP(surplus), showPence)}
                           </span>
                         </div>
@@ -109,9 +103,7 @@ export default function SurplusPage() {
                           What remains at the end of each month
                         </div>
                         <div className="flex justify-between items-baseline mt-0.5">
-                          <span className="text-[10px] uppercase tracking-wider text-foreground/30">
-                            Monthly
-                          </span>
+                          <span className="label-chart">Monthly</span>
                           <span className="font-numeric text-base font-semibold text-tier-surplus">
                             {formatCurrency(toGBP(surplus), showPence)}
                           </span>

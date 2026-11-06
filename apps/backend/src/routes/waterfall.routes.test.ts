@@ -392,6 +392,63 @@ describe("POST /api/waterfall/income", () => {
   });
 });
 
+// ─── PATCH: amount / frequency / dueDate survive schema parsing (bug #108) ──────
+
+describe("PATCH update schemas accept amount and forward it to the service", () => {
+  it("PATCH /api/waterfall/income forwards amount + frequency in data", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/income/inc-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: 1500, frequency: "annual" },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = waterfallServiceMock.updateIncome.mock.calls.at(-1)![2] as Record<string, unknown>;
+    expect(data).toMatchObject({ amount: 1500, frequency: "annual" });
+  });
+
+  it("PATCH /api/waterfall/committed forwards amount in data", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/committed/ci-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: 350 },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = waterfallServiceMock.updateCommitted.mock.calls.at(-1)![2] as Record<
+      string,
+      unknown
+    >;
+    expect(data).toMatchObject({ amount: 350 });
+  });
+
+  it("PATCH /api/waterfall/discretionary forwards amount + dueDate in data", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/discretionary/di-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: 75, dueDate: "2026-09-01" },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = waterfallServiceMock.updateDiscretionary.mock.calls.at(-1)![2] as Record<
+      string,
+      unknown
+    >;
+    expect(data).toMatchObject({ amount: 75 });
+    expect(data.dueDate).toBeInstanceOf(Date);
+  });
+
+  it("PATCH /api/waterfall/income rejects a non-positive amount", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/waterfall/income/inc-1",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { amount: -5 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 // ─── Committed Bills ──────────────────────────────────────────────────────────
 
 describe("POST /api/waterfall/committed", () => {
@@ -583,6 +640,69 @@ describe("POST /api/waterfall/confirm-batch", () => {
       },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+// ─── Delete all (SEC-1: owner/admin only + audited) ─────────────────────────────
+
+describe("DELETE /api/waterfall/all", () => {
+  // Re-arm the auth middleware to attach a specific household role so the
+  // route's owner/admin gate can be exercised.
+  function armRole(role: "owner" | "admin" | "member") {
+    (authMiddleware as any).mockImplementation(async (request: any) => {
+      const authHeader = request.headers.authorization;
+      if (!authHeader?.startsWith("Bearer ")) {
+        throw new AuthenticationError("No authorization token provided");
+      }
+      request.user = { userId: "user-1", email: "test@test.com", name: "Tester", role };
+      request.householdId = "hh-1";
+    });
+  }
+
+  it("returns 401 without auth token", async () => {
+    const res = await app.inject({ method: "DELETE", url: "/api/waterfall/all", payload: {} });
+    expect(res.statusCode).toBe(401);
+    expect(waterfallServiceMock.deleteAll).not.toHaveBeenCalled();
+  });
+
+  it("rejects a plain member with 403 and does not delete", async () => {
+    armRole("member");
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/waterfall/all",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { confirm: true },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(waterfallServiceMock.deleteAll).not.toHaveBeenCalled();
+  });
+
+  it("allows an owner and forwards an actor context to the service", async () => {
+    armRole("owner");
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/waterfall/all",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { confirm: true },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(waterfallServiceMock.deleteAll).toHaveBeenCalledTimes(1);
+    // deleteAll(householdId, actorCtx)
+    const call = waterfallServiceMock.deleteAll.mock.calls.at(-1)!;
+    expect(call[0]).toBe("hh-1");
+    expect(call[1]).toBeDefined();
+  });
+
+  it("allows an admin", async () => {
+    armRole("admin");
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/waterfall/all",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { confirm: true },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(waterfallServiceMock.deleteAll).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -914,5 +1034,44 @@ describe("POST /api/waterfall/subcategories/reset", () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe("route param validation (#SEC-6)", () => {
+  const oversized = "x".repeat(65); // exceeds ID_MAX (64) → idSchema rejects
+  const auth = { authorization: "Bearer valid-token" };
+
+  it("GET /history/:type/:id returns 400 for a malformed id", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/history/income/${oversized}`,
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(waterfallServiceMock.getHistory).not.toHaveBeenCalled();
+  });
+
+  it("GET /periods/:itemType/:itemId returns 400 for a malformed itemId", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/waterfall/periods/income_source/${oversized}`,
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(periodServiceMock.listPeriods).not.toHaveBeenCalled();
+  });
+
+  it("GET /history/:type/:id still accepts a well-formed id", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/waterfall/history/income/clh7x9a2b0000abcd1234efgh",
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(waterfallServiceMock.getHistory).toHaveBeenCalledWith(
+      "hh-1",
+      "income",
+      "clh7x9a2b0000abcd1234efgh"
+    );
   });
 });

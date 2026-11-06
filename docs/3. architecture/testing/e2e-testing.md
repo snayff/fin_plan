@@ -6,6 +6,7 @@
 
 1. Start the Docker compose stack: `bun run start` (from repo root).
 2. Reset the database: `docker compose -f docker-compose.dev.yml exec -T backend bun run db:reset-e2e`
+   - The reset script is destructive and gated: it requires `DB_RESET_ALLOWED=true` (already set in `docker-compose.dev.yml`) and refuses unless the parsed `DATABASE_URL` host and database name match the local/test allow-list in `apps/backend/src/utils/reset-e2e-guard.ts`. Outside Docker, run `DB_RESET_ALLOWED=true bun run db:reset-e2e` from `apps/backend`.
 3. Run all E2E flows: `cd apps/frontend && bun run test:e2e`
 4. Debug interactively: `cd apps/frontend && bun run test:e2e:ui`
 5. View the last HTML report: `cd apps/frontend && bun run test:e2e:report`

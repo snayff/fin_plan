@@ -56,6 +56,59 @@ describe("assetsService.getSummary", () => {
     expect(result.accountTotals.Pension).toBe(0);
     expect(result.grandTotal).toBe(114000);
   });
+
+  it("grandTotal (net worth) EXCLUDES pension account balances (#164)", async () => {
+    prismaMock.asset.findMany.mockResolvedValue([
+      {
+        type: "Property",
+        balances: [{ value: 200000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+    ] as any);
+    prismaMock.account.findMany.mockResolvedValue([
+      {
+        type: "Savings",
+        balances: [{ value: 10000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+      {
+        type: "StocksAndShares",
+        balances: [{ value: 5000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+      {
+        type: "Pension",
+        balances: [{ value: 50000, date: new Date("2026-01-01"), createdAt: new Date() }],
+      },
+    ] as any);
+
+    const result = await assetsService.getSummary(HOUSEHOLD_ID);
+
+    // Pension still reported per-type for the Assets page breakdown...
+    expect(result.accountTotals.Pension).toBe(50000);
+    // ...but excluded from grandTotal so it reconciles with forecast year-0:
+    // Property 200000 + Savings 10000 + S&S 5000 = 215000 (pension 50000 excluded).
+    expect(result.grandTotal).toBe(215000);
+  });
+
+  it("fetches only the latest balance per asset/account (take:1, ordered date desc)", async () => {
+    prismaMock.asset.findMany.mockResolvedValue([] as any);
+    prismaMock.account.findMany.mockResolvedValue([] as any);
+
+    await assetsService.getSummary(HOUSEHOLD_ID);
+
+    expect(prismaMock.asset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        },
+      })
+    );
+    expect(prismaMock.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        },
+      })
+    );
+  });
 });
 
 describe("assetsService.listAssetsByType", () => {
@@ -97,6 +150,20 @@ describe("assetsService.listAssetsByType", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.currentBalance).toBe(185000);
     expect(result[0]!.currentBalanceDate).toEqual(new Date("2026-03-01"));
+  });
+
+  it("fetches only the latest balance per asset (take:1, ordered date desc)", async () => {
+    prismaMock.asset.findMany.mockResolvedValue([] as any);
+
+    await assetsService.listAssetsByType(HOUSEHOLD_ID, "Property");
+
+    expect(prismaMock.asset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        },
+      })
+    );
   });
 });
 
@@ -143,6 +210,38 @@ describe("assetsService.createAsset", () => {
         mockCtx
       )
     ).rejects.toThrow("Member not found in household");
+  });
+
+  it("persists initialValueDate as the opening balance date when provided", async () => {
+    prismaMock.asset.create.mockResolvedValue({
+      id: ASSET_ID,
+      name: "Family Home",
+      type: "Property",
+      householdId: HOUSEHOLD_ID,
+    } as any);
+    prismaMock.assetBalance.create.mockResolvedValue({ id: "bal-1" } as any);
+
+    await assetsService.createAsset(
+      HOUSEHOLD_ID,
+      {
+        name: "Family Home",
+        type: "Property",
+        initialValue: 250000,
+        initialValueDate: "2026-01-15",
+      },
+      mockCtx
+    );
+
+    expect(prismaMock.assetBalance.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        assetId: ASSET_ID,
+        value: 250000,
+        date: new Date("2026-01-15"),
+      }),
+    });
+    // initialValueDate must NOT be passed to asset.create — it's not a column
+    const assetCreateCall = prismaMock.asset.create.mock.calls.at(-1)?.[0] as { data: object };
+    expect(assetCreateCall.data).not.toHaveProperty("initialValueDate");
   });
 });
 
@@ -225,6 +324,20 @@ describe("assetsService.listAccountsByType", () => {
     expect(result[0]!.balances).toHaveLength(1);
     expect(result[0]!.monthlyContribution).toBe(0);
     expect(result[0]!.linkedItems).toEqual([]);
+  });
+
+  it("fetches only the latest balance per account (take:1, ordered date desc)", async () => {
+    prismaMock.account.findMany.mockResolvedValue([] as any);
+
+    await assetsService.listAccountsByType(HOUSEHOLD_ID, "Pension");
+
+    expect(prismaMock.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
+        }),
+      })
+    );
   });
 
   it("derives monthlyContribution from active ItemAmountPeriods of linked items", async () => {
@@ -349,6 +462,33 @@ describe("assetsService.createAccount", () => {
     // initialValue must NOT be passed to account.create — it's not a column
     const accountCreateCall = prismaMock.account.create.mock.calls[0]?.[0] as { data: object };
     expect(accountCreateCall.data).not.toHaveProperty("initialValue");
+  });
+
+  it("persists initialValueDate as the opening balance date when provided", async () => {
+    prismaMock.account.create.mockResolvedValue({
+      id: ACCOUNT_ID,
+      name: "HSBC Current",
+      type: "Current",
+      householdId: HOUSEHOLD_ID,
+    } as any);
+    prismaMock.accountBalance.create.mockResolvedValue({ id: "bal-1" } as any);
+
+    await assetsService.createAccount(
+      HOUSEHOLD_ID,
+      { name: "HSBC Current", type: "Current", initialValue: 1500, initialValueDate: "2026-01-15" },
+      mockCtx
+    );
+
+    expect(prismaMock.accountBalance.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: ACCOUNT_ID,
+        value: 1500,
+        date: new Date("2026-01-15"),
+      }),
+    });
+    // initialValueDate must NOT be passed to account.create — it's not a column
+    const accountCreateCall = prismaMock.account.create.mock.calls.at(-1)?.[0] as { data: object };
+    expect(accountCreateCall.data).not.toHaveProperty("initialValueDate");
   });
 
   it("creates account without initialValue and skips balance insert", async () => {

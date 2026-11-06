@@ -285,6 +285,26 @@ describe("giftsService.upsertAllocation status transitions", () => {
       giftsService.upsertAllocation("hh-1", "p1", "e1", year, { planned: 10 })
     ).rejects.toMatchObject({ name: "NotFoundError" });
   });
+
+  it("scopes the upsert where-clause to the household", async () => {
+    const year = new Date().getFullYear();
+    prismaMock.giftAllocation.upsert.mockResolvedValue({} as any);
+    await giftsService.upsertAllocation("hh-1", "p1", "e1", year, { planned: 10 });
+    const args = (prismaMock.giftAllocation.upsert.mock.calls[0] as any)[0];
+    expect(args.where.householdId).toBe("hh-1");
+    expect(args.where.giftPersonId_giftEventId_year).toEqual({
+      giftPersonId: "p1",
+      giftEventId: "e1",
+      year,
+    });
+  });
+
+  it("runs resolve and write inside a transaction", async () => {
+    const year = new Date().getFullYear();
+    prismaMock.giftAllocation.upsert.mockResolvedValue({} as any);
+    await giftsService.upsertAllocation("hh-1", "p1", "e1", year, { planned: 10 });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("giftsService.bulkUpsertAllocations", () => {
@@ -404,7 +424,8 @@ describe("giftsService.setAnnualBudget", () => {
         householdId: "hh-1",
         subcategoryId: "sub-gifts",
         name: "Gifts",
-        spendType: "monthly",
+        // Annual budget stored as yearly so the waterfall divides it by 12.
+        spendType: "yearly",
         isPlannerOwned: true,
       }),
     });
@@ -470,7 +491,7 @@ describe("giftsService.setMode", () => {
     await giftsService.setMode("hh-1", { mode: "independent" });
 
     expect(prismaMock.itemAmountPeriod.deleteMany).toHaveBeenCalledWith({
-      where: { itemType: "discretionary_item", itemId: "d1" },
+      where: { householdId: "hh-1", itemType: "discretionary_item", itemId: "d1" },
     });
     expect(prismaMock.discretionaryItem.delete).toHaveBeenCalledWith({ where: { id: "d1" } });
     expect(prismaMock.subcategory.update).toHaveBeenCalledWith({
@@ -509,7 +530,8 @@ describe("giftsService.setMode", () => {
         householdId: "hh-1",
         subcategoryId: "sub-gifts",
         name: "Gifts",
-        spendType: "monthly",
+        // Annual budget stored as yearly so the waterfall divides it by 12.
+        spendType: "yearly",
         isPlannerOwned: true,
       }),
     });
@@ -868,6 +890,53 @@ describe("giftsService.runRolloverIfNeeded", () => {
     const created = await giftsService.runRolloverIfNeeded("hh-1", year);
     expect(created).toBe(false);
     expect(prismaMock.plannerYearBudget.create).not.toHaveBeenCalled();
+  });
+
+  // #133: budget + allocations + period now share one transaction, so an
+  // allocations failure mid-rollover rolls back the new-year budget too.
+  it("propagates an allocations failure (budget + allocations are atomic)", async () => {
+    const year = new Date().getFullYear();
+    prismaMock.plannerYearBudget.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ giftBudget: 700 } as any);
+    prismaMock.giftAllocation.findMany.mockResolvedValue([
+      {
+        giftPersonId: "p1",
+        giftEventId: "e1",
+        planned: 25,
+        notes: null,
+        dateMonth: null,
+        dateDay: null,
+      },
+    ] as any);
+    prismaMock.giftPlannerSettings.findUnique.mockResolvedValue({
+      mode: "independent",
+      syncedDiscretionaryItemId: null,
+    } as any);
+    prismaMock.plannerYearBudget.create.mockResolvedValue({} as any);
+    prismaMock.giftAllocation.createMany.mockRejectedValue(new Error("allocations insert failed"));
+
+    await expect(giftsService.runRolloverIfNeeded("hh-1", year)).rejects.toThrow(
+      "allocations insert failed"
+    );
+  });
+
+  // #133: a concurrent rollover that already inserted this year's budget races
+  // to P2002 — that is benign, not a 500.
+  it("treats a P2002 year-budget collision as benign and returns false", async () => {
+    const year = new Date().getFullYear();
+    prismaMock.plannerYearBudget.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ giftBudget: 700 } as any);
+    prismaMock.giftAllocation.findMany.mockResolvedValue([] as any);
+    prismaMock.giftPlannerSettings.findUnique.mockResolvedValue({
+      mode: "independent",
+      syncedDiscretionaryItemId: null,
+    } as any);
+    prismaMock.plannerYearBudget.create.mockRejectedValue({ code: "P2002" });
+
+    const created = await giftsService.runRolloverIfNeeded("hh-1", year);
+    expect(created).toBe(false);
   });
 
   it("dismissRolloverNotification persists per-user record", async () => {

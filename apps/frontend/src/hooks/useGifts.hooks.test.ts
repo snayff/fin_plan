@@ -156,6 +156,59 @@ describe("useGifts allocation/budget/mode/rollover mutations", () => {
     expect(api.setBudget).toHaveBeenCalledWith(2026, { annualBudget: 500 });
   });
 
+  it("useSetGiftBudget invalidates waterfall/forecast/cashflow caches (#142)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const spy = mock(qc.invalidateQueries.bind(qc));
+    qc.invalidateQueries = spy as typeof qc.invalidateQueries;
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => hooks.useSetGiftBudget(), { wrapper });
+    await run(result, { year: 2026, data: { annualBudget: 500 } });
+    const keys = spy.mock.calls.map((c: any) => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toContain(JSON.stringify(["waterfall", "summary"]));
+    expect(keys).toContain(JSON.stringify(["waterfall", "financial-summary"]));
+    expect(keys).toContain(JSON.stringify(["forecast"]));
+    expect(keys).toContain(JSON.stringify(["cashflow", "shortfall"]));
+  });
+
+  it("useSetGiftMode invalidates waterfall/forecast/cashflow caches (#142)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    qc.setQueryData(hooks.GIFTS_KEYS.settings(), { mode: "synced" });
+    const spy = mock(qc.invalidateQueries.bind(qc));
+    qc.invalidateQueries = spy as typeof qc.invalidateQueries;
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => hooks.useSetGiftMode(), { wrapper });
+    await run(result, { mode: "independent" });
+    const keys = spy.mock.calls.map((c: any) => JSON.stringify(c[0]?.queryKey));
+    expect(keys).toContain(JSON.stringify(["waterfall", "summary"]));
+    expect(keys).toContain(JSON.stringify(["waterfall", "financial-summary"]));
+    expect(keys).toContain(JSON.stringify(["forecast"]));
+    expect(keys).toContain(JSON.stringify(["cashflow", "shortfall"]));
+  });
+
+  it("useCreateGiftPerson and useUpdateGiftPerson invalidate the upcoming view (#146c)", async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const spy = mock(qc.invalidateQueries.bind(qc));
+    qc.invalidateQueries = spy as typeof qc.invalidateQueries;
+    const wrapper = ({ children }: { children: any }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+
+    const c = renderHook(() => hooks.useCreateGiftPerson(), { wrapper });
+    await run(c.result, { name: "Mum" });
+    const u = renderHook(() => hooks.useUpdateGiftPerson(), { wrapper });
+    await run(u.result, { id: "p1", data: { name: "Mummy" } });
+
+    const keys = spy.mock.calls.map((c2: any) => JSON.stringify(c2[0]?.queryKey));
+    expect(keys.filter((k: string) => k === JSON.stringify(["gifts", "upcoming"])).length).toBe(2);
+  });
+
   it("useSetGiftMode optimistically updates settings then calls the API", async () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

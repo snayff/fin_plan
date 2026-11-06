@@ -1,5 +1,9 @@
 import { useGiftsUpcoming } from "@/hooks/useGifts";
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
+import { SkeletonLoader } from "@/components/common/SkeletonLoader";
+import { PanelError } from "@/components/common/PanelError";
+import { formatCurrency } from "@/utils/format";
+import { useSettings } from "@/hooks/useSettings";
 import type { GiftUpcomingResponse } from "@finplan/shared";
 
 const MONTH_NAMES = [
@@ -21,8 +25,18 @@ const MONTH_NAMES = [
 type Props = { year: number; onNavigateToGifts?: () => void };
 
 export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
-  const { data, isLoading } = useGiftsUpcoming(year);
-  if (isLoading || !data) return <div className="p-6 text-sm text-foreground/40">Loading…</div>;
+  const { data, isLoading, isError, refetch } = useGiftsUpcoming(year);
+  const { data: settings } = useSettings();
+  const showPence = settings?.showPence ?? false;
+  if (isError)
+    return (
+      <PanelError
+        variant="detail"
+        onRetry={() => void refetch()}
+        message="Couldn't load upcoming gifts."
+      />
+    );
+  if (isLoading || !data) return <SkeletonLoader variant="right-panel" />;
 
   const hasRows = data.groups.some((g) => g.rows.length > 0);
 
@@ -46,12 +60,12 @@ export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
             {totalGifts} {totalGifts === 1 ? "gift" : "gifts"}
           </span>
           <span className="font-numeric text-sm text-page-accent">
-            £{totalPlanned.toLocaleString()}
+            {formatCurrency(totalPlanned, showPence)}
           </span>
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-6">
-        <CalloutGrid callouts={data.callouts} />
+        <CalloutGrid callouts={data.callouts} showPence={showPence} />
         {!hasRows ? (
           <div className="mt-6">
             <GhostedListEmpty
@@ -65,9 +79,7 @@ export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
           <div className="mt-6 space-y-6">
             {data.groups.map((g) => (
               <section key={g.month}>
-                <h3 className="mb-2 text-[11px] uppercase tracking-wide text-foreground/40">
-                  {MONTH_NAMES[g.month]}
-                </h3>
+                <h3 className="label-section mb-2">{MONTH_NAMES[g.month]}</h3>
                 <ul className="space-y-1">
                   {g.rows.length === 0 && (
                     <li className="text-xs text-foreground/30">Nothing scheduled.</li>
@@ -89,7 +101,7 @@ export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
                         </div>
                       </div>
                       <div className="font-mono text-sm tabular-nums text-foreground/65">
-                        £{row.plannedTotal.toLocaleString()}
+                        {formatCurrency(row.plannedTotal, showPence)}
                       </div>
                     </li>
                   ))}
@@ -103,7 +115,13 @@ export function UpcomingModePanel({ year, onNavigateToGifts }: Props) {
   );
 }
 
-function CalloutGrid({ callouts }: { callouts: GiftUpcomingResponse["callouts"] }) {
+function CalloutGrid({
+  callouts,
+  showPence,
+}: {
+  callouts: GiftUpcomingResponse["callouts"];
+  showPence: boolean;
+}) {
   const cards: { id: keyof GiftUpcomingResponse["callouts"]; label: string }[] = [
     { id: "thisMonth", label: "This month" },
     { id: "nextThreeMonths", label: "Next 3 months" },
@@ -118,9 +136,9 @@ function CalloutGrid({ callouts }: { callouts: GiftUpcomingResponse["callouts"] 
           data-testid={`callout-${c.id}`}
           className="rounded border border-foreground/5 bg-foreground/[0.02] p-3"
         >
-          <div className="text-[10px] uppercase tracking-wide text-foreground/40">{c.label}</div>
+          <div className="label-chart">{c.label}</div>
           <div className="font-mono text-base tabular-nums text-foreground">
-            £{callouts[c.id].total.toLocaleString()}
+            {formatCurrency(callouts[c.id].total, showPence)}
           </div>
           <div className="text-[10px] text-foreground/40">
             {callouts[c.id].count} {callouts[c.id].count === 1 ? "gift" : "gifts"}

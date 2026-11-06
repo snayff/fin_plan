@@ -1,9 +1,6 @@
 import { FastifyInstance } from "fastify";
-import {
-  householdService,
-  updateMemberRole,
-  assertOwnerOrAdmin,
-} from "../services/household.service";
+import { z } from "zod";
+import { householdService, updateMemberRole } from "../services/household.service";
 import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
 import { prisma } from "../config/database.js";
 import { memberService } from "../services/member.service.js";
@@ -12,17 +9,41 @@ import {
   createHouseholdInviteSchema,
   renameHouseholdSchema,
   updateMemberRoleSchema,
-  updateMemberProfileSchema,
   createMemberSchema,
   updateMemberSchema,
   deleteMemberSchema,
-  AuditAction,
+  idParamSchema,
+  idSchema,
 } from "@finplan/shared";
+
+// Route-param schemas — malformed ids surface as a consistent 400 via the shared
+// error handler instead of an untyped `request.params as { … }` cast reaching the
+// service/Prisma layer (#SEC-6).
+const memberParamsSchema = z.object({ id: idSchema, memberId: idSchema });
+const inviteParamsSchema = z.object({ id: idSchema, inviteId: idSchema });
+const memberRoleParamsSchema = z.object({ householdId: idSchema, userId: idSchema });
 import { AuthorizationError, NotFoundError } from "../utils/errors.js";
 import { actorCtx } from "../lib/actor-ctx.js";
-import { audited } from "../services/audit.service.js";
+import { exportImportRoutes } from "./export-import.routes.js";
+
+/**
+ * Asserts that the household id supplied in the URL matches the caller's
+ * active household resolved by authMiddleware. Data scoping must never trust
+ * URL params; a mismatch is masked as NotFoundError so resource existence is
+ * not revealed to callers outside the household.
+ */
+function assertActiveHousehold(urlHouseholdId: string, activeHouseholdId: string | undefined) {
+  if (!activeHouseholdId || urlHouseholdId !== activeHouseholdId) {
+    throw new NotFoundError("Household not found");
+  }
+}
 
 export async function householdRoutes(fastify: FastifyInstance) {
+  // Co-locate the export/import household routes here so the entire household
+  // URL-space is defined in one module. Sub-registered without a prefix, so the
+  // emitted paths (/api/households/export, /import, …) are unchanged.
+  await fastify.register(exportImportRoutes);
+
   // List all households the current user belongs to
   fastify.get("/households", { preHandler: [userOnlyAuth] }, async (request, reply) => {
     const userId = request.user!.userId;
@@ -44,7 +65,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       await householdService.switchHousehold(userId, id);
       return reply.send({ success: true });
     }
@@ -53,7 +74,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
   // Get household details (members + pending invites)
   fastify.get("/households/:id", { preHandler: [authMiddleware] }, async (request, reply) => {
     const userId = request.user!.userId;
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     const household = await householdService.getHouseholdDetails(id, userId);
     return reply.send({ household });
   });
@@ -61,7 +82,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
   // Rename household (owner only)
   fastify.patch("/households/:id", { preHandler: [authMiddleware] }, async (request, reply) => {
     const userId = request.user!.userId;
-    const { id } = request.params as { id: string };
+    const { id } = idParamSchema.parse(request.params);
     const { name } = renameHouseholdSchema.parse(request.body);
     const household = await householdService.renameHousehold(id, userId, name, actorCtx(request));
     return reply.send({ household });
@@ -91,12 +112,13 @@ export async function householdRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
-      const { email, role } = createHouseholdInviteSchema.parse(request.body ?? {});
+      const { id } = idParamSchema.parse(request.params);
+      const { email, name, role } = createHouseholdInviteSchema.parse(request.body ?? {});
       const { token, email: invitedEmail } = await householdService.inviteMember(
         id,
         userId,
         email,
+        name,
         role,
         actorCtx(request)
       );
@@ -110,7 +132,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, memberId } = request.params as { id: string; memberId: string };
+      const { id, memberId } = memberParamsSchema.parse(request.params);
       await householdService.removeMember(id, userId, memberId, actorCtx(request));
       return reply.send({ success: true });
     }
@@ -122,7 +144,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, inviteId } = request.params as { id: string; inviteId: string };
+      const { id, inviteId } = inviteParamsSchema.parse(request.params);
       await householdService.cancelInvite(id, userId, inviteId, actorCtx(request));
       return reply.send({ success: true });
     }
@@ -134,60 +156,9 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
       await householdService.leaveHousehold(id, userId, actorCtx(request));
       return reply.send({ success: true });
-    }
-  );
-
-  // Update a member's profile (self, or owner/admin)
-  fastify.patch(
-    "/households/:householdId/members/:userId/profile",
-    { preHandler: [authMiddleware] },
-    async (req, reply) => {
-      const { householdId, userId } = req.params as { householdId: string; userId: string };
-      if (householdId !== req.householdId) {
-        throw new AuthorizationError("Forbidden");
-      }
-      const callerId = req.user!.userId;
-      const isSelf = userId === callerId;
-      if (!isSelf) {
-        const callerMember = await prisma.member.findFirst({
-          where: { householdId, userId: callerId },
-          select: { role: true },
-        });
-        assertOwnerOrAdmin(callerMember?.role ?? "member");
-      }
-      const targetMember = await prisma.member.findFirst({
-        where: { householdId, userId },
-        select: { id: true },
-      });
-      if (!targetMember) {
-        throw new NotFoundError("Member not found");
-      }
-      const data = updateMemberProfileSchema.parse(req.body);
-      const updated = await audited({
-        db: prisma,
-        ctx: actorCtx(req),
-        action: AuditAction.UPDATE_MEMBER_PROFILE,
-        resource: "household-member",
-        resourceId: targetMember.id,
-        beforeFetch: async (tx) =>
-          tx.member.findUnique({
-            where: { id: targetMember.id },
-          }) as Promise<Record<string, unknown> | null>,
-        mutation: async (tx) =>
-          tx.member.update({
-            where: { id: targetMember.id },
-            data: {
-              ...(data.dateOfBirth !== undefined
-                ? { dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null }
-                : {}),
-              ...(data.retirementYear !== undefined ? { retirementYear: data.retirementYear } : {}),
-            },
-          }),
-      });
-      return reply.send(updated);
     }
   );
 
@@ -196,13 +167,11 @@ export async function householdRoutes(fastify: FastifyInstance) {
     "/households/:householdId/members/:userId/role",
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const callerId = request.user!.userId;
-      const { householdId, userId: targetUserId } = request.params as {
-        householdId: string;
-        userId: string;
-      };
+      const { householdId, userId: targetUserId } = memberRoleParamsSchema.parse(request.params);
 
-      // Security: caller must belong to the active household matching the route param
+      // Security: caller must belong to the active household matching the route
+      // param. This guard also makes the route active-household-scoped, so the
+      // role attached by the auth middleware is the caller's role here.
       if (householdId !== request.householdId) {
         throw new AuthorizationError("Forbidden");
       }
@@ -211,7 +180,7 @@ export async function householdRoutes(fastify: FastifyInstance) {
 
       const updated = await updateMemberRole(
         prisma,
-        { householdId, callerId, targetUserId, newRole },
+        { householdId, callerRole: request.user!.role, targetUserId, newRole },
         actorCtx(request)
       );
       return reply.send({ member: updated });
@@ -223,8 +192,9 @@ export async function householdRoutes(fastify: FastifyInstance) {
     "/households/:id/member-profiles",
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const members = await memberService.listMembers(id);
+      const { id } = idParamSchema.parse(request.params);
+      assertActiveHousehold(id, request.householdId);
+      const members = await memberService.listMembers(request.householdId!);
       return reply.send({ members });
     }
   );
@@ -235,9 +205,15 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id } = request.params as { id: string };
+      const { id } = idParamSchema.parse(request.params);
+      assertActiveHousehold(id, request.householdId);
       const data = createMemberSchema.parse(request.body);
-      const member = await memberService.createMember(id, userId, data, actorCtx(request));
+      const member = await memberService.createMember(
+        request.householdId!,
+        userId,
+        data,
+        actorCtx(request)
+      );
       return reply.status(201).send({ member });
     }
   );
@@ -248,10 +224,11 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, memberId } = request.params as { id: string; memberId: string };
+      const { id, memberId } = memberParamsSchema.parse(request.params);
+      assertActiveHousehold(id, request.householdId);
       const data = updateMemberSchema.parse(request.body);
       const member = await memberService.updateMember(
-        id,
+        request.householdId!,
         userId,
         memberId,
         data,
@@ -267,9 +244,16 @@ export async function householdRoutes(fastify: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const userId = request.user!.userId;
-      const { id, memberId } = request.params as { id: string; memberId: string };
+      const { id, memberId } = memberParamsSchema.parse(request.params);
+      assertActiveHousehold(id, request.householdId);
       const { reassignToMemberId } = deleteMemberSchema.parse(request.body ?? {});
-      await memberService.deleteMember(id, userId, memberId, actorCtx(request), reassignToMemberId);
+      await memberService.deleteMember(
+        request.householdId!,
+        userId,
+        memberId,
+        actorCtx(request),
+        reassignToMemberId
+      );
       return reply.send({ success: true });
     }
   );

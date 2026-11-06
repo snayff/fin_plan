@@ -25,6 +25,7 @@ interface Props {
   items: TierItemRow[];
   members: Member[];
   total: number;
+  showPence: boolean;
   onCreateSubcategory: (name: string) => Promise<unknown>;
   onSaveName: (id: string, name: string) => Promise<unknown>;
   onSaveAmount: (id: string, amount: number) => Promise<unknown>;
@@ -46,6 +47,7 @@ export function WaterfallTierTable({
   items,
   members,
   total,
+  showPence,
   onCreateSubcategory,
   onSaveName,
   onSaveAmount,
@@ -103,7 +105,7 @@ export function WaterfallTierTable({
           </h3>
         </div>
         <span className="font-numeric tabular-nums text-sm text-text-secondary">
-          {formatCurrency(total)}/mo
+          {formatCurrency(total, showPence)}/mo
         </span>
       </div>
 
@@ -120,19 +122,17 @@ export function WaterfallTierTable({
         </div>
       ) : (
         <table className="w-full text-sm">
-          <thead className="text-[10px] uppercase tracking-wider text-text-tertiary">
+          <thead className="label-chart">
             <tr className="border-b border-foreground/5">
               <th className="px-3 py-2 text-left font-heading font-semibold">Name</th>
               {tier === "income" && (
-                <th className="px-3 py-2 text-left font-heading font-semibold">Type</th>
+                <th className="px-2 py-2 text-left font-heading font-semibold">Type</th>
               )}
-              <th className="px-3 py-2 text-left font-heading font-semibold">Cadence</th>
-              {tier !== "income" && (
-                <th className="px-3 py-2 text-left font-heading font-semibold">Due</th>
-              )}
-              <th className="px-3 py-2 text-left font-heading font-semibold">Assigned to</th>
+              <th className="px-2 py-2 text-left font-heading font-semibold">Cadence</th>
+              <th className="px-2 py-2 text-left font-heading font-semibold">Due</th>
+              <th className="px-2 py-2 text-left font-heading font-semibold">Assigned to</th>
               <th className="px-3 py-2 text-right font-heading font-semibold">Amount</th>
-              <th className="px-3 py-2 text-right font-heading font-semibold">
+              <th className="px-2 py-2 text-right font-heading font-semibold">
                 <InfoTip
                   text="Monthly equivalent — each item's amount converted to a monthly figure (annual ÷ 12, weekly × 52 ÷ 12, etc.) so different cadences can be compared on the same scale."
                   side="top"
@@ -140,7 +140,7 @@ export function WaterfallTierTable({
                   /month
                 </InfoTip>
               </th>
-              <th className="w-8" />
+              <th className="w-8" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -151,6 +151,7 @@ export function WaterfallTierTable({
                 subcategory={subcategory}
                 items={groupItems}
                 members={members}
+                showPence={showPence}
                 onAddDraft={handleAddDraft}
                 onDeleteItem={onDeleteItem}
                 onSaveName={onSaveName}
@@ -167,6 +168,7 @@ export function WaterfallTierTable({
                 }}
                 items={orphanItems}
                 members={members}
+                showPence={showPence}
                 onAddDraft={handleAddDraft}
                 onDeleteItem={onDeleteItem}
                 onSaveName={onSaveName}

@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  idSchema,
+  nameSchema,
+  nonNegativeMoneySchema,
+  notesSchema,
+  sortOrderSchema,
+  yearSchema,
+} from "./common.schemas";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -14,15 +22,15 @@ export type GiftPlannerMode = z.infer<typeof GiftPlannerModeEnum>;
 // ─── Person ──────────────────────────────────────────────────────────────────
 
 export const createGiftPersonSchema = z.object({
-  name: z.string().trim().min(1),
-  notes: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema,
+  notes: notesSchema.nullable().optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export const updateGiftPersonSchema = z.object({
-  name: z.string().trim().min(1).optional(),
-  notes: z.string().nullable().optional(),
-  sortOrder: z.number().int().optional(),
+  name: nameSchema.optional(),
+  notes: notesSchema.nullable().optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateGiftPersonInput = z.infer<typeof createGiftPersonSchema>;
@@ -32,11 +40,11 @@ export type UpdateGiftPersonInput = z.infer<typeof updateGiftPersonSchema>;
 
 export const createGiftEventSchema = z
   .object({
-    name: z.string().trim().min(1),
+    name: nameSchema,
     dateType: GiftDateTypeEnum,
     dateMonth: z.number().int().min(1).max(12).optional(),
     dateDay: z.number().int().min(1).max(31).optional(),
-    sortOrder: z.number().int().optional(),
+    sortOrder: sortOrderSchema.optional(),
   })
   .superRefine((val, ctx) => {
     if (val.dateType === "shared") {
@@ -57,10 +65,10 @@ export const createGiftEventSchema = z
   });
 
 export const updateGiftEventSchema = z.object({
-  name: z.string().trim().min(1).optional(),
+  name: nameSchema.optional(),
   dateMonth: z.number().int().min(1).max(12).nullable().optional(),
   dateDay: z.number().int().min(1).max(31).nullable().optional(),
-  sortOrder: z.number().int().optional(),
+  sortOrder: sortOrderSchema.optional(),
 });
 
 export type CreateGiftEventInput = z.infer<typeof createGiftEventSchema>;
@@ -69,10 +77,10 @@ export type UpdateGiftEventInput = z.infer<typeof updateGiftEventSchema>;
 // ─── Allocation ──────────────────────────────────────────────────────────────
 
 export const upsertGiftAllocationSchema = z.object({
-  planned: z.number().min(0).optional(),
-  spent: z.number().min(0).nullable().optional(),
+  planned: nonNegativeMoneySchema.optional(),
+  spent: nonNegativeMoneySchema.nullable().optional(),
   status: GiftAllocationStatusEnum.optional(),
-  notes: z.string().nullable().optional(),
+  notes: notesSchema.nullable().optional(),
   dateMonth: z.number().int().min(1).max(12).nullable().optional(),
   dateDay: z.number().int().min(1).max(31).nullable().optional(),
 });
@@ -80,10 +88,10 @@ export const upsertGiftAllocationSchema = z.object({
 export type UpsertGiftAllocationInput = z.infer<typeof upsertGiftAllocationSchema>;
 
 export const bulkUpsertCellSchema = z.object({
-  personId: z.string().min(1),
-  eventId: z.string().min(1),
-  year: z.number().int(),
-  planned: z.number().min(0),
+  personId: idSchema,
+  eventId: idSchema,
+  year: yearSchema,
+  planned: nonNegativeMoneySchema,
 });
 
 export const bulkUpsertAllocationsSchema = z.object({
@@ -96,7 +104,7 @@ export type BulkUpsertAllocationsInput = z.infer<typeof bulkUpsertAllocationsSch
 // ─── Budget + mode ───────────────────────────────────────────────────────────
 
 export const setGiftBudgetSchema = z.object({
-  annualBudget: z.number().min(0),
+  annualBudget: nonNegativeMoneySchema,
 });
 export type SetGiftBudgetInput = z.infer<typeof setGiftBudgetSchema>;
 

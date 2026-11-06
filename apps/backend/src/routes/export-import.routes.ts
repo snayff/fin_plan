@@ -67,7 +67,12 @@ export async function exportImportRoutes(fastify: FastifyInstance) {
       const userId = request.user!.userId;
       const householdId = request.householdId!;
       const { backupId } = request.params as { backupId: string };
-      const result = await importService.restoreFromBackup(householdId, userId, backupId);
+      const result = await importService.restoreFromBackup(
+        householdId,
+        userId,
+        backupId,
+        actorCtx(request)
+      );
       return reply.send(result);
     }
   );

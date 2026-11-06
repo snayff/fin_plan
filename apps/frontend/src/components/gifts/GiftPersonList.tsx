@@ -1,5 +1,7 @@
 import { GhostedListEmpty } from "@/components/ui/GhostedListEmpty";
 import type { GiftPersonRow } from "@finplan/shared";
+import { formatCurrency } from "@/utils/format";
+import { useSettings } from "@/hooks/useSettings";
 
 type Props = {
   people: GiftPersonRow[];
@@ -7,6 +9,8 @@ type Props = {
 };
 
 export function GiftPersonList({ people, onSelect }: Props) {
+  const { data: settings } = useSettings();
+  const showPence = settings?.showPence ?? false;
   const plannedTotal = people.reduce((sum, p) => sum + p.plannedTotal, 0);
 
   if (people.length === 0) {
@@ -33,7 +37,7 @@ export function GiftPersonList({ people, onSelect }: Props) {
             {people.length} {people.length === 1 ? "person" : "people"}
           </span>
           <span className="font-numeric text-sm text-page-accent">
-            £{plannedTotal.toLocaleString()}
+            {formatCurrency(plannedTotal, showPence)}
           </span>
         </div>
       </div>
@@ -70,10 +74,10 @@ export function GiftPersonList({ people, onSelect }: Props) {
               </div>
               <div className="text-right">
                 <div className="font-mono text-sm tabular-nums text-foreground">
-                  £{p.plannedTotal.toLocaleString()}
+                  {formatCurrency(p.plannedTotal, showPence)}
                 </div>
                 <div className="font-mono text-[11px] tabular-nums text-foreground/40">
-                  £{p.spentTotal.toLocaleString()} spent
+                  {formatCurrency(p.spentTotal, showPence)} spent
                 </div>
               </div>
             </button>

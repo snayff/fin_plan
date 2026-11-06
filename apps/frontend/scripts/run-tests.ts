@@ -15,7 +15,8 @@ import { resolve } from "node:path";
 // coverage/**/lcov.info into true whole-codebase coverage.
 const COVERAGE_DIR = "coverage";
 
-const preload = "./src/test/setup.ts";
+// Order matters: happy-dom must register its globals before setup.ts imports run.
+const preloads = ["./src/test/happydom.ts", "./src/test/setup.ts"];
 const testDir = "src";
 
 const glob = new Glob("**/*.test.{ts,tsx}");
@@ -57,11 +58,14 @@ for (const [index, file] of filesToRun.entries()) {
         `--coverage-dir=${COVERAGE_DIR}/${index}`,
       ]
     : [];
-  const proc = Bun.spawn(["bun", "test", ...coverageArgs, "--preload", preload, filePath], {
-    stdout: "inherit",
-    stderr: "inherit",
-    env: process.env,
-  });
+  const proc = Bun.spawn(
+    ["bun", "test", ...coverageArgs, ...preloads.flatMap((p) => ["--preload", p]), filePath],
+    {
+      stdout: "inherit",
+      stderr: "inherit",
+      env: process.env,
+    }
+  );
 
   const exitCode = await proc.exited;
 

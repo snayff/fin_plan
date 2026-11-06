@@ -2,6 +2,10 @@ import { describe, it, expect, mock } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import { UpcomingModePanel } from "./UpcomingModePanel";
 
+mock.module("@/hooks/useSettings", () => ({
+  useSettings: () => ({ data: { showPence: false } }),
+}));
+
 mock.module("@/hooks/useGifts", () => ({
   useGiftsUpcoming: () => ({
     isLoading: false,

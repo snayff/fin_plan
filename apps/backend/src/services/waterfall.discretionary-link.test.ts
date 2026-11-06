@@ -187,6 +187,173 @@ describe("waterfallService — linkedAccountId", () => {
     expect(found?.linkedAccount).toBeNull();
   });
 
+  it("createSavings accepts a link to an account in the same household", async () => {
+    const item = await waterfallService.createSavings(
+      householdId,
+      {
+        name: "ISA allocation",
+        amount: 100,
+        subcategoryId: savingsSubId,
+        spendType: "monthly",
+        linkedAccountId: savingsAccountId,
+      } as any,
+      ctx
+    );
+    expect((item as any).linkedAccountId).toBe(savingsAccountId);
+  });
+
+  it("createSavings rejects a link to an account in a different household", async () => {
+    const foreign = await createTestHousehold();
+    const foreignAccount = await prisma.account.create({
+      data: { householdId: foreign.id, name: "Foreign ISA", type: "Savings" },
+    });
+    try {
+      let threw = false;
+      try {
+        await waterfallService.createSavings(
+          householdId,
+          {
+            name: "Bad link",
+            amount: 100,
+            subcategoryId: savingsSubId,
+            spendType: "monthly",
+            linkedAccountId: foreignAccount.id,
+          } as any,
+          ctx
+        );
+      } catch (e: any) {
+        threw = true;
+        expect(e.message).toMatch(/not found/i);
+      }
+      expect(threw).toBe(true);
+      const created = await prisma.discretionaryItem.findFirst({
+        where: { householdId, name: "Bad link" },
+      });
+      expect(created).toBeNull();
+    } finally {
+      await prisma.household.delete({ where: { id: foreign.id } });
+    }
+  });
+
+  it("createSavings rejects a link to a Current account", async () => {
+    let threw = false;
+    try {
+      await waterfallService.createSavings(
+        householdId,
+        {
+          name: "Bad type link",
+          amount: 100,
+          subcategoryId: savingsSubId,
+          spendType: "monthly",
+          linkedAccountId: currentAccountId,
+        } as any,
+        ctx
+      );
+    } catch (e: any) {
+      threw = true;
+      expect(e.message).toMatch(/Savings, StocksAndShares, or Pension/);
+    }
+    expect(threw).toBe(true);
+  });
+
+  it("updateSavings rejects a link to an account in a different household", async () => {
+    const foreign = await createTestHousehold();
+    const foreignAccount = await prisma.account.create({
+      data: { householdId: foreign.id, name: "Foreign ISA", type: "Savings" },
+    });
+    const item = await prisma.discretionaryItem.create({
+      data: { householdId, subcategoryId: savingsSubId, name: "Own allocation" },
+    });
+    try {
+      let threw = false;
+      try {
+        await waterfallService.updateSavings(
+          householdId,
+          item.id,
+          { linkedAccountId: foreignAccount.id } as any,
+          ctx
+        );
+      } catch (e: any) {
+        threw = true;
+        expect(e.message).toMatch(/not found/i);
+      }
+      expect(threw).toBe(true);
+      const reloaded = await prisma.discretionaryItem.findUnique({ where: { id: item.id } });
+      expect(reloaded?.linkedAccountId).toBeNull();
+    } finally {
+      await prisma.household.delete({ where: { id: foreign.id } });
+    }
+  });
+
+  it("updateSavings accepts a link to an account in the same household", async () => {
+    const item = await prisma.discretionaryItem.create({
+      data: { householdId, subcategoryId: savingsSubId, name: "Own allocation 2" },
+    });
+    const updated = await waterfallService.updateSavings(
+      householdId,
+      item.id,
+      { linkedAccountId: savingsAccountId } as any,
+      ctx
+    );
+    expect((updated as any).linkedAccountId).toBe(savingsAccountId);
+  });
+
+  it("updateSavings rejects linking on a planner-owned item", async () => {
+    const plannerItem = await prisma.discretionaryItem.create({
+      data: {
+        householdId,
+        subcategoryId: savingsSubId,
+        name: "Planner savings",
+        isPlannerOwned: true,
+      },
+    });
+    let threw = false;
+    try {
+      await waterfallService.updateSavings(
+        householdId,
+        plannerItem.id,
+        { linkedAccountId: savingsAccountId } as any,
+        ctx
+      );
+    } catch (e: any) {
+      threw = true;
+      expect(e.message).toMatch(/planner/i);
+    }
+    expect(threw).toBe(true);
+  });
+
+  it("updateDiscretionary rejects a cross-household link even when subcategoryId is supplied explicitly", async () => {
+    // Exercises the `data.subcategoryId ?? existing.subcategoryId` branch in the
+    // update guard: an explicit (own) Savings subcategory must not let a foreign
+    // account slip through the household-scoped account lookup.
+    const foreign = await createTestHousehold();
+    const foreignAccount = await prisma.account.create({
+      data: { householdId: foreign.id, name: "Foreign ISA", type: "Savings" },
+    });
+    const item = await prisma.discretionaryItem.create({
+      data: { householdId, subcategoryId: savingsSubId, name: "Own item" },
+    });
+    try {
+      let threw = false;
+      try {
+        await waterfallService.updateDiscretionary(
+          householdId,
+          item.id,
+          { subcategoryId: savingsSubId, linkedAccountId: foreignAccount.id } as any,
+          ctx
+        );
+      } catch (e: any) {
+        threw = true;
+        expect(e.message).toMatch(/not found/i);
+      }
+      expect(threw).toBe(true);
+      const reloaded = await prisma.discretionaryItem.findUnique({ where: { id: item.id } });
+      expect(reloaded?.linkedAccountId).toBeNull();
+    } finally {
+      await prisma.household.delete({ where: { id: foreign.id } });
+    }
+  });
+
   it("auto-nulls linkedAccountId when an item is moved out of Savings", async () => {
     const item = await waterfallService.createDiscretionary(
       householdId,

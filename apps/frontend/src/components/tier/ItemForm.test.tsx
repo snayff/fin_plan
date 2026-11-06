@@ -1,13 +1,15 @@
 import { describe, it, expect, mock } from "bun:test";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 mock.module("@/hooks/useSettings", () => ({
   useSettings: () => ({ data: undefined }),
 }));
 
+const createPeriodMutate = mock((_data: Record<string, unknown>) => Promise.resolve());
+
 mock.module("@/hooks/useWaterfall", () => ({
-  useCreatePeriod: () => ({ mutateAsync: mock(() => Promise.resolve()), isPending: false }),
+  useCreatePeriod: () => ({ mutateAsync: createPeriodMutate, isPending: false }),
   useDeletePeriod: () => ({ mutateAsync: mock(() => Promise.resolve()), isPending: false }),
 }));
 
@@ -301,7 +303,7 @@ describe("ItemForm — value-history period editor", () => {
         isStale={false}
       />
     );
-    expect(screen.getByText("Value History")).toBeTruthy();
+    expect(screen.getByText("Amount history")).toBeTruthy();
     expect(screen.getByText("Current")).toBeTruthy();
     expect(screen.getByText("Scheduled")).toBeTruthy();
   });
@@ -348,5 +350,50 @@ describe("ItemForm — value-history period editor", () => {
     expect(removeButtons.length).toBe(2);
     fireEvent.click(removeButtons[0]!);
     // mutateAsync is mocked to resolve; no throw means the handler path executed
+  });
+
+  function openAddPeriod() {
+    renderWithClient(
+      <ItemForm
+        mode="edit"
+        item={itemWithPeriods}
+        config={TIER_CONFIGS.committed}
+        subcategories={subcategories}
+        initialSubcategoryId="sub-housing"
+        onSave={() => {}}
+        onCancel={() => {}}
+        onConfirm={() => {}}
+        onDelete={() => {}}
+        isStale={false}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "+ Add period" }));
+    fireEvent.change(screen.getByLabelText("New period start date"), {
+      target: { value: "2027-04-01" },
+    });
+    fireEvent.change(screen.getByLabelText("New period amount"), { target: { value: "5000" } });
+  }
+
+  it("lets a new period move the payment date", async () => {
+    createPeriodMutate.mockClear();
+    openAddPeriod();
+    fireEvent.change(screen.getByLabelText("New period payment date"), {
+      target: { value: "2027-04-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(createPeriodMutate).toHaveBeenCalled());
+    expect(createPeriodMutate.mock.calls[0]![0]).toEqual({
+      startDate: new Date("2027-04-01"),
+      amount: 5000,
+      dueDate: new Date("2027-04-15"),
+    });
+  });
+
+  it("an amount-only period does not pin a payment date", async () => {
+    createPeriodMutate.mockClear();
+    openAddPeriod();
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(createPeriodMutate).toHaveBeenCalled());
+    expect(createPeriodMutate.mock.calls[0]![0]).not.toHaveProperty("dueDate");
   });
 });

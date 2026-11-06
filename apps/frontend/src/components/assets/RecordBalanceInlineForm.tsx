@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; inputs already have aria-label */
 import { useState } from "react";
 
 interface Props {
@@ -11,7 +10,7 @@ function todayISO() {
   return new Date().toISOString().split("T")[0]!;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -49,9 +48,9 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
       <div className="grid grid-cols-2 gap-3">
         {/* Value */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Value (£) <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="number"
             inputMode="decimal"
@@ -64,18 +63,18 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
               setValueError(null);
             }}
             aria-label="Balance value"
-            className={[inputClass, "font-numeric", valueError ? "border-amber-400/60" : ""].join(
+            className={[inputClass, "font-numeric", valueError ? "border-attention/60" : ""].join(
               " "
             )}
           />
-          {valueError && <p className="-mt-0.5 text-xs text-amber-400">{valueError}</p>}
+          {valueError && <p className="-mt-0.5 text-xs text-attention">{valueError}</p>}
         </div>
 
         {/* Date */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Date <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="date"
             max={todayISO()}
@@ -85,14 +84,14 @@ export function RecordBalanceInlineForm({ isSaving, onSave, onCancel }: Props) {
               setDateError(null);
             }}
             aria-label="Balance date"
-            className={[inputClass, dateError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
           />
-          {dateError && <p className="-mt-0.5 text-xs text-amber-400">{dateError}</p>}
+          {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
         </div>
 
         {/* Note */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Note (optional)</label>
+          <span className={labelClass}>Note (optional)</span>
           <input
             type="text"
             placeholder="e.g. end of year valuation"

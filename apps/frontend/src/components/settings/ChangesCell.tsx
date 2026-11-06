@@ -44,9 +44,7 @@ export function ChangesCell({ changes, action }: Props) {
     <div className="space-y-2">
       {changes.map((c, i) => (
         <div key={i} className="flex flex-col gap-0.5">
-          <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
-            {humanizeField(c.field)}
-          </span>
+          <span className="label-section">{humanizeField(c.field)}</span>
           <div className="font-mono text-xs">
             {isCreate && <ValueSpan value={c.after} tone="after" />}
             {isDelete && (

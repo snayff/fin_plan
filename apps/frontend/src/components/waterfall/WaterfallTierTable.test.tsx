@@ -10,6 +10,7 @@ describe("WaterfallTierTable", () => {
         subcategories={[{ id: "s-1", name: "Salary", sortOrder: 0 }]}
         items={[]}
         members={[]}
+        showPence={false}
         total={8856}
         onCreateSubcategory={() => Promise.resolve()}
         onSaveName={() => Promise.resolve()}
@@ -57,6 +58,7 @@ describe("WaterfallTierTable", () => {
           ] as any
         }
         members={[]}
+        showPence={false}
         total={1460}
         onCreateSubcategory={() => Promise.resolve()}
         onSaveName={() => Promise.resolve()}
@@ -74,6 +76,7 @@ describe("WaterfallTierTable", () => {
         subcategories={[]}
         items={[]}
         members={[]}
+        showPence={false}
         total={0}
         onCreateSubcategory={() => Promise.resolve()}
         onSaveName={() => Promise.resolve()}

@@ -1,0 +1,42 @@
+name: Enhancement
+description: Small improvement or new capability, implemented directly — no design/spec/plan.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **This repo is public.** Do not include any personal/financial details, identity, or
+        infra/PROD topology. Security weaknesses must be reported as a private
+        [Security Advisory](https://github.com/snayff/fin_plan/security/advisories/new), never here.
+  - type: input
+    id: slug
+    attributes:
+      label: Slug
+      description: Kebab-case identifier. Threads through branch name and PR.
+      placeholder: asset-value-date
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What + why, generic.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        -
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      value: |
+        - [ ] Implemented
+        - [ ] `bun run lint && bun run type-check && bun run test` pass
+    validations:
+      required: true

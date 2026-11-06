@@ -17,12 +17,14 @@ interface SettingsRightPanelProps {
   activeId: string;
   onActiveChange: (id: string) => void;
   children: ReactNode;
+  /** When provided (mobile master-detail), renders a back button in the header. */
+  onMobileBack?: () => void;
 }
 
 const SCROLL_LOCK_MS = 400;
 
 export const SettingsRightPanel = forwardRef<SettingsRightPanelHandle, SettingsRightPanelProps>(
-  ({ title, activeId, onActiveChange, children }, ref) => {
+  ({ title, activeId, onActiveChange, children, onMobileBack }, ref) => {
     const scrollRef = useRef<HTMLDivElement | null>(null);
     const scrollLockUntilRef = useRef<number>(0);
 
@@ -61,19 +63,31 @@ export const SettingsRightPanel = forwardRef<SettingsRightPanelHandle, SettingsR
     }, [activeId, onActiveChange, children]);
 
     return (
-      <main className="flex-1 flex flex-col min-w-0 min-h-0">
+      <div className="flex flex-1 flex-col min-w-0 min-h-0">
         <div
           className={cn(
             "sticky top-0 z-[2] bg-background",
             "flex items-center justify-between px-4 py-3 border-b border-foreground/5"
           )}
         >
-          <h2 className="font-heading text-base font-bold text-foreground">{title}</h2>
+          <div className="flex items-center gap-2">
+            {onMobileBack && (
+              <button
+                type="button"
+                onClick={onMobileBack}
+                aria-label="Back to settings sections"
+                className="text-sm text-foreground/60 transition-colors hover:text-foreground"
+              >
+                ‹ Back
+              </button>
+            )}
+            <h2 className="font-heading text-base font-bold text-foreground">{title}</h2>
+          </div>
         </div>
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
           <div className="settings-right-body px-6 pt-6 pb-32 max-w-3xl space-y-12">{children}</div>
         </div>
-      </main>
+      </div>
     );
   }
 );

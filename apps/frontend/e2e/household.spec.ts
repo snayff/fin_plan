@@ -65,7 +65,7 @@ test.describe("household flow", () => {
 
     // Create the invite via the API — POST /api/households/:id/invite
     const inviteRes = await page.request.post(`${API_BASE}/api/households/${householdId}/invite`, {
-      data: { email: inviteEmail },
+      data: { email: inviteEmail, name: "Invited User" },
       headers: {
         ...authHeader,
         ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),

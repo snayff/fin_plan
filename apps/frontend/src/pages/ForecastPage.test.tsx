@@ -40,22 +40,22 @@ describe("ForecastPage two-panel layout", () => {
   it("renders the section navigator with Cashflow and Growth entries", () => {
     renderWithProviders(<ForecastPage />, { initialEntries: ["/forecast"] });
     // Use navigation landmark to disambiguate from cashflow panel content buttons
-    const nav = screen.getByRole("tablist", { name: /forecast sections/i });
+    const nav = screen.getByRole("navigation", { name: /forecast sections/i });
     expect(nav).toBeTruthy();
-    expect(nav.querySelector('button[aria-selected="true"]')?.textContent).toMatch(/cashflow/i);
+    expect(nav.querySelector('button[aria-current="true"]')?.textContent).toMatch(/cashflow/i);
   });
 
   it("defaults to Cashflow on first visit", () => {
     renderWithProviders(<ForecastPage />, { initialEntries: ["/forecast"] });
-    const nav = screen.getByRole("tablist", { name: /forecast sections/i });
+    const nav = screen.getByRole("navigation", { name: /forecast sections/i });
     const navButtons = Array.from(nav.querySelectorAll("button"));
     const cashflowNav = navButtons.find((b) => /cashflow/i.test(b.textContent ?? ""));
-    expect(cashflowNav?.getAttribute("aria-selected")).toBe("true");
+    expect(cashflowNav?.getAttribute("aria-current")).toBe("true");
   });
 
   it("switches to Growth when Growth is clicked", async () => {
     renderWithProviders(<ForecastPage />, { initialEntries: ["/forecast"] });
-    const nav = screen.getByRole("tablist", { name: /forecast sections/i });
+    const nav = screen.getByRole("navigation", { name: /forecast sections/i });
     const growthNav = Array.from(nav.querySelectorAll("button")).find((b) =>
       /growth/i.test(b.textContent ?? "")
     );

@@ -2,21 +2,35 @@ import { describe, it, expect, mock, beforeEach, beforeAll, afterAll } from "bun
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "../test/helpers/fastify";
 import { errorHandler } from "../middleware/errorHandler";
-import { AuthenticationError } from "../utils/errors";
+import { AuthenticationError, ValidationError } from "../utils/errors";
 
 mock.module("../services/auth.service", () => {
   const fns = {
     register: mock(() => {}),
     login: mock(() => {}),
     findUserById: mock(() => {}),
+    findUserByEmail: mock(() => Promise.resolve(null)),
     refreshAccessToken: mock(() => {}),
     revokeAllUserTokens: mock(() => Promise.resolve()),
     getUserSessions: mock(() => Promise.resolve([])),
     revokeSession: mock(() => Promise.resolve(true)),
     updateUserName: mock(() => {}),
+    changePassword: mock(() => Promise.resolve()),
+    createPasswordResetToken: mock(() => Promise.resolve(null)),
+    resetPassword: mock(() => Promise.resolve("user-1")),
   };
   return { ...fns, authService: fns };
 });
+
+const mockSendPasswordResetEmail = mock(() => Promise.resolve());
+mock.module("../utils/mailer", () => ({
+  sendPasswordResetEmail: mockSendPasswordResetEmail,
+}));
+
+const mockBlacklistToken = mock(() => Promise.resolve());
+mock.module("../utils/tokenBlacklist", () => ({
+  blacklistToken: mockBlacklistToken,
+}));
 
 mock.module("../middleware/auth.middleware", () => ({
   authMiddleware: mock(() => {}),
@@ -47,6 +61,20 @@ afterAll(async () => {
 
 beforeEach(() => {
   mockAuditLog.mockClear();
+  mockSendPasswordResetEmail.mockClear();
+  mockBlacklistToken.mockClear();
+  (authService.register as any).mockClear();
+  (authService.login as any).mockClear();
+  (authService.refreshAccessToken as any).mockClear();
+  (authService.findUserByEmail as any).mockClear();
+  (authService.changePassword as any).mockClear();
+  (authService.changePassword as any).mockResolvedValue(undefined);
+  (authService.createPasswordResetToken as any).mockClear();
+  (authService.createPasswordResetToken as any).mockResolvedValue(null);
+  (authService.resetPassword as any).mockClear();
+  (authService.resetPassword as any).mockResolvedValue("user-1");
+  (authService.revokeAllUserTokens as any).mockClear();
+  (authService.findUserByEmail as any).mockResolvedValue(null);
   const authImpl = async (request: any) => {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -70,15 +98,48 @@ const mockRefreshResponse = {
   rememberMe: true,
   expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
   sessionExpiresAt: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000),
+  userId: "user-1",
 };
+
+/**
+ * Fetch a CSRF token plus its secret cookie. Refresh and logout enforce CSRF,
+ * so requests to them must carry both the X-CSRF-Token header and the _csrf
+ * cookie (forwarded via `extraCookies`).
+ */
+async function getCsrf(extraCookies = ""): Promise<{ token: string; cookie: string }> {
+  const res = await app.inject({ method: "GET", url: "/api/auth/csrf-token" });
+  expect(res.statusCode).toBe(200);
+  const raw = res.headers["set-cookie"];
+  const cookies = Array.isArray(raw) ? raw : [raw];
+  const csrfCookie = cookies.find((c) => c?.startsWith("_csrf="))!.split(";")[0]!;
+  return {
+    token: res.json().csrfToken as string,
+    cookie: extraCookies ? `${csrfCookie}; ${extraCookies}` : csrfCookie,
+  };
+}
+
+/**
+ * POST to a CSRF-protected route, wiring in a valid CSRF token + secret cookie.
+ * login/register/change-password/reset-password all enforce CSRF (SEC-5).
+ */
+async function postWithCsrf(
+  url: string,
+  opts: { payload?: unknown; headers?: Record<string, string>; extraCookies?: string } = {}
+) {
+  const csrf = await getCsrf(opts.extraCookies);
+  return app.inject({
+    method: "POST",
+    url,
+    headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie, ...(opts.headers ?? {}) },
+    payload: opts.payload ?? {},
+  });
+}
 
 describe("POST /api/auth/register", () => {
   it("returns 201 with valid input", async () => {
     (authService.register as any).mockResolvedValue(mockAuthResponse);
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/register",
+    const response = await postWithCsrf("/api/auth/register", {
       payload: { email: "test@test.com", password: "password123456", name: "Test User" },
     });
 
@@ -88,12 +149,38 @@ describe("POST /api/auth/register", () => {
     expect(body.user.email).toBe("test@test.com");
   });
 
-  it("does not expose refreshToken in response body", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     (authService.register as any).mockResolvedValue(mockAuthResponse);
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/register",
+      payload: { email: "test@test.com", password: "password123456", name: "Test User" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.register).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token does not match the secret cookie", async () => {
+    (authService.register as any).mockResolvedValue(mockAuthResponse);
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      headers: { "x-csrf-token": "forged-token", cookie: csrf.cookie },
+      payload: { email: "test@test.com", password: "password123456", name: "Test User" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.register).not.toHaveBeenCalled();
+  });
+
+  it("does not expose refreshToken in response body", async () => {
+    (authService.register as any).mockResolvedValue(mockAuthResponse);
+
+    const response = await postWithCsrf("/api/auth/register", {
       payload: { email: "test@test.com", password: "password123456", name: "Test User" },
     });
 
@@ -104,9 +191,7 @@ describe("POST /api/auth/register", () => {
   it("sets refreshToken cookie", async () => {
     (authService.register as any).mockResolvedValue(mockAuthResponse);
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/register",
+    const response = await postWithCsrf("/api/auth/register", {
       payload: { email: "test@test.com", password: "password123456", name: "Test User" },
     });
 
@@ -117,9 +202,7 @@ describe("POST /api/auth/register", () => {
   });
 
   it("returns 400 for invalid email", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/register",
+    const response = await postWithCsrf("/api/auth/register", {
       payload: { email: "not-an-email", password: "password123456", name: "Test User" },
     });
 
@@ -128,9 +211,7 @@ describe("POST /api/auth/register", () => {
   });
 
   it("returns 400 for short password", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/register",
+    const response = await postWithCsrf("/api/auth/register", {
       payload: { email: "test@test.com", password: "short", name: "Test User" },
     });
 
@@ -138,13 +219,20 @@ describe("POST /api/auth/register", () => {
   });
 
   it("returns 400 for missing name", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/register",
+    const response = await postWithCsrf("/api/auth/register", {
       payload: { email: "test@test.com", password: "password123456" },
     });
 
     expect(response.statusCode).toBe(400);
+  });
+
+  it("returns 400 for over-long password (> 128 chars)", async () => {
+    const response = await postWithCsrf("/api/auth/register", {
+      payload: { email: "test@test.com", password: "a".repeat(129), name: "Test User" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
   });
 });
 
@@ -152,9 +240,7 @@ describe("POST /api/auth/login", () => {
   it("returns 200 with valid credentials", async () => {
     (authService.login as any).mockResolvedValue(mockAuthResponse);
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com", password: "password123456" },
     });
 
@@ -164,12 +250,38 @@ describe("POST /api/auth/login", () => {
     expect(body.user.email).toBe("test@test.com");
   });
 
-  it("does not expose refreshToken in response body", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     (authService.login as any).mockResolvedValue(mockAuthResponse);
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/login",
+      payload: { email: "test@test.com", password: "password123456" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.login).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token does not match the secret cookie", async () => {
+    (authService.login as any).mockResolvedValue(mockAuthResponse);
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "x-csrf-token": "forged-token", cookie: csrf.cookie },
+      payload: { email: "test@test.com", password: "password123456" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.login).not.toHaveBeenCalled();
+  });
+
+  it("does not expose refreshToken in response body", async () => {
+    (authService.login as any).mockResolvedValue(mockAuthResponse);
+
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com", password: "password123456" },
     });
 
@@ -180,9 +292,7 @@ describe("POST /api/auth/login", () => {
   it("sets refreshToken cookie", async () => {
     (authService.login as any).mockResolvedValue(mockAuthResponse);
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com", password: "password123456" },
     });
 
@@ -194,9 +304,7 @@ describe("POST /api/auth/login", () => {
   it("sets persistent refresh cookie when rememberMe=true", async () => {
     (authService.login as any).mockResolvedValue(mockAuthResponse);
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com", password: "password123456", rememberMe: true },
     });
 
@@ -208,9 +316,7 @@ describe("POST /api/auth/login", () => {
   it("passes rememberMe through to authService.login", async () => {
     (authService.login as any).mockResolvedValue(mockAuthResponse);
 
-    await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com", password: "password123456", rememberMe: true },
     });
 
@@ -224,9 +330,7 @@ describe("POST /api/auth/login", () => {
   });
 
   it("returns 400 for missing email", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { password: "password123456" },
     });
 
@@ -234,10 +338,16 @@ describe("POST /api/auth/login", () => {
   });
 
   it("returns 400 for missing password", async () => {
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com" },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("returns 400 for over-long password (> 128 chars)", async () => {
+    const response = await postWithCsrf("/api/auth/login", {
+      payload: { email: "test@test.com", password: "a".repeat(129) },
     });
 
     expect(response.statusCode).toBe(400);
@@ -246,14 +356,47 @@ describe("POST /api/auth/login", () => {
   it("returns 401 for invalid credentials", async () => {
     (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
 
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/auth/login",
+    const response = await postWithCsrf("/api/auth/login", {
       payload: { email: "test@test.com", password: "wrongpassword1" },
     });
 
     expect(response.statusCode).toBe(401);
     expect(response.json().error.code).toBe("AUTH_ERROR");
+  });
+
+  it("attributes LOGIN_FAILED to the targeted account when the email exists", async () => {
+    (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
+    (authService.findUserByEmail as any).mockResolvedValue({
+      id: "user-1",
+      email: "test@test.com",
+    });
+
+    const response = await postWithCsrf("/api/auth/login", {
+      payload: { email: "test@test.com", password: "wrongpassword1" },
+    });
+
+    // Client response stays generic — attribution is audit-only
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Invalid credentials");
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "LOGIN_FAILED", userId: "user-1" })
+    );
+  });
+
+  it("writes LOGIN_FAILED without userId when the email matches no account", async () => {
+    (authService.login as any).mockRejectedValue(new AuthenticationError("Invalid credentials"));
+
+    const response = await postWithCsrf("/api/auth/login", {
+      payload: { email: "nobody@test.com", password: "wrongpassword1" },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Invalid credentials");
+    const failedCall = (mockAuditLog.mock.calls as any[]).find(
+      (c) => c[0]?.action === "LOGIN_FAILED"
+    );
+    expect(failedCall).toBeDefined();
+    expect(failedCall[0].userId).toBeUndefined();
   });
 });
 
@@ -295,26 +438,160 @@ describe("GET /api/auth/me", () => {
 });
 
 describe("POST /api/auth/refresh", () => {
-  it("returns 200 with new access token from body", async () => {
+  it("returns 200 with new access token from cookie", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "valid-refresh-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().accessToken).toBe("new-token");
+    expect(authService.refreshAccessToken).toHaveBeenCalledWith(
+      "valid-refresh-token",
+      expect.any(Object)
+    );
   });
 
-  it("sets persistent cookie on refresh when rememberMe=true", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "valid-refresh-token" },
+      cookies: { refreshToken: "valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token does not match the secret cookie", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": "forged-token", cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for an empty-string CSRF token (no rotation side effect)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": "", cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF secret cookie is absent (header only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    // Present a syntactically valid token but drop the _csrf secret cookie,
+    // keeping only the refresh cookie. Without the secret the token cannot be
+    // verified, so the request must be rejected before the handler runs.
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: "refreshToken=valid-refresh-token" },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("accepts the CSRF header regardless of its name casing", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "X-CSRF-Token": csrf.token, cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(authService.refreshAccessToken).toHaveBeenCalled();
+  });
+
+  it("returns 403 when the logout CSRF secret cookie is absent (header only)", async () => {
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { authorization: "Bearer valid-token", "x-csrf-token": csrf.token },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("ignores a refresh token supplied in the request body (cookie only)", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: { refreshToken: "body-supplied-token" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("writes a TOKEN_REFRESH audit event attributed to the user", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        action: "TOKEN_REFRESH",
+        resource: "session",
+      })
+    );
+  });
+
+  it("sets persistent cookie on refresh when rememberMe=true", async () => {
+    (authService.refreshAccessToken as any).mockResolvedValue(mockRefreshResponse);
+    const csrf = await getCsrf("refreshToken=valid-refresh-token");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
     });
 
     const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
@@ -323,9 +600,12 @@ describe("POST /api/auth/refresh", () => {
   });
 
   it("returns 400 when no refresh token provided", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
       payload: {},
     });
 
@@ -337,11 +617,13 @@ describe("POST /api/auth/refresh", () => {
     (authService.refreshAccessToken as any).mockRejectedValue(
       new AuthenticationError("Invalid or expired refresh token")
     );
+    const csrf = await getCsrf("refreshToken=expired-token");
 
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/refresh",
-      payload: { refreshToken: "expired-token" },
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(401);
@@ -350,21 +632,43 @@ describe("POST /api/auth/refresh", () => {
 
 describe("POST /api/auth/logout", () => {
   it("returns 200 when authenticated", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
-      headers: { authorization: "Bearer valid-token" },
+      headers: {
+        authorization: "Bearer valid-token",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().message).toContain("Logged out");
   });
 
-  it("clears refreshToken cookie", async () => {
+  it("returns 403 when the CSRF token is missing", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
       headers: { authorization: "Bearer valid-token" },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("clears refreshToken cookie", async () => {
+    const csrf = await getCsrf();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: {
+        authorization: "Bearer valid-token",
+        "x-csrf-token": csrf.token,
+        cookie: csrf.cookie,
+      },
     });
 
     const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
@@ -373,9 +677,12 @@ describe("POST /api/auth/logout", () => {
   });
 
   it("returns 401 without auth token", async () => {
+    const csrf = await getCsrf();
+
     const response = await app.inject({
       method: "POST",
       url: "/api/auth/logout",
+      headers: { "x-csrf-token": csrf.token, cookie: csrf.cookie },
     });
 
     expect(response.statusCode).toBe(401);
@@ -423,7 +730,10 @@ describe("PATCH /api/auth/me", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    (authMiddleware as any).mockImplementationOnce(() => {
+    // PATCH /me is guarded by userOnlyAuth (not authMiddleware) — mock the one
+    // the route actually uses so the queued impl is consumed here and does not
+    // leak into a later authMiddleware-guarded test.
+    (userOnlyAuth as any).mockImplementationOnce(() => {
       throw new AuthenticationError("No authorization token provided");
     });
 
@@ -459,5 +769,210 @@ describe("PATCH /api/auth/me", () => {
         metadata: { before: { name: "Old Name" }, after: { name: "New Name" } },
       })
     );
+  });
+});
+
+describe("POST /api/auth/change-password", () => {
+  it("returns 200 and revokes sessions on success", async () => {
+    const response = await postWithCsrf("/api/auth/change-password", {
+      headers: { authorization: "Bearer valid-token" },
+      payload: { currentPassword: "old-password-1", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(authService.changePassword).toHaveBeenCalledWith(
+      "user-1",
+      "old-password-1",
+      "brand-new-password-1"
+    );
+  });
+
+  it("writes a CHANGE_PASSWORD audit event attributed to the user", async () => {
+    const response = await postWithCsrf("/api/auth/change-password", {
+      headers: { authorization: "Bearer valid-token" },
+      payload: { currentPassword: "old-password-1", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        action: "CHANGE_PASSWORD",
+        resource: "user",
+      })
+    );
+  });
+
+  it("clears the refresh cookie so the current session must re-auth", async () => {
+    const response = await postWithCsrf("/api/auth/change-password", {
+      headers: { authorization: "Bearer valid-token" },
+      payload: { currentPassword: "old-password-1", newPassword: "brand-new-password-1" },
+    });
+
+    const refreshCookie = response.cookies.find((c: any) => c.name === "refreshToken");
+    expect(refreshCookie).toBeDefined();
+    expect(refreshCookie!.value).toBe("");
+  });
+
+  it("returns 401 without an auth token", async () => {
+    const response = await postWithCsrf("/api/auth/change-password", {
+      payload: { currentPassword: "old-password-1", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(authService.changePassword).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token is missing", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/change-password",
+      headers: { authorization: "Bearer valid-token" },
+      payload: { currentPassword: "old-password-1", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(authService.changePassword).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when the new password is too short", async () => {
+    const response = await postWithCsrf("/api/auth/change-password", {
+      headers: { authorization: "Bearer valid-token" },
+      payload: { currentPassword: "old-password-1", newPassword: "short" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 401 when the current password is wrong", async () => {
+    (authService.changePassword as any).mockRejectedValue(
+      new AuthenticationError("Current password is incorrect")
+    );
+
+    const response = await postWithCsrf("/api/auth/change-password", {
+      headers: { authorization: "Bearer valid-token" },
+      payload: { currentPassword: "wrong-password", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
+describe("POST /api/auth/forgot-password", () => {
+  it("returns a generic 200 when the account exists and sends an email", async () => {
+    (authService.createPasswordResetToken as any).mockResolvedValue({
+      token: "signed-token",
+      email: "user@test.com",
+    });
+
+    const response = await postWithCsrf("/api/auth/forgot-password", {
+      payload: { email: "user@test.com" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockSendPasswordResetEmail).toHaveBeenCalledWith(
+      "user@test.com",
+      "signed-token",
+      expect.anything()
+    );
+  });
+
+  it("returns the SAME generic 200 when the account does not exist (no enumeration)", async () => {
+    (authService.createPasswordResetToken as any).mockResolvedValue(null);
+
+    const existsRes = await postWithCsrf("/api/auth/forgot-password", {
+      payload: { email: "user@test.com" },
+    });
+    (authService.createPasswordResetToken as any).mockResolvedValue(null);
+    const missingRes = await postWithCsrf("/api/auth/forgot-password", {
+      payload: { email: "nobody@test.com" },
+    });
+
+    expect(existsRes.statusCode).toBe(200);
+    expect(missingRes.statusCode).toBe(200);
+    // Identical body — response must not reveal which emails have accounts.
+    expect(missingRes.json()).toEqual(existsRes.json());
+    expect(mockSendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a malformed email", async () => {
+    const response = await postWithCsrf("/api/auth/forgot-password", {
+      payload: { email: "not-an-email" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(authService.createPasswordResetToken).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the CSRF token is missing", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/forgot-password",
+      payload: { email: "user@test.com" },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+});
+
+describe("POST /api/auth/reset-password", () => {
+  it("returns 200 and revokes sessions on a valid token", async () => {
+    (authService.resetPassword as any).mockResolvedValue("user-1");
+
+    const response = await postWithCsrf("/api/auth/reset-password", {
+      payload: { token: "valid-token", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(authService.resetPassword).toHaveBeenCalledWith("valid-token", "brand-new-password-1");
+  });
+
+  it("writes a PASSWORD_RESET audit event for the resolved user", async () => {
+    (authService.resetPassword as any).mockResolvedValue("user-1");
+
+    const response = await postWithCsrf("/api/auth/reset-password", {
+      payload: { token: "valid-token", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        action: "PASSWORD_RESET",
+        resource: "user",
+      })
+    );
+  });
+
+  it("returns 400 for an invalid/expired token", async () => {
+    (authService.resetPassword as any).mockRejectedValue(
+      new ValidationError("This reset link is invalid or has expired")
+    );
+
+    const response = await postWithCsrf("/api/auth/reset-password", {
+      payload: { token: "bad-token", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 when the new password is too short", async () => {
+    const response = await postWithCsrf("/api/auth/reset-password", {
+      payload: { token: "valid-token", newPassword: "short" },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("returns 403 when the CSRF token is missing", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/reset-password",
+      payload: { token: "valid-token", newPassword: "brand-new-password-1" },
+    });
+
+    expect(response.statusCode).toBe(403);
   });
 });

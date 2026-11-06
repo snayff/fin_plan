@@ -80,7 +80,6 @@ describe("SearchResultKindEnum", () => {
       "account",
       "gift_person",
       "gift_event",
-      "purchase_item",
     ]);
   });
 });

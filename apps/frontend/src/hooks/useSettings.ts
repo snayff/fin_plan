@@ -4,17 +4,23 @@ import { snapshotService } from "@/services/snapshot.service";
 import { householdService } from "@/services/household.service";
 import { useAuthStore } from "@/stores/authStore";
 import { authService } from "@/services/auth.service";
-import type { UpdateSettingsInput, AuditLogQuery } from "@finplan/shared";
+import type { UpdateSettingsInput, AuditLogQuery, StalenessThresholds } from "@finplan/shared";
 import { fetchAuditLog, updateMemberRole } from "@/services/auditLog.service";
 import { fetchSecurityActivity } from "@/services/securityActivity.service";
+import { purgeStaleQueries } from "@/lib/queryClient";
 import { showError } from "@/lib/toast";
+import { queryKeys } from "./queryKeys";
 
+/**
+ * Re-exported for existing consumers/tests. Sourced from the central
+ * `queryKeys` module; values are unchanged.
+ */
 export const SETTINGS_KEYS = {
-  settings: ["settings"] as const,
-  snapshots: ["snapshots"] as const,
-  snapshot: (id: string) => ["snapshots", id] as const,
-  household: (id: string) => ["household", id] as const,
-  members: (id: string) => ["household", id, "members"] as const,
+  settings: queryKeys.settings.settings,
+  snapshots: queryKeys.settings.snapshots,
+  snapshot: queryKeys.settings.snapshot,
+  household: queryKeys.settings.household,
+  members: queryKeys.settings.members,
 };
 
 export function useSettings() {
@@ -24,13 +30,41 @@ export function useSettings() {
   });
 }
 
+/** Canonical staleness item types — must match stalenessThresholdsSchema keys. */
+export type StalenessItemType = keyof StalenessThresholds;
+
+/** Default staleness thresholds (months) per canonical item type. */
+export const STALENESS_DEFAULTS: Required<StalenessThresholds> = {
+  income_source: 12,
+  committed_item: 6,
+  discretionary_item: 12,
+  asset_item: 12,
+  account_item: 3,
+};
+
+/**
+ * Resolve the staleness threshold (in months) for an item type, honouring the
+ * user's custom thresholds and falling back to the canonical defaults.
+ *
+ * Consumers must use the canonical keys (income_source / committed_item /
+ * discretionary_item / asset_item / account_item) — the legacy committed_bill /
+ * discretionary_category keys never existed in the settings schema, so reading
+ * them silently dropped user customisation.
+ */
+export function getStalenessMonths(
+  settings: { stalenessThresholds?: StalenessThresholds | null } | null | undefined,
+  itemType: StalenessItemType
+): number {
+  return settings?.stalenessThresholds?.[itemType] ?? STALENESS_DEFAULTS[itemType];
+}
+
 export function useUpdateSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: UpdateSettingsInput) => settingsService.updateSettings(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.settings });
-      void queryClient.invalidateQueries({ queryKey: ["forecast"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forecast.all });
     },
     onError: (err: Error) => {
       showError(err.message ?? "Failed to save settings");
@@ -108,7 +142,7 @@ export function useRenameHousehold() {
       householdService.renameHousehold(id, name),
     onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(id) });
-      void queryClient.invalidateQueries({ queryKey: ["households"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.settings.householdsList });
     },
     onError: (err: Error) => {
       showError(err.message ?? "Failed to rename household");
@@ -119,8 +153,15 @@ export function useRenameHousehold() {
 export function useInviteMember() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ householdId, email }: { householdId: string; email: string }) =>
-      householdService.inviteMember(householdId, email),
+    mutationFn: ({
+      householdId,
+      email,
+      name,
+    }: {
+      householdId: string;
+      email: string;
+      name: string;
+    }) => householdService.inviteMember(householdId, email, name),
     onSuccess: (_data, { householdId }) => {
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
     },
@@ -165,11 +206,16 @@ export function useLeaveHousehold() {
 
   return useMutation({
     mutationFn: (householdId: string) => householdService.leaveHousehold(householdId),
-    onSuccess: async (_data, householdId) => {
-      const { user } = await authService.getCurrentUser(accessToken!);
-      setUser(user, accessToken!);
-      void queryClient.invalidateQueries({ queryKey: ["households"] });
-      void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
+    onSuccess: async () => {
+      // Guard the refetch so a transient /me failure still purges stale caches.
+      try {
+        const { user } = await authService.getCurrentUser(accessToken!);
+        setUser(user, accessToken!);
+      } catch {
+        // Auth state will resync on the next request; proceed to purge regardless.
+      }
+      // Drop all cached data from the household we just left.
+      purgeStaleQueries(queryClient);
     },
     onError: (err: Error) => {
       showError(err.message ?? "Failed to leave household");
@@ -184,20 +230,28 @@ export function useDeleteHousehold() {
 
   return useMutation({
     mutationFn: (householdId: string) => householdService.deleteHousehold(householdId),
-    onSuccess: async (_data, householdId) => {
+    onSuccess: async () => {
       // The user's activeHouseholdId is auto-cleared by the FK ON DELETE SET NULL,
       // so re-fetching the user lets the auth state reflect the post-deletion reality.
-      const { user } = await authService.getCurrentUser(accessToken!);
-      setUser(user, accessToken!);
-      void queryClient.invalidateQueries({ queryKey: ["households"] });
-      void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
+      // Guard the refetch so a transient /me failure still purges stale caches.
+      try {
+        const { user } = await authService.getCurrentUser(accessToken!);
+        setUser(user, accessToken!);
+      } catch {
+        // Auth state will resync on the next request; proceed to purge regardless.
+      }
+      // Drop all cached data from the deleted household.
+      purgeStaleQueries(queryClient);
+    },
+    onError: (err: Error) => {
+      showError(err.message ?? "Failed to delete household");
     },
   });
 }
 
 export function useAuditLog(filters: Omit<AuditLogQuery, "cursor" | "limit">) {
   return useInfiniteQuery({
-    queryKey: ["audit-log", filters],
+    queryKey: queryKeys.settings.auditLog(filters),
     queryFn: ({ pageParam }) =>
       fetchAuditLog({
         ...filters,
@@ -211,7 +265,7 @@ export function useAuditLog(filters: Omit<AuditLogQuery, "cursor" | "limit">) {
 
 export function useSecurityActivity() {
   return useInfiniteQuery({
-    queryKey: ["security-activity"],
+    queryKey: queryKeys.settings.securityActivity,
     queryFn: ({ pageParam }) =>
       fetchSecurityActivity({ cursor: pageParam as string | undefined, limit: 50 }),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -346,7 +400,6 @@ export function useUpdateMemberRole(householdId: string) {
       showError(error instanceof Error ? error.message : "Failed to update role");
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["household-members"] });
       void queryClient.invalidateQueries({ queryKey: SETTINGS_KEYS.household(householdId) });
     },
   });

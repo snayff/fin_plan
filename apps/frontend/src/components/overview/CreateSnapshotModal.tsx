@@ -19,12 +19,12 @@ export function CreateSnapshotModal({ onClose, onCreated }: CreateSnapshotModalP
     e.preventDefault();
     setDuplicateError(false);
     createSnapshot.mutate(name, {
-      onSuccess: (snapshot: any) => {
-        onCreated?.(snapshot.id as string);
+      onSuccess: (snapshot) => {
+        onCreated?.((snapshot as { id: string }).id);
         onClose();
       },
       onError: (err: unknown) => {
-        if ((err as any)?.status === 409) {
+        if ((err as { statusCode?: number })?.statusCode === 409) {
           setDuplicateError(true);
         }
       },
@@ -50,6 +50,7 @@ export function CreateSnapshotModal({ onClose, onCreated }: CreateSnapshotModalP
             </label>
             <input
               id="snapshot-name"
+              aria-label="Snapshot name"
               className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:border-primary"
               value={name}
               onChange={(e) => {

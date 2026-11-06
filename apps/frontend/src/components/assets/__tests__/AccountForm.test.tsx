@@ -43,6 +43,49 @@ describe("AccountForm — ISA fields", () => {
     expect(screen.getByText(/must be assigned to a member/i)).toBeInTheDocument();
   });
 
+  it("blocks save for a Pension with no member assigned", () => {
+    const onSave = mock(() => {});
+    renderForm({ mode: "add", type: "Pension", onSave, onCancel: mock(() => {}) });
+    fireEvent.change(screen.getByLabelText(/Name/i), { target: { value: "Vanguard SIPP" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(/pension.*assigned to a member/i)).toBeInTheDocument();
+  });
+
+  it("allows save for a Pension when a member is assigned", () => {
+    const onSave = mock(() => {});
+    renderForm({
+      mode: "add",
+      type: "Pension",
+      initialMemberId: "m1",
+      onSave,
+      onCancel: mock(() => {}),
+    });
+    fireEvent.change(screen.getByLabelText(/Name/i), { target: { value: "Vanguard SIPP" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ memberId: "m1" }));
+  });
+
+  it("does not block save for non-Pension types with no member", () => {
+    const onSave = mock(() => {});
+    renderForm({ mode: "add", type: "Current", onSave, onCancel: mock(() => {}) });
+    fireEvent.change(screen.getByLabelText(/Name/i), { target: { value: "Barclays" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    expect(onSave).toHaveBeenCalled();
+  });
+
+  it("surfaces a gentle prompt when editing an unassigned Pension", () => {
+    renderForm({
+      mode: "edit",
+      type: "Pension",
+      initialName: "Old SIPP",
+      initialMemberId: null,
+      onSave: mock(() => {}),
+      onCancel: mock(() => {}),
+    });
+    expect(screen.getByText(/belongs to a single person/i)).toBeInTheDocument();
+  });
+
   it("includes isISA and isaYearContribution in onSave payload", () => {
     const onSave = mock(() => {});
     // Pass initialMemberId so the select is pre-seeded with a member — avoids the

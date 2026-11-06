@@ -5,6 +5,7 @@ import { NotFoundError, ValidationError } from "../utils/errors.js";
 import { toMonthlyAmount } from "@finplan/shared";
 import { getIsaTaxYearWindow } from "../utils/isa-tax-year.js";
 import { forecastContribution, type ForecastInput } from "../utils/isa-forecast.js";
+import { assertMemberInHousehold as assertMemberInHouseholdShared } from "./ownership.js";
 import type {
   AssetType,
   AccountType,
@@ -50,13 +51,11 @@ async function assertAccountOwned(householdId: string, accountId: string) {
 }
 
 async function assertMemberInHousehold(householdId: string, memberId: string) {
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-    select: { id: true, householdId: true },
+  await assertMemberInHouseholdShared(householdId, memberId, {
+    query: "findUnique",
+    error: "ValidationError",
+    message: "Member not found in household",
   });
-  if (!member || member.householdId !== householdId) {
-    throw new ValidationError("Member not found in household");
-  }
 }
 
 // ── Disposal helpers ─────────────────────────────────────────────────────────
@@ -138,11 +137,11 @@ export const assetsService = {
     const [assets, accounts] = await Promise.all([
       prisma.asset.findMany({
         where: { householdId, ...activeWhere() },
-        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] } },
+        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
       }),
       prisma.account.findMany({
         where: { householdId, ...activeWhere() },
-        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] } },
+        include: { balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } },
       }),
     ]);
 
@@ -164,9 +163,12 @@ export const assetsService = {
       ])
     ) as Record<AccountType, number>;
 
+    // Net worth excludes pensions everywhere (#164): pensions are illiquid,
+    // retirement-restricted wealth surfaced separately in the Forecast. Excluding
+    // them here keeps the Overview grand total reconciled with forecast year-0.
     const grandTotal =
       Object.values(assetTotals).reduce((s, v) => s + v, 0) +
-      Object.values(accountTotals).reduce((s, v) => s + v, 0);
+      Object.entries(accountTotals).reduce((s, [type, v]) => (type === "Pension" ? s : s + v), 0);
 
     return { assetTotals, accountTotals, grandTotal };
   },
@@ -181,7 +183,7 @@ export const assetsService = {
     const assets = await prisma.asset.findMany({
       where: { householdId, type, ...(opts.includeDisposed ? {} : activeWhere()) },
       include: {
-        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
       },
       orderBy: { createdAt: "asc" },
     });
@@ -207,6 +209,7 @@ export const assetsService = {
     );
     const {
       initialValue,
+      initialValueDate,
       disposedAt: _ignoredDate,
       disposalAccountId: _ignoredAcct,
       ...rest
@@ -229,7 +232,7 @@ export const assetsService = {
             data: {
               assetId: asset.id,
               value: initialValue,
-              date: new Date(),
+              date: initialValueDate ? new Date(initialValueDate) : new Date(),
             },
           });
         }
@@ -337,7 +340,7 @@ export const assetsService = {
     const accounts = await prisma.account.findMany({
       where: { householdId, type, ...(opts.includeDisposed ? {} : activeWhere()) },
       include: {
-        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+        balances: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 },
         linkedItems: { select: { id: true, name: true, spendType: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -349,6 +352,7 @@ export const assetsService = {
       allLinkedItemIds.length > 0
         ? await prisma.itemAmountPeriod.findMany({
             where: {
+              householdId,
               itemType: "discretionary_item",
               itemId: { in: allLinkedItemIds },
               startDate: { lte: now },
@@ -451,6 +455,7 @@ export const assetsService = {
     );
     const {
       initialValue,
+      initialValueDate,
       disposedAt: _ignoredDate,
       disposalAccountId: _ignoredAcct,
       ...accountData
@@ -473,7 +478,7 @@ export const assetsService = {
             data: {
               accountId: account.id,
               value: initialValue,
-              date: new Date(),
+              date: initialValueDate ? new Date(initialValueDate) : new Date(),
             },
           });
         }
@@ -518,6 +523,15 @@ export const assetsService = {
           | undefined;
         const incomingLimit = (data as Record<string, unknown>).monthlyContributionLimit;
         assertLimitOnlyOnSavings(effectiveType, incomingLimit);
+        // An ISA account must always have an owning member — its allowance is
+        // tracked per member. Reject clearing memberId while the account remains
+        // (or becomes) an ISA. undefined = no change; null = explicit clear.
+        const effectiveIsa = (data.isISA ?? existing?.isISA) === true;
+        const memberCleared = data.memberId === null;
+        const memberStillUnset = data.memberId === undefined && existing?.memberId == null;
+        if (effectiveIsa && (memberCleared || memberStillUnset)) {
+          throw new ValidationError("ISA accounts must have a member assigned");
+        }
         const patch: Record<string, unknown> = { ...rest, ...resolved };
         if (effectiveType !== "Savings" && existing?.monthlyContributionLimit != null) {
           patch.monthlyContributionLimit = null;
@@ -618,6 +632,7 @@ export const assetsService = {
         daysRemaining: window.daysRemaining,
         annualLimit,
         byMember: [],
+        memberlessIsaCount: 0,
       };
     }
 
@@ -627,6 +642,7 @@ export const assetsService = {
       allLinkedItemIds.length > 0
         ? await prisma.itemAmountPeriod.findMany({
             where: {
+              householdId,
               itemType: "discretionary_item",
               itemId: { in: allLinkedItemIds },
               startDate: { lte: today },
@@ -645,8 +661,14 @@ export const assetsService = {
       forecastInputs: ForecastInput[];
     };
     const buckets = new Map<string, Bucket>();
+    // Data-quality signal: ISA accounts with no owning member are excluded from
+    // the per-member allowance breakdown (their allowance can't be attributed).
+    let memberlessIsaCount = 0;
     for (const a of isaAccounts) {
-      if (!a.memberId || !a.member) continue;
+      if (!a.memberId || !a.member) {
+        memberlessIsaCount += 1;
+        continue;
+      }
       const b = buckets.get(a.memberId) ?? {
         memberId: a.memberId,
         name: a.member.name,
@@ -689,6 +711,7 @@ export const assetsService = {
       daysRemaining: window.daysRemaining,
       annualLimit,
       byMember,
+      memberlessIsaCount,
     };
   },
 };

@@ -1,17 +1,13 @@
 // Truncates all user-data tables then runs seed-e2e.
-// Refuses to run if NODE_ENV=production OR DATABASE_URL doesn't contain "test" or "dev".
+// Refuses to run unless every safety gate in src/utils/reset-e2e-guard.ts passes
+// (non-production NODE_ENV, explicit DB_RESET_ALLOWED=true, and a parsed
+// DATABASE_URL whose host and database name match the local/test allow-list).
 import { prisma } from "../src/config/database";
+import { checkResetAllowed } from "../src/utils/reset-e2e-guard";
 
-if (process.env.NODE_ENV === "production") {
-  console.error("reset-e2e-db refused: NODE_ENV=production");
-  process.exit(1);
-}
-
-const dbUrl = process.env.DATABASE_URL ?? "";
-if (!/_test|_dev|finplan_e2e/.test(dbUrl)) {
-  console.error(
-    `reset-e2e-db refused: DATABASE_URL does not look like a test database (${dbUrl})`
-  );
+const check = checkResetAllowed(process.env);
+if (!check.ok) {
+  console.error(`reset-e2e-db refused: ${check.reason}`);
   process.exit(1);
 }
 

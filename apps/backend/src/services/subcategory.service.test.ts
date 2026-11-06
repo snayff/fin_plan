@@ -576,6 +576,13 @@ describe("subcategoryService.resetToDefaults", () => {
     prismaMock.incomeSource.updateMany.mockResolvedValue({ count: 1 } as any);
     prismaMock.subcategory.deleteMany.mockResolvedValue({ count: 2 } as any);
     prismaMock.subcategory.createMany.mockResolvedValue({ count: 3 } as any);
+    // Pre-check groupBy: the only item-holding subcategory is the reassignment
+    // source, which is allowed (it gets emptied before deletion).
+    prismaMock.incomeSource.groupBy.mockResolvedValue([
+      { subcategoryId: "sub-custom", _count: { id: 1 } },
+    ] as any);
+    prismaMock.committedItem.groupBy.mockResolvedValue([] as any);
+    prismaMock.discretionaryItem.groupBy.mockResolvedValue([] as any);
 
     await subcategoryService.resetToDefaults("hh-1", {
       reassignments: [{ fromSubcategoryId: "sub-custom", toSubcategoryId: "sub-other-i" }],
@@ -618,5 +625,39 @@ describe("subcategoryService.resetToDefaults", () => {
         reassignments: [{ fromSubcategoryId: "sub-foreign", toSubcategoryId: "sub-1" }],
       })
     ).rejects.toThrow();
+  });
+
+  // #136: a subcategory that still holds items but is neither a reassignment
+  // source nor target would trigger a P2003 FK RESTRICT on deleteMany. Reject
+  // up front with a 400 instead.
+  it("rejects when an item-holding subcategory was not reassigned", async () => {
+    const existing = [
+      {
+        id: "sub-stuck",
+        householdId: "hh-1",
+        tier: "committed",
+        name: "Subscriptions",
+        sortOrder: 0,
+        isLocked: false,
+        isDefault: false,
+      },
+    ];
+    prismaMock.subcategory.findMany
+      .mockResolvedValueOnce([] as any) // income
+      .mockResolvedValueOnce(existing as any) // committed
+      .mockResolvedValueOnce([] as any); // discretionary
+
+    prismaMock.incomeSource.groupBy.mockResolvedValue([] as any);
+    // sub-stuck still holds an item and is not referenced by any reassignment.
+    prismaMock.committedItem.groupBy.mockResolvedValue([
+      { subcategoryId: "sub-stuck", _count: { id: 2 } },
+    ] as any);
+    prismaMock.discretionaryItem.groupBy.mockResolvedValue([] as any);
+
+    await expect(subcategoryService.resetToDefaults("hh-1", { reassignments: [] })).rejects.toThrow(
+      "still hold items"
+    );
+    // The destructive deleteMany must never run.
+    expect(prismaMock.subcategory.deleteMany).not.toHaveBeenCalled();
   });
 });

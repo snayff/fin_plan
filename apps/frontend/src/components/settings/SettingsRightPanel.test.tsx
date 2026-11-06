@@ -15,7 +15,7 @@ describe("SettingsRightPanel", () => {
     );
     const header = screen.getByRole("heading", { level: 2 });
     expect(header.textContent).toBe("Profile");
-    expect(header.parentElement?.className).toContain("sticky");
+    expect(header.closest(".sticky")).toBeTruthy();
   });
 
   it("renders children inside the scrolling body", () => {

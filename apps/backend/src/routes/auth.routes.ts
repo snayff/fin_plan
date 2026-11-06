@@ -1,84 +1,76 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyRequest,
+  RouteShorthandOptions,
+  onRequestHookHandler,
+} from "fastify";
 import { z } from "zod";
 import { authService } from "../services/auth.service";
 import { auditEvent } from "../services/audit.service";
 import { authMiddleware, userOnlyAuth } from "../middleware/auth.middleware";
-import { config } from "../config/env";
 import { blacklistToken } from "../utils/tokenBlacklist";
+import { setRefreshTokenCookie, clearRefreshTokenCookie } from "../lib/refresh-cookie";
 import { decodeToken } from "../utils/jwt";
 import { NotFoundError, ValidationError } from "../utils/errors";
-import { AuditAction } from "@finplan/shared";
+import { MAX_PASSWORD_LENGTH } from "../utils/password";
+import { sendPasswordResetEmail } from "../utils/mailer";
+import {
+  AuditAction,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "@finplan/shared";
 
 function requestContext(request: FastifyRequest) {
   return { ipAddress: request.ip, userAgent: request.headers["user-agent"] };
 }
 
 /** Blacklist the access token from the current request so it can't be reused after logout. */
-function blacklistCurrentToken(request: FastifyRequest): void {
+async function blacklistCurrentToken(request: FastifyRequest): Promise<void> {
   const authHeader = request.headers.authorization;
   if (!authHeader) return;
   const token = authHeader.split(" ")[1];
   if (!token) return;
   const payload = decodeToken(token);
   if (payload?.jti) {
-    blacklistToken(payload.jti);
+    const expiresAt = payload.exp ? new Date(payload.exp * 1000) : undefined;
+    await blacklistToken(payload.jti, expiresAt);
   }
 }
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(12),
-  name: z.string().min(1),
+  email: z.string().trim().max(254).email(),
+  password: z.string().min(12).max(MAX_PASSWORD_LENGTH),
+  name: z.string().trim().min(1).max(100),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().trim().max(254).email(),
+  password: z.string().min(1).max(MAX_PASSWORD_LENGTH),
   rememberMe: z.boolean().optional().default(false),
 });
-
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1).optional(),
-});
-
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100),
 });
 
-/**
- * Set refresh token as httpOnly cookie
- * Provides security by making token inaccessible to JavaScript
- */
-function setRefreshTokenCookie(
-  reply: FastifyReply,
-  refreshToken: string,
-  options?: { rememberMe?: boolean; maxAgeSeconds?: number }
-) {
-  const rememberMe = options?.rememberMe ?? false;
-  const maxAgeSeconds =
-    options?.maxAgeSeconds && options.maxAgeSeconds > 0 ? options.maxAgeSeconds : 7 * 24 * 60 * 60;
-
-  reply.setCookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: config.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/auth/refresh",
-    ...(rememberMe ? { maxAge: maxAgeSeconds } : {}),
-  });
-}
-
-/**
- * Clear refresh token cookie on logout
- */
-function clearRefreshTokenCookie(reply: FastifyReply) {
-  reply.clearCookie("refreshToken", {
-    path: "/api/auth/refresh",
-  });
-}
-
 export async function authRoutes(fastify: FastifyInstance) {
-  // Rate limit configurations for auth endpoints
+  // CSRF protection for state-changing endpoints.
+  // Tokens are issued by GET /csrf-token and sent back in the X-CSRF-Token
+  // header (the frontend ApiClient does this automatically for every POST).
+  //
+  // fastify.csrfProtection returns the (thenable) reply object when it
+  // rejects a request, which makes the hook runner resume the lifecycle
+  // after the 403 has already been sent. Wrapping it discards the return
+  // value so a rejected request stops here.
+  const csrfProtection: onRequestHookHandler = (request, reply, done) => {
+    fastify.csrfProtection(request, reply, done);
+  };
+
+  // Rate limit configurations for auth endpoints. login/register also require
+  // a CSRF token (SEC-5) — the frontend already sends one on every POST, so
+  // this closes the gap where they were the only unprotected state-changers.
   const loginOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
     config: {
       rateLimit: {
         max: 5,
@@ -88,6 +80,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   };
 
   const registerOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
     config: {
       rateLimit: {
         max: 10,
@@ -97,10 +90,33 @@ export async function authRoutes(fastify: FastifyInstance) {
   };
 
   const refreshOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
     config: {
       rateLimit: {
         max: 10,
         timeWindow: "15 minutes",
+      },
+    },
+  };
+
+  // Rate limits for the password change/forgot/reset flows (SEC-2). Forgot is
+  // tightly capped to blunt enumeration/spam; reset a little higher for retries.
+  const forgotPasswordOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: "1 hour",
+      },
+    },
+  };
+
+  const resetPasswordOpts: RouteShorthandOptions = {
+    onRequest: csrfProtection,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "1 hour",
       },
     },
   };
@@ -161,7 +177,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       const { refreshToken: _rt, ...publicResult } = result;
       return reply.status(200).send(publicResult);
     } catch (error) {
+      // Attribute the failed attempt to the targeted account when the email
+      // matches an existing user. Best-effort only — the client response
+      // stays generic regardless.
+      let targetUserId: string | undefined;
+      try {
+        const targetUser = await authService.findUserByEmail(body.email);
+        targetUserId = targetUser?.id;
+      } catch {
+        // Attribution must never block the audit write or change the response
+      }
+
       await auditEvent({
+        ...(targetUserId ? { userId: targetUserId } : {}),
         action: "LOGIN_FAILED",
         resource: "session",
         metadata: { email: body.email },
@@ -218,13 +246,11 @@ export async function authRoutes(fastify: FastifyInstance) {
    * POST /api/auth/refresh
    * Refresh access token using refresh token
    * Rate limit: 10 attempts per 15 minutes per IP
-   * Supports BOTH cookie and request body for backward compatibility
+   * The refresh token is read from the httpOnly cookie only — it is never
+   * accepted from the request body.
    */
   fastify.post("/refresh", refreshOpts, async (request, reply) => {
-    const body = refreshSchema.parse(request.body);
-
-    // Try cookie first, then body (backward compatibility)
-    const refreshToken = request.cookies.refreshToken || body.refreshToken;
+    const refreshToken = request.cookies.refreshToken;
 
     if (!refreshToken) {
       throw new ValidationError("Refresh token required");
@@ -234,6 +260,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     const result = await authService.refreshAccessToken(refreshToken, ctx);
 
     await auditEvent({
+      userId: result.userId,
       action: "TOKEN_REFRESH",
       resource: "session",
       ...ctx,
@@ -263,27 +290,118 @@ export async function authRoutes(fastify: FastifyInstance) {
   /**
    * POST /api/auth/logout
    * Logout user - clears refresh token cookie
+   * Requires a CSRF token in addition to the access token.
    */
-  fastify.post("/logout", { preHandler: authMiddleware }, async (request, reply) => {
-    const userId = request.user!.userId;
+  fastify.post(
+    "/logout",
+    { onRequest: csrfProtection, preHandler: authMiddleware },
+    async (request, reply) => {
+      const userId = request.user!.userId;
 
-    // Blacklist the current access token so it can't be reused
-    blacklistCurrentToken(request);
+      // Blacklist the current access token so it can't be reused
+      await blacklistCurrentToken(request);
 
-    // Revoke all refresh tokens for this user
-    await authService.revokeAllUserTokens(userId);
+      // Revoke all refresh tokens for this user
+      await authService.revokeAllUserTokens(userId);
+
+      await auditEvent({
+        userId,
+        action: "LOGOUT",
+        resource: "session",
+        ...requestContext(request),
+      });
+
+      // Clear refresh token cookie
+      clearRefreshTokenCookie(reply);
+
+      return reply.status(200).send({ message: "Logged out successfully" });
+    }
+  );
+
+  /**
+   * POST /api/auth/change-password
+   * Change the password for an authenticated user (SEC-2).
+   * Verifies the current password, sets the new one, and revokes all sessions
+   * (including the current one) so every device must re-authenticate. Requires
+   * a CSRF token in addition to the access token.
+   */
+  fastify.post(
+    "/change-password",
+    { onRequest: csrfProtection, preHandler: authMiddleware },
+    async (request, reply) => {
+      const userId = request.user!.userId;
+      const body = changePasswordSchema.parse(request.body);
+
+      await authService.changePassword(userId, body.currentPassword, body.newPassword);
+
+      // Terminate the acting session too: blacklist its access token and clear
+      // the refresh cookie. changePassword already revoked the refresh tokens.
+      await blacklistCurrentToken(request);
+      clearRefreshTokenCookie(reply);
+
+      await auditEvent({
+        userId,
+        action: "CHANGE_PASSWORD",
+        resource: "user",
+        resourceId: userId,
+        ...requestContext(request),
+      });
+
+      return reply.status(200).send({ message: "Password changed successfully" });
+    }
+  );
+
+  /**
+   * POST /api/auth/forgot-password
+   * Request a password-reset email (SEC-2). Always returns the same generic
+   * 200 response regardless of whether the account exists — no enumeration.
+   * When the account exists, a single-use, 1-hour reset token is emailed.
+   */
+  fastify.post("/forgot-password", forgotPasswordOpts, async (request, reply) => {
+    const body = forgotPasswordSchema.parse(request.body);
+    const ctx = requestContext(request);
+
+    const result = await authService.createPasswordResetToken(body.email);
+
+    if (result) {
+      // Fire the email + audit only when an account matched. Both are wrapped so
+      // a mail/audit failure never changes the generic response the client sees.
+      await sendPasswordResetEmail(result.email, result.token, request.log);
+      await auditEvent({
+        action: "PASSWORD_RESET_REQUEST",
+        resource: "user",
+        metadata: { email: result.email },
+        ...ctx,
+      });
+    }
+
+    return reply
+      .status(200)
+      .send({ message: "If an account exists for that email, a reset link has been sent." });
+  });
+
+  /**
+   * POST /api/auth/reset-password
+   * Complete a password reset using a token from the reset email (SEC-2).
+   * Validates the single-use token, sets the new password, and revokes all
+   * sessions. Errors are generic and never reveal token/account state.
+   */
+  fastify.post("/reset-password", resetPasswordOpts, async (request, reply) => {
+    const body = resetPasswordSchema.parse(request.body);
+
+    const userId = await authService.resetPassword(body.token, body.newPassword);
 
     await auditEvent({
       userId,
-      action: "LOGOUT",
-      resource: "session",
+      action: "PASSWORD_RESET",
+      resource: "user",
+      resourceId: userId,
       ...requestContext(request),
     });
 
-    // Clear refresh token cookie
-    clearRefreshTokenCookie(reply);
-
-    return reply.status(200).send({ message: "Logged out successfully" });
+    return reply
+      .status(200)
+      .send({ message: "Password reset successfully. Please log in with your new password." });
   });
 
   /**

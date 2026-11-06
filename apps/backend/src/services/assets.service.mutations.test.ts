@@ -148,6 +148,22 @@ describe("assetsService.updateAccount", () => {
       assetsService.updateAccount(HOUSEHOLD_ID, ACCOUNT_ID, { name: "x" } as any, ctx)
     ).rejects.toThrow("Account not found");
   });
+
+  it("rejects clearing memberId on an ISA account (#143)", async () => {
+    prismaMock.account.findUnique
+      .mockResolvedValueOnce({ id: ACCOUNT_ID, householdId: HOUSEHOLD_ID }) // assertAccountOwned
+      .mockResolvedValueOnce({
+        id: ACCOUNT_ID,
+        type: "Savings",
+        isISA: true,
+        memberId: "m-1",
+      }); // mutation read
+
+    await expect(
+      assetsService.updateAccount(HOUSEHOLD_ID, ACCOUNT_ID, { memberId: null } as any, ctx)
+    ).rejects.toThrow("ISA accounts must have a member assigned");
+    expect(prismaMock.account.update).not.toHaveBeenCalled();
+  });
 });
 
 describe("assetsService.recordAccountBalance", () => {
@@ -200,5 +216,26 @@ describe("assetsService.getIsaAllowanceSummary", () => {
     expect(result.byMember).toEqual([]);
     expect(result.annualLimit).toBe(20000);
     expect(result.taxYearStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.memberlessIsaCount).toBe(0);
+  });
+
+  it("counts member-less ISA accounts as a data-quality signal (#143)", async () => {
+    prismaMock.householdSettings.findUnique.mockResolvedValue({ isaAnnualLimit: 20000 } as any);
+    prismaMock.account.findMany.mockResolvedValue([
+      { id: "isa-1", memberId: null, member: null, isaYearContribution: 0, linkedItems: [] },
+      {
+        id: "isa-2",
+        memberId: "m-1",
+        member: { id: "m-1", name: "Alex" },
+        isaYearContribution: 1000,
+        linkedItems: [],
+      },
+    ] as any);
+
+    const result = await assetsService.getIsaAllowanceSummary(HOUSEHOLD_ID, new Date("2026-06-01"));
+
+    expect(result.memberlessIsaCount).toBe(1);
+    expect(result.byMember).toHaveLength(1);
+    expect(result.byMember[0]?.memberId).toBe("m-1");
   });
 });

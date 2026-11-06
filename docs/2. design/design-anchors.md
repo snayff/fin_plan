@@ -39,9 +39,9 @@
 
 9. **Non-advisory.** finplan surfaces mechanics and arithmetic only — never recommendations. "£11,600 ISA allowance remaining before April" is acceptable. "You should use your ISA allowance" is not.
 
-10. **Non-judgemental.** finplan does not colour-code financial positions as good or bad. Whether you have money or no money, the app shows the same neutral treatment. Financial values are never red (negative) or green (positive). The app helps — it does not grade.
+10. **Non-judgemental.** finplan does not colour-code financial positions as good or bad. Whether you have money or no money, the app shows the same neutral treatment. Financial values are never red (negative) or green (positive). The app helps — it does not grade. _Carve-out:_ this rule governs **financial values only**. It does not constrain functional UI affordances such as a completion tick (green "✓ Done") or a destructive control (red delete state), which communicate interaction state — not a judgement about your finances.
 
-11. **Calm by default.** The app is a trusted companion, not an alarm system. Silence means everything is fine. Amber is the only attention signal — a gentle "noteworthy" marker, never an alarm. Red is reserved for app errors only.
+11. **Calm by default.** The app is a trusted companion, not an alarm system. Silence means everything is fine. Amber is the only attention signal — a gentle "noteworthy" marker, never an alarm. Red is reserved for app errors and destructive actions (e.g. delete/remove controls) — never for financial values, and never as a general alarm.
 
 12. **Staleness is always informational, never blocking.** A stale value is flagged but never prevents the user from proceeding. The user is always in control.
 
@@ -53,7 +53,7 @@
 
 14. **Surplus is the cascaded remainder of the waterfall.** Surplus = Income − Committed Spend − Discretionary Spend. There is no other definition.
 
-15. **Yearly bills use a ÷12 virtual pot model.** Each month, one-twelfth of the annual bill amount accumulates in a virtual pot. Bills deduct from that pot when they fall due. Cashflow shortfalls are detected by comparing the pot balance to upcoming bills.
+15. **Cashflow is a daily balance projection over linked accounts.** Starting from the latest known balance of the cashflow-linked Current and Savings accounts, the projection walks forward day by day: recurring income, committed bills, and one-off discretionary items land on their due dates, ongoing discretionary spend is amortised evenly across each month, and asset/account disposals credit their proceeds when they liquidate. A shortfall is the point where this running balance dips below zero — surfaced with the date and the items that push it under. There is no virtual pot; timing is resolved at day-level precision against real account balances.
 
 16. **Snapshots are read-only.** When viewing a historical snapshot, all editing is disabled. The current plan is always editable; historical states never are.
 

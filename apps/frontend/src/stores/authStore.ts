@@ -7,6 +7,7 @@ import {
 } from "../services/auth.service";
 import type { ApiError } from "../lib/api";
 import { decodeAccessTokenExpMs } from "../lib/jwt";
+import { resetClientCaches } from "../lib/sessionCleanup";
 
 export type AuthStatus = "initializing" | "authenticated" | "unauthenticated";
 
@@ -96,6 +97,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUnauthenticated: () => {
     clearScheduledRefresh();
+    // Every path out of an authenticated session lands here (manual logout,
+    // refresh failure, session expiry), so this is the single place where
+    // client-side caches holding user data are reset.
+    resetClientCaches();
     set({
       user: null,
       accessToken: null,

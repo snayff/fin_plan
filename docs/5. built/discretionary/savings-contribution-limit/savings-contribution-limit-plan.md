@@ -3,8 +3,8 @@ feature: savings-contribution-limit
 category: discretionary
 spec: docs/4. planning/savings-contribution-limit/savings-contribution-limit-spec.md
 creation_date: 2026-04-26
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Savings Contribution Limit — Implementation Plan

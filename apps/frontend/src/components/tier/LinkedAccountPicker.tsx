@@ -14,15 +14,14 @@ interface Props {
 
 const NONE_VALUE = "__none__";
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 
 export function LinkedAccountPicker({ value, onChange }: Props) {
   const { data: savingsAccounts = [] } = useAccountsByType("Savings");
 
   return (
     <div className="col-span-2 flex flex-col gap-1">
-      {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- TODO(a11y): Radix Select lacks a native id; needs aria-labelledby refactor */}
-      <label className={labelClass}>Link to account</label>
+      <span className={labelClass}>Link to account</span>
       <Select
         value={value ?? NONE_VALUE}
         onValueChange={(v) => onChange(v === NONE_VALUE ? null : v)}

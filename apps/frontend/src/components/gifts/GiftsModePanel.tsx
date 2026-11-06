@@ -9,10 +9,15 @@ type Props = {
   people: GiftPersonRow[];
   year: number;
   readOnly: boolean;
+  /** Open this person's detail on mount (search result for a gift person). */
+  initialPersonId?: string | null;
 };
 
-export function GiftsModePanel({ people, year, readOnly }: Props) {
-  const [activePersonId, setActivePersonId] = useState<string | null>(null);
+export function GiftsModePanel({ people, year, readOnly, initialPersonId = null }: Props) {
+  // Ignore a deep-linked id that isn't one of this year's people.
+  const [activePersonId, setActivePersonId] = useState<string | null>(
+    initialPersonId && people.some((p) => p.id === initialPersonId) ? initialPersonId : null
+  );
   const [dir, setDir] = useState(1);
   const reduced = usePrefersReducedMotion();
 

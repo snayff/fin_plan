@@ -78,6 +78,8 @@ One colour per waterfall tier, used exclusively for that tier's heading, accent 
 
 **Rule:** Tier colours are semantically protected. They must only appear in their tier context — heading text, accent bar, value text, and contextual interactive states (hover/selected backgrounds at reduced opacity). They must never be repurposed for status indicators, attention signals, buttons, or any non-tier UI element.
 
+**Sanctioned exception — celebration confetti.** Onboarding/celebration confetti (the `WelcomePage` household-created burst) may reuse all four tier colours together as a festive palette. The full waterfall palette appearing at once reads as "your whole plan is ready" rather than as a per-tier semantic signal, so this does not violate the protection rule. When reused this way the colours **must** be sourced from the canonical tier CSS custom properties (`hsl(var(--tier-income))` … `hsl(var(--tier-surplus))`) — never hardcoded hex — so the celebration always tracks the real tier palette.
+
 #### Accent & Action
 
 | Token         | Value     | Used for                                                       | Notes                                                                           |
@@ -1011,7 +1013,7 @@ When a list has no items (accounts, purchases, gifts, etc.):
 **Callout gradient CTA card spec:**
 
 ```
-background: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, rgba(168, 85, 247, 0.05) 100%)
+background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%)
 border: 1px solid rgba(99, 102, 241, 0.1)
 border-radius: 8px
 padding: 14px 16px
@@ -1194,9 +1196,9 @@ When a historical snapshot is loaded:
 
 - Used for three purposes: (1) staleness age on `StalenessIndicator` hover, (2) term definitions on hover for financial terminology, (3) explanations on hover for any standalone icon that carries meaning but has no visible label text
 - Tooltip definitions for financial terms and functional icons are maintained in `definitions.md`
-- No in-app glossary — contextual tooltips are the only explanation mechanism
+- Contextual tooltips are the primary in-context explanation mechanism. A dedicated in-app glossary (the Help page, rendered from `definitions.md` via `data/glossary.ts`) provides the full searchable reference — the two share the same canonical source so they never drift
 - Tooltip text: 12px, `font-body`, `surface-overlay` background
-- **Rule:** any icon not accompanied by visible label text must have a tooltip. No icon-only UI element may be left without one.
+- **Rule:** any icon not accompanied by visible label text must carry an accessible name — at minimum an `aria-label`. A hover tooltip is additionally recommended when the icon's meaning isn't obvious from context. No icon-only UI element may be left without an accessible name.
 
 ---
 
@@ -1630,8 +1632,8 @@ The profile avatar is the unified entry point for personal settings and session 
 ```
   ( JS )
   ┌────────────────────────────┐
-  │   Josh Snaith              │
-  │   snaith2@gmail.com        │
+  │   Jane Smith               │
+  │   jane@example.com         │
   │  ────────────────────────  │
   │   👤  Profile settings     │
   │   ↪   Sign out             │

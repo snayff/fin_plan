@@ -1,10 +1,10 @@
 ---
 feature: overview-item-detail
-status: backlog
+status: implemented
 priority: high
 deferred: false
 phase: 6
-implemented_date:
+implemented_date: 2026-07-05
 ---
 
 # Overview — Item Detail Panel

@@ -6,6 +6,9 @@ mock.module("./audit.service.js", () => ({
   audited: mock(({ mutation }: { mutation: (tx: typeof prismaMock) => unknown }) =>
     mutation(prismaMock)
   ),
+  // create() now audits inside its own Serializable transaction via these.
+  auditEventTx: mock(() => Promise.resolve()),
+  computeDiff: mock(() => []),
 }));
 
 const { subcategoryService } = await import("./subcategory.service.js");
@@ -86,6 +89,22 @@ describe("subcategoryService.create", () => {
     await expect(subcategoryService.create("hh-1", "income", "Salary")).rejects.toMatchObject({
       name: "ConflictError",
     });
+  });
+
+  // #136: the cap re-count + insert run inside a Serializable transaction so a
+  // racing pair can't both slip past a 6→7 boundary.
+  it("re-counts and inserts inside a Serializable transaction", async () => {
+    prismaMock.subcategory.count.mockResolvedValue(2);
+    prismaMock.subcategory.aggregate.mockResolvedValue({ _max: { sortOrder: 1 } } as any);
+    prismaMock.subcategory.create.mockResolvedValue({ id: "new-1" } as any);
+
+    await subcategoryService.create("hh-1", "income", "Bonus");
+
+    expect(prismaMock.$transaction).toHaveBeenCalled();
+    const opts = (prismaMock.$transaction.mock.calls[0] as any)[1];
+    expect(opts).toMatchObject({ isolationLevel: "Serializable" });
+    // count is evaluated inside the transaction (against tx, i.e. the mock).
+    expect(prismaMock.subcategory.count).toHaveBeenCalled();
   });
 });
 

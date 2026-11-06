@@ -1,4 +1,5 @@
 import { apiClient } from "../lib/api";
+import type { User } from "./auth.service";
 
 export interface Household {
   id: string;
@@ -83,10 +84,12 @@ export const householdService = {
   async inviteMember(
     householdId: string,
     email: string,
+    name: string,
     role?: "member" | "admin"
   ): Promise<CreateInviteResponse> {
     return apiClient.post<CreateInviteResponse>(`/api/households/${householdId}/invite`, {
       email,
+      name,
       ...(role !== undefined ? { role } : {}),
     });
   },
@@ -94,10 +97,11 @@ export const householdService = {
   async regenerateInvite(
     householdId: string,
     inviteId: string,
-    email: string
+    email: string,
+    name: string
   ): Promise<CreateInviteResponse> {
     await this.cancelInvite(householdId, inviteId);
-    return this.inviteMember(householdId, email);
+    return this.inviteMember(householdId, email, name);
   },
 
   async removeMember(householdId: string, memberId: string): Promise<{ success: boolean }> {
@@ -125,7 +129,7 @@ export const householdService = {
   },
 
   async acceptInvite(token: string, data: { name: string; email: string; password: string }) {
-    return apiClient.post<{ user: any; accessToken: string }>(
+    return apiClient.post<{ user: User; accessToken: string }>(
       `/api/auth/invite/${token}/accept`,
       data
     );

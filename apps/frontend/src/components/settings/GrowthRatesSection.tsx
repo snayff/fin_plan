@@ -124,7 +124,7 @@ export function GrowthRatesSection() {
     >
       <div className="flex flex-col gap-5 max-w-lg">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.07em] text-text-muted mb-2">Accounts</p>
+          <p className="label-section mb-2">Accounts</p>
           <div className="grid grid-cols-2 gap-3">
             {ACCOUNT_RATE_KEYS.map((k) => (
               <RateField key={k} rateKey={k} current={current} onUpdate={save} />
@@ -132,7 +132,7 @@ export function GrowthRatesSection() {
           </div>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.07em] text-text-muted mb-2">Assets</p>
+          <p className="label-section mb-2">Assets</p>
           <div className="grid grid-cols-2 gap-3">
             {ASSET_RATE_KEYS.map((k) => (
               <RateField key={k} rateKey={k} current={current} onUpdate={save} />

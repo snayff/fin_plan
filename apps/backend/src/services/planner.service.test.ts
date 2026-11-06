@@ -41,6 +41,38 @@ describe("plannerService.createPurchase", () => {
       }),
     });
   });
+
+  it("accepts fundingAccountId when the account belongs to the household", async () => {
+    const ctx = { householdId: "hh-1", actorId: "user-1", actorName: "Test" };
+    prismaMock.account.findFirst.mockResolvedValue({ id: "acc-1", householdId: "hh-1" } as any);
+    prismaMock.purchaseItem.create.mockResolvedValue({ id: "p-1" } as any);
+    prismaMock.auditLog.create.mockResolvedValue({} as any);
+
+    await plannerService.createPurchase(
+      "hh-1",
+      { name: "Bike", estimatedCost: 500, fundingAccountId: "acc-1" },
+      ctx
+    );
+
+    expect(prismaMock.account.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "acc-1", householdId: "hh-1" } })
+    );
+    expect(prismaMock.purchaseItem.create).toHaveBeenCalled();
+  });
+
+  it("throws NotFoundError when fundingAccountId is not in the household", async () => {
+    const ctx = { householdId: "hh-1", actorId: "user-1", actorName: "Test" };
+    prismaMock.account.findFirst.mockResolvedValue(null);
+
+    await expect(
+      plannerService.createPurchase(
+        "hh-1",
+        { name: "Bike", estimatedCost: 500, fundingAccountId: "acc-foreign" },
+        ctx
+      )
+    ).rejects.toThrow("Account not found");
+    expect(prismaMock.purchaseItem.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("plannerService.updatePurchase", () => {
@@ -63,6 +95,19 @@ describe("plannerService.updatePurchase", () => {
     await expect(
       plannerService.updatePurchase("hh-1", "p-1", { name: "New name" }, ctx)
     ).rejects.toThrow("Purchase not found");
+  });
+
+  it("throws NotFoundError when fundingAccountId is not in the household", async () => {
+    prismaMock.purchaseItem.findUnique.mockResolvedValue({
+      id: "p-1",
+      householdId: "hh-1",
+    } as any);
+    prismaMock.account.findFirst.mockResolvedValue(null);
+
+    await expect(
+      plannerService.updatePurchase("hh-1", "p-1", { fundingAccountId: "acc-foreign" }, ctx)
+    ).rejects.toThrow("Account not found");
+    expect(prismaMock.purchaseItem.update).not.toHaveBeenCalled();
   });
 });
 
@@ -95,17 +140,19 @@ describe("plannerService.getYearBudget", () => {
     expect(prismaMock.plannerYearBudget.create).not.toHaveBeenCalled();
   });
 
-  it("auto-creates with defaults when not found", async () => {
+  it("returns transient defaults without creating a row when not found (#179)", async () => {
     prismaMock.plannerYearBudget.findUnique.mockResolvedValue(null);
-    prismaMock.plannerYearBudget.create.mockResolvedValue({
+
+    const result = await plannerService.getYearBudget("hh-1", 2025);
+
+    // GET must be side-effect free: no row created on read.
+    expect(prismaMock.plannerYearBudget.create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      id: null,
       householdId: "hh-1",
       year: 2025,
-    } as any);
-
-    await plannerService.getYearBudget("hh-1", 2025);
-
-    expect(prismaMock.plannerYearBudget.create).toHaveBeenCalledWith({
-      data: { householdId: "hh-1", year: 2025 },
+      purchaseBudget: 0,
+      giftBudget: 0,
     });
   });
 });

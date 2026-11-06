@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels need htmlFor/id refactor; autoFocus is intentional for form open */
 import { useState } from "react";
 import {
   Select,
@@ -15,6 +14,8 @@ import type { TierConfig, TierKey } from "./tierConfig";
 import type { SpendType } from "./formatAmount";
 import { LinkedAccountPicker } from "./LinkedAccountPicker";
 import { getItemNamePlaceholder } from "./itemNamePlaceholder";
+import GhostAddButton from "./GhostAddButton";
+import { formatDueDate } from "@/components/waterfall/tierRowFormat";
 
 const TIER_TO_PERIOD_ITEM_TYPE: Record<TierKey, string> = {
   income: "income_source",
@@ -58,6 +59,8 @@ interface ItemPeriod {
   startDate: string | Date;
   endDate?: string | Date | null;
   amount: number;
+  /** Payment date from this period on; null keeps the item's own dueDate. */
+  dueDate?: string | Date | null;
 }
 
 interface EditItem extends Omit<ItemData, "dueDate"> {
@@ -130,12 +133,23 @@ export default function ItemForm({
   const [isAddingPeriod, setIsAddingPeriod] = useState(false);
   const [newPeriodStart, setNewPeriodStart] = useState(() => toDateInputValue(new Date()));
   const [newPeriodAmount, setNewPeriodAmount] = useState("");
+  // Prefilled with the payment date in force today; only sent if changed so an
+  // amount-only change keeps following the existing date.
+  const currentDueDateValue = item?.dueDate ? toDateInputValue(item.dueDate) : "";
+  const [newPeriodDueDate, setNewPeriodDueDate] = useState(currentDueDateValue);
 
   const periodItemType = TIER_TO_PERIOD_ITEM_TYPE[tier];
   const itemId = item?.id ?? "";
   const qc = useQueryClient();
   const createPeriod = useCreatePeriod(periodItemType, itemId);
   const deletePeriod = useDeletePeriod(periodItemType, itemId);
+
+  function resetNewPeriod() {
+    setIsAddingPeriod(false);
+    setNewPeriodAmount("");
+    setNewPeriodStart(toDateInputValue(new Date()));
+    setNewPeriodDueDate(currentDueDateValue);
+  }
 
   function invalidateTierItems() {
     void qc.invalidateQueries({ queryKey: ["waterfall", "tier-items", tier] });
@@ -156,6 +170,9 @@ export default function ItemForm({
   // Discretionary items only need a date for one-off purchases.
   const dueDateRequired = tier === "income" || tier === "committed";
   const showDueDate = dueDateRequired || spendType === "one_off";
+  // A period can move the payment date only where the projection schedules
+  // recurring payments off it (income + committed, not one-offs).
+  const periodCanMoveDueDate = dueDateRequired && spendType !== "one_off";
   const dueDateLabel =
     spendType === "monthly" ||
     spendType === "weekly" ||
@@ -195,7 +212,7 @@ export default function ItemForm({
     });
   }
 
-  const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+  const labelClass = "label-chart";
   const inputClass =
     "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -210,9 +227,9 @@ export default function ItemForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Name <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             placeholder={getItemNamePlaceholder(currentSubcategoryName, tier)}
@@ -226,9 +243,9 @@ export default function ItemForm({
 
         {/* Amount */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Amount <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             inputMode="decimal"
@@ -244,15 +261,15 @@ export default function ItemForm({
             className={[
               inputClass,
               "font-numeric",
-              amountError ? "border-amber-400/60 focus:border-amber-400" : "",
+              amountError ? "border-attention/60 focus:border-attention" : "",
             ].join(" ")}
           />
-          {amountError && <p className="-mt-0.5 text-xs text-amber-400">{amountError}</p>}
+          {amountError && <p className="-mt-0.5 text-xs text-attention">{amountError}</p>}
         </div>
 
         {/* Frequency */}
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>Frequency</label>
+          <span className={labelClass}>Frequency</span>
           <Select value={spendType} onValueChange={(v) => setSpendType(v as SpendType)}>
             <SelectTrigger
               aria-label="Spend type"
@@ -289,7 +306,7 @@ export default function ItemForm({
 
         {/* Category */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Category</label>
+          <span className={labelClass}>Category</span>
           <Select value={subcategoryId} onValueChange={handleSubcategoryChange}>
             <SelectTrigger
               aria-label="Subcategory"
@@ -314,7 +331,7 @@ export default function ItemForm({
 
         {/* Member */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Assigned to</label>
+          <span className={labelClass}>Assigned to</span>
           <Select
             value={memberId ?? "__household__"}
             onValueChange={(v) => setMemberId(v === "__household__" ? null : v)}
@@ -338,7 +355,7 @@ export default function ItemForm({
 
         {/* Notes */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Notes</label>
+          <span className={labelClass}>Notes</span>
           <textarea
             placeholder="Any details worth remembering"
             value={notes}
@@ -353,7 +370,12 @@ export default function ItemForm({
         {/* Period editor — edit mode only */}
         {mode === "edit" && item?.periods && item.periods.length > 0 && (
           <div className="col-span-2 flex flex-col gap-1">
-            <label className={labelClass}>Value History</label>
+            <span className={labelClass}>Amount history</span>
+            <p className="text-xs text-text-tertiary">
+              {periodCanMoveDueDate
+                ? "Add a period when the amount or payment date changes from a given date."
+                : "Add a period when the amount changes from a given date."}
+            </p>
             <div className="flex flex-col gap-1">
               {item.periods.map((period) => {
                 const now = new Date();
@@ -375,8 +397,13 @@ export default function ItemForm({
                       {startDate.toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
                     </span>
                     <span className="font-numeric text-sm text-text-secondary min-w-[70px]">
-                      £{period.amount.toFixed(2)}
+                      {formatCurrency(period.amount, showPence)}
                     </span>
+                    {period.dueDate && (
+                      <span className="text-xs text-text-tertiary">
+                        paid {formatDueDate({ spendType, dueDate: new Date(period.dueDate) })}
+                      </span>
+                    )}
                     {isCurrent && (
                       <span
                         className={`text-[9px] font-semibold uppercase tracking-[0.06em] ${config?.textClass ?? "text-text-secondary"} opacity-70`}
@@ -384,11 +411,7 @@ export default function ItemForm({
                         Current
                       </span>
                     )}
-                    {isFuture && (
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                        Scheduled
-                      </span>
-                    )}
+                    {isFuture && <span className="label-chart">Scheduled</span>}
                     <button
                       type="button"
                       disabled={deletePeriod.isPending}
@@ -406,23 +429,41 @@ export default function ItemForm({
               })}
             </div>
             {isAddingPeriod ? (
-              <div className="mt-1 flex items-center gap-2 rounded-md border border-surface-border bg-surface px-3 py-2">
-                <input
-                  type="date"
-                  value={newPeriodStart}
-                  onChange={(e) => setNewPeriodStart(e.target.value)}
-                  aria-label="New period start date"
-                  className={`${inputClass} w-[140px] text-xs`}
-                />
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={newPeriodAmount}
-                  onChange={(e) => setNewPeriodAmount(e.target.value)}
-                  aria-label="New period amount"
-                  className={`${inputClass} w-[100px] font-numeric text-xs`}
-                />
+              <div className="mt-1 flex flex-wrap items-end gap-2 rounded-md border border-surface-border bg-surface px-3 py-2">
+                <label className="flex flex-col gap-1">
+                  <span className={labelClass}>From</span>
+                  <input
+                    type="date"
+                    value={newPeriodStart}
+                    onChange={(e) => setNewPeriodStart(e.target.value)}
+                    aria-label="New period start date"
+                    className={`${inputClass} w-[140px] text-xs`}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className={labelClass}>New amount</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={newPeriodAmount}
+                    onChange={(e) => setNewPeriodAmount(e.target.value)}
+                    aria-label="New period amount"
+                    className={`${inputClass} w-[100px] font-numeric text-xs`}
+                  />
+                </label>
+                {periodCanMoveDueDate && (
+                  <label className="flex flex-col gap-1">
+                    <span className={labelClass}>Payment date</span>
+                    <input
+                      type="date"
+                      value={newPeriodDueDate}
+                      onChange={(e) => setNewPeriodDueDate(e.target.value)}
+                      aria-label="New period payment date"
+                      className={`${inputClass} w-[140px] text-xs`}
+                    />
+                  </label>
+                )}
                 <button
                   type="button"
                   disabled={
@@ -432,14 +473,17 @@ export default function ItemForm({
                     parseAmount(newPeriodAmount) <= 0
                   }
                   onClick={async () => {
+                    const movesDueDate =
+                      periodCanMoveDueDate &&
+                      newPeriodDueDate !== "" &&
+                      newPeriodDueDate !== currentDueDateValue;
                     await createPeriod.mutateAsync({
                       startDate: new Date(newPeriodStart),
                       amount: parseAmount(newPeriodAmount),
+                      ...(movesDueDate ? { dueDate: new Date(newPeriodDueDate) } : {}),
                     });
                     invalidateTierItems();
-                    setIsAddingPeriod(false);
-                    setNewPeriodAmount("");
-                    setNewPeriodStart(toDateInputValue(new Date()));
+                    resetNewPeriod();
                   }}
                   className="rounded-md bg-page-accent/20 px-2 py-1 text-xs font-medium text-page-accent hover:bg-page-accent/30 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -447,24 +491,16 @@ export default function ItemForm({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsAddingPeriod(false);
-                    setNewPeriodAmount("");
-                    setNewPeriodStart(toDateInputValue(new Date()));
-                  }}
-                  className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                  onClick={resetNewPeriod}
+                  className="px-1 py-1 text-xs text-text-muted hover:text-text-secondary transition-colors"
                 >
                   Cancel
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setIsAddingPeriod(true)}
-                className="mt-1 rounded-md border border-foreground/20 px-3 py-1 text-xs font-medium text-foreground/60 hover:border-page-accent/40 hover:bg-page-accent/8 hover:text-foreground/80 transition-all duration-150"
-              >
-                + Add period
-              </button>
+              <div className="mt-1">
+                <GhostAddButton onClick={() => setIsAddingPeriod(true)} label="+ Add period" />
+              </div>
             )}
           </div>
         )}

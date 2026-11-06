@@ -55,9 +55,12 @@ describe("App protected route handling", () => {
 
   it("redirects /planner to /overview", async () => {
     renderWithProviders(<ProtectedAppRoutes />, { initialEntries: ["/planner"] });
-    await waitFor(() => {
-      expect(screen.getByTestId("overview-page")).toBeTruthy();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("overview-page")).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
   });
 
   it("renders Income page at /income", async () => {

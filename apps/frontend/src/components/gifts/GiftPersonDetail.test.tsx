@@ -111,4 +111,21 @@ describe("GiftPersonDetail", () => {
       })
     );
   });
+
+  it("offers day + month pickers only for personal-date events", () => {
+    render(<GiftPersonDetail personId="p1" year={2026} onBack={() => {}} readOnly={false} />, {
+      wrapper,
+    });
+    expect(screen.getByTestId("date-fields-e2")).toBeInTheDocument();
+    expect(screen.queryByTestId("date-fields-a1")).toBeNull();
+    expect(screen.getByLabelText("Birthday day")).toBeInTheDocument();
+    expect(screen.getByLabelText("Birthday month")).toBeInTheDocument();
+  });
+
+  it("explains how to resolve a missing personal date", () => {
+    render(<GiftPersonDetail personId="p1" year={2026} onBack={() => {}} readOnly={false} />, {
+      wrapper,
+    });
+    expect(screen.getByText(/pick the day and month below/i)).toBeInTheDocument();
+  });
 });

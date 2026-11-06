@@ -10,6 +10,8 @@ mock.module("../config/database", () => ({
 mock.module("../utils/password", () => ({
   hashPassword: mock(() => Promise.resolve("$2b$10$mockedHashValue")),
   verifyPassword: mock(() => {}),
+  MAX_PASSWORD_LENGTH: 128,
+  TIMING_EQUALIZATION_HASH: "$2b$12$mockedTimingEqualizationHash",
 }));
 
 mock.module("../utils/jwt", () => ({

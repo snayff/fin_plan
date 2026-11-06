@@ -33,7 +33,9 @@ export function MemberManagementSection() {
 
   const members: Member[] = data?.household?.memberProfiles ?? [];
   const currentMember = members.find((m) => m.userId === user?.id);
-  const isOwner = currentMember?.role === "owner";
+  // Member management is a household-level change: owners and admins may do it.
+  // Fine-grained guards (e.g. an admin cannot remove the owner) live in the API.
+  const canManage = currentMember?.role === "owner" || currentMember?.role === "admin";
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
   const createMutation = useCreateMember();
@@ -62,7 +64,8 @@ export function MemberManagementSection() {
     const retYear = retYearStr ? Number.parseInt(retYearStr, 10) : null;
     return {
       name: trimmedName,
-      dateOfBirth: dob ? dob : null,
+      // <input type="date"> yields YYYY-MM-DD; the API expects an ISO datetime.
+      dateOfBirth: dob ? `${dob}T00:00:00.000Z` : null,
       retirementYear: Number.isFinite(retYear) ? retYear : null,
     };
   }
@@ -170,7 +173,8 @@ export function MemberManagementSection() {
     setShowAdd(false);
     setForm({
       name: member.name,
-      dateOfBirth: member.dateOfBirth ?? "",
+      // The API returns an ISO datetime; a date input only accepts YYYY-MM-DD.
+      dateOfBirth: member.dateOfBirth?.slice(0, 10) ?? "",
       retirementYear: member.retirementYear?.toString() ?? "",
     });
   }
@@ -188,7 +192,7 @@ export function MemberManagementSection() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Members</p>
-        {isOwner && !showForm && (
+        {canManage && !showForm && (
           <Button size="sm" variant="outline" onClick={startAdd}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             Add member
@@ -268,7 +272,7 @@ export function MemberManagementSection() {
                 </Badge>
               )}
             </div>
-            {isOwner && editingId !== member.id && (
+            {canManage && editingId !== member.id && (
               <div className="flex items-center gap-3">
                 {!member.userId && (
                   <>

@@ -62,4 +62,43 @@ describe("importService.restoreFromBackup — guards", () => {
       ValidationError
     );
   });
+
+  it("forwards the actor ctx to importHousehold so the restore-overwrite is audited (#123)", async () => {
+    const owner = { id: "m-1", householdId: "hh-1", userId: "u-1", role: "owner" } as any;
+    prismaMock.member.findFirst.mockResolvedValue(owner);
+    prismaMock.importBackup.findUnique.mockResolvedValue({
+      id: "b-1",
+      householdId: "hh-1",
+      expiresAt: new Date(Date.now() + 60_000),
+      data: { backup: "payload" },
+    } as any);
+    prismaMock.importBackup.delete.mockResolvedValue({} as any);
+
+    const ctx = {
+      householdId: "hh-1",
+      actorId: "u-1",
+      actorName: "Owner",
+      ipAddress: "127.0.0.1",
+      userAgent: "test",
+    };
+    const importSpy = mock(() =>
+      Promise.resolve({ success: true, householdId: "hh-1", backupId: "new-backup" })
+    );
+    const original = importService.importHousehold;
+    importService.importHousehold = importSpy as any;
+    try {
+      const result = await importService.restoreFromBackup("hh-1", "u-1", "b-1", ctx);
+      expect(result).toEqual({ success: true, householdId: "hh-1" });
+      // ctx threaded through as the 5th argument (overwrite mode audits it).
+      expect(importSpy).toHaveBeenCalledWith(
+        "hh-1",
+        "u-1",
+        { backup: "payload" },
+        "overwrite",
+        ctx
+      );
+    } finally {
+      importService.importHousehold = original;
+    }
+  });
 });

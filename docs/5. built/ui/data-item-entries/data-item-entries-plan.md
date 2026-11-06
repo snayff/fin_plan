@@ -3,8 +3,8 @@ feature: data-item-entries
 category: ui
 spec: docs/4. planning/data-item-entries/data-item-entries-spec.md
 creation_date: 2026-03-27
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Data Item Entries — Implementation Plan

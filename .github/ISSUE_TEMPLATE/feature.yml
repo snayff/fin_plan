@@ -1,0 +1,53 @@
+name: Feature
+description: Big-ticket work that runs the full pipeline (Design → Spec → Plan → Build → Verify).
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **This repo is public.** Do not include any personal/financial details, identity, or
+        infra/PROD topology. Security weaknesses must be reported as a private
+        [Security Advisory](https://github.com/snayff/fin_plan/security/advisories/new), never here.
+  - type: input
+    id: slug
+    attributes:
+      label: Slug
+      description: Kebab-case identifier. Threads through branch, docs folder, and skill invocations.
+      placeholder: model-interest-inflation-debt
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Generic, product-focused. What is this feature?
+    validations:
+      required: true
+  - type: textarea
+    id: intent
+    attributes:
+      label: Intent
+      description: The original ask, sanitized. Why do we want it?
+    validations:
+      required: true
+  - type: textarea
+    id: pipeline
+    attributes:
+      label: Pipeline
+      description: Tick each box and paste the artifact link as the stage completes.
+      value: |
+        - [ ] **Design** — `/write-design <slug>` → `docs/4. planning/<slug>/design.md`
+        - [ ] **Spec** — `/write-spec <slug>` → `docs/4. planning/<slug>/spec.md`
+        - [ ] **Plan** — `/write-plan <slug>` → `docs/4. planning/<slug>/plan.md`
+        - [ ] **Build** — `/execute-plan <slug>`
+        - [ ] **Verify** — `/verify-implementation <slug>` → moves docs to `docs/5. built/`
+    validations:
+      required: true
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Cross-links to overlapping issues.
+      placeholder: Relates to #12
+    validations:
+      required: false

@@ -102,12 +102,20 @@ interface RunOptions {
   globs?: Record<string, string>;
   /** optional path to dump the computed current coverage (CI artefact). */
   writePath?: string;
+  /**
+   * Packages that must emit lcov this run (CI). Any required package with no
+   * coverage fails the gate instead of being silently skipped.
+   */
+  requiredPackages?: string[];
 }
 
 /**
  * Build the current coverage map by merging each package's lcov reports.
  * A package with no lcov output (e.g. a partial local run of one suite) is
  * omitted rather than reported as 0% so it simply isn't gated this run.
+ *
+ * In a full run (CI) this leniency would hide a broken suite, so callers pass
+ * `requiredPackages` to {@link runCli} — see {@link findMissingCoverage}.
  */
 export function collectCurrentCoverage(
   globs: Record<string, string> = PACKAGE_LCOV_GLOBS
@@ -119,6 +127,19 @@ export function collectCurrentCoverage(
     current[pkg] = { functions: summary.functions, lines: summary.lines };
   }
   return current;
+}
+
+/**
+ * Packages that MUST emit coverage in a full run (CI). A required package with
+ * no lcov means its suite silently failed to run or write coverage — that has
+ * to fail the gate loudly rather than be skipped as if it were a partial local
+ * run. Returns the required packages absent from the collected coverage map.
+ */
+export function findMissingCoverage(
+  current: Record<string, PackageCoverage>,
+  required: string[]
+): string[] {
+  return required.filter((pkg) => !(pkg in current));
 }
 
 function bar(current: number, target: number): string {
@@ -157,6 +178,16 @@ export function runCli(opts: RunOptions): number {
   if (Object.keys(current).length === 0) {
     console.error(
       "no lcov coverage found for any package — run the test suites with --coverage first"
+    );
+    return 1;
+  }
+
+  const missingRequired = findMissingCoverage(current, opts.requiredPackages ?? []);
+  if (missingRequired.length > 0) {
+    console.error(
+      `\n❌ coverage check failed: no lcov emitted for required package(s): ${missingRequired.join(", ")}.\n` +
+        `A required package with no coverage usually means its test suite failed to run or write lcov.\n` +
+        `Re-run the suites with coverage, or update PACKAGE_LCOV_GLOBS if the package was removed.`
     );
     return 1;
   }
@@ -210,6 +241,10 @@ if (import.meta.main) {
     floor: { functions: 50, lines: 70 },
     ratchetTolerancePp: 1,
     writePath: "coverage-current.json",
+    // In CI every package runs, so a missing lcov is a broken suite, not a
+    // partial local run — require all packages so it fails loudly. Locally the
+    // gate stays lenient to allow single-suite runs.
+    requiredPackages: process.env.CI ? Object.keys(PACKAGE_LCOV_GLOBS) : undefined,
   });
   process.exit(exitCode);
 }

@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-associated-control -- TODO(a11y): labels use visual wrapping with aria-label on inputs; needs htmlFor/id refactor */
 import { useState } from "react";
 import type { AccountType } from "@finplan/shared";
 import { useHouseholdMembers, useSettings } from "../../hooks/useSettings.js";
@@ -8,6 +7,10 @@ import { formatCurrency } from "@/utils/format";
 function isoDateOnly(value: string | null | undefined): string {
   if (!value) return "";
   return value.length >= 10 ? value.slice(0, 10) : value;
+}
+
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0]!;
 }
 
 const GROWTH_RATE_SETTING_KEY: Partial<
@@ -53,13 +56,14 @@ interface Props {
     disposedAt: string | null;
     disposalAccountId: string | null;
     initialValue?: number;
+    initialValueDate?: string;
   }) => void;
   onCancel: () => void;
   onDeleteRequest?: () => void;
   onConfirm?: () => void;
 }
 
-const labelClass = "text-text-muted uppercase tracking-[0.07em] text-[10px]";
+const labelClass = "label-chart";
 const inputClass =
   "rounded-md border border-foreground/10 bg-foreground/[0.04] px-3 py-1.5 text-sm text-text-secondary placeholder:italic placeholder:text-text-muted focus:outline-none focus:border-page-accent/60";
 
@@ -97,10 +101,13 @@ export function AccountForm({
   );
   const [isaError, setIsaError] = useState<string | null>(null);
   const [initialValue, setInitialValue] = useState<string>("");
+  const [initialValueDate, setInitialValueDate] = useState<string>(todayISO());
   const [valueFocused, setValueFocused] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   // Disposal state
   const [disposalOpen, setDisposalOpen] = useState<boolean>(initialDisposedAt != null);
@@ -192,8 +199,26 @@ export function AccountForm({
       if (!isNaN(n) && n >= 0) parsedIsaContrib = n;
     }
 
-    if (!valid) return;
+    // A pension is inherently individual — it must belong to exactly one member.
+    if (type === "Pension" && !memberId) {
+      setMemberError("Pension accounts must be assigned to a member");
+      valid = false;
+    } else {
+      setMemberError(null);
+    }
+
     const parsedValue = initialValue.trim() === "" ? undefined : parseValue(initialValue);
+    const hasInitialValue = mode === "add" && parsedValue !== undefined && !isNaN(parsedValue);
+
+    // Initial-value date only applies when an opening value is being recorded.
+    if (hasInitialValue && initialValueDate > todayISO()) {
+      setDateError("Date cannot be in the future");
+      valid = false;
+    } else {
+      setDateError(null);
+    }
+
+    if (!valid) return;
     onSave({
       name: name.trim(),
       memberId,
@@ -203,9 +228,7 @@ export function AccountForm({
       isaYearContribution: parsedIsaContrib,
       disposedAt: dateSet ? disposedAt : null,
       disposalAccountId: acctSet ? disposalAccountId : null,
-      ...(mode === "add" && parsedValue !== undefined && !isNaN(parsedValue)
-        ? { initialValue: parsedValue }
-        : {}),
+      ...(hasInitialValue ? { initialValue: parsedValue, initialValueDate } : {}),
     });
   }
 
@@ -214,9 +237,9 @@ export function AccountForm({
       <div className="grid grid-cols-2 gap-3">
         {/* Name */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>
+          <span className={labelClass}>
             Name <span className="text-text-muted">*</span>
-          </label>
+          </span>
           <input
             type="text"
             placeholder={NAME_PLACEHOLDER[type]}
@@ -226,52 +249,82 @@ export function AccountForm({
               setNameError(null);
             }}
             aria-label="Name"
-            className={[inputClass, nameError ? "border-amber-400/60" : ""].join(" ")}
+            className={[inputClass, nameError ? "border-attention/60" : ""].join(" ")}
           />
-          {nameError && <p className="-mt-0.5 text-xs text-amber-400">{nameError}</p>}
+          {nameError && <p className="-mt-0.5 text-xs text-attention">{nameError}</p>}
         </div>
 
-        {/* Current value (add mode only) */}
+        {/* Current value + as-of date (add mode only) */}
         {mode === "add" && (
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className={labelClass}>Current value</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="£0.00"
-              value={displayValue}
-              onChange={(e) => setInitialValue(e.target.value)}
-              onFocus={() => setValueFocused(true)}
-              onBlur={() => setValueFocused(false)}
-              aria-label="Current value"
-              className={[inputClass, "font-numeric"].join(" ")}
-            />
-            <p className="text-[11px] text-text-muted">Optional — leave blank to record later.</p>
-          </div>
+          <>
+            <div className="flex flex-col gap-1">
+              <span className={labelClass}>Current value</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="£0.00"
+                value={displayValue}
+                onChange={(e) => setInitialValue(e.target.value)}
+                onFocus={() => setValueFocused(true)}
+                onBlur={() => setValueFocused(false)}
+                aria-label="Current value"
+                className={[inputClass, "font-numeric"].join(" ")}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className={labelClass}>As of</span>
+              <input
+                type="date"
+                max={todayISO()}
+                value={initialValueDate}
+                onChange={(e) => {
+                  setInitialValueDate(e.target.value);
+                  setDateError(null);
+                }}
+                aria-label="Initial value date"
+                className={[inputClass, dateError ? "border-attention/60" : ""].join(" ")}
+              />
+              {dateError && <p className="-mt-0.5 text-xs text-attention">{dateError}</p>}
+            </div>
+            <p className="col-span-2 -mt-1 text-[11px] text-text-muted">
+              Optional — leave blank to record later.
+            </p>
+          </>
         )}
 
         {/* Assigned to */}
         <div className="col-span-2 flex flex-col gap-1">
-          <label className={labelClass}>Assigned to</label>
+          <span className={labelClass}>
+            Assigned to {type === "Pension" && <span className="text-text-muted">*</span>}
+          </span>
           <select
             value={memberId ?? ""}
-            onChange={(e) => setMemberId(e.target.value || null)}
+            onChange={(e) => {
+              setMemberId(e.target.value || null);
+              setMemberError(null);
+            }}
             aria-label="Assigned to"
-            className={inputClass}
+            className={[inputClass, memberError ? "border-attention/60" : ""].join(" ")}
           >
-            <option value="">Household</option>
+            <option value="">{type === "Pension" ? "Select a member…" : "Household"}</option>
             {members?.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.firstName}
               </option>
             ))}
           </select>
+          {memberError && <p className="-mt-0.5 text-xs text-attention">{memberError}</p>}
+          {!memberError && mode === "edit" && type === "Pension" && initialMemberId == null && (
+            <p className="-mt-0.5 text-xs text-text-muted">
+              A pension belongs to a single person — please choose the member who owns it.
+            </p>
+          )}
         </div>
 
         {/* Growth rate override */}
         {settingKey && (
           <div className="col-span-2 flex flex-col gap-1">
-            <label className={labelClass}>Growth rate override (%)</label>
+            <span className={labelClass}>Growth rate override (%)</span>
             <input
               type="number"
               inputMode="decimal"
@@ -285,10 +338,10 @@ export function AccountForm({
               }}
               placeholder={rateLabel}
               aria-label="Growth rate override"
-              className={[inputClass, rateError ? "border-amber-400/60" : ""].join(" ")}
+              className={[inputClass, rateError ? "border-attention/60" : ""].join(" ")}
             />
             {rateError ? (
-              <p className="-mt-0.5 text-xs text-amber-400">{rateError}</p>
+              <p className="-mt-0.5 text-xs text-attention">{rateError}</p>
             ) : (
               <p className="text-[11px] text-text-muted">
                 Leave blank to use household default ({rateLabel})
@@ -300,7 +353,7 @@ export function AccountForm({
         {type === "Savings" && (
           <>
             <div className="col-span-2 flex flex-col gap-1">
-              <label className={labelClass}>Monthly contribution limit (optional)</label>
+              <span className={labelClass}>Monthly contribution limit (optional)</span>
               <input
                 type="number"
                 inputMode="decimal"
@@ -316,11 +369,11 @@ export function AccountForm({
                 className={[
                   inputClass,
                   "font-numeric",
-                  limitError ? "border-amber-400/60" : "",
+                  limitError ? "border-attention/60" : "",
                 ].join(" ")}
               />
               {limitError ? (
-                <p className="-mt-0.5 text-xs text-amber-400">{limitError}</p>
+                <p className="-mt-0.5 text-xs text-attention">{limitError}</p>
               ) : (
                 <p className="text-[11px] text-text-muted">
                   The most this account lets you pay in each month. finplan uses this to flag spare
@@ -337,11 +390,12 @@ export function AccountForm({
                   setIsISA(e.target.checked);
                   setIsaError(null);
                 }}
+                aria-label="Is ISA?"
               />
               <label htmlFor="isISA" className="text-xs text-text-secondary">
                 Is ISA?
               </label>
-              {isaError && <span className="ml-2 text-xs text-amber-400">{isaError}</span>}
+              {isaError && <span className="ml-2 text-xs text-attention">{isaError}</span>}
             </div>
             {isISA && (
               <div className="col-span-2 flex flex-col gap-1">
@@ -391,7 +445,7 @@ export function AccountForm({
           {disposalOpen && (
             <div className="grid grid-cols-2 gap-3 pl-1">
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Disposal date</label>
+                <span className={labelClass}>Disposal date</span>
                 <input
                   type="date"
                   value={disposedAt}
@@ -404,7 +458,7 @@ export function AccountForm({
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>Proceeds go to</label>
+                <span className={labelClass}>Proceeds go to</span>
                 <select
                   value={disposalAccountId ?? ""}
                   onChange={(e) => {
@@ -423,7 +477,7 @@ export function AccountForm({
                 </select>
               </div>
               {disposalError && (
-                <p className="col-span-2 -mt-1 text-xs text-amber-400">{disposalError}</p>
+                <p className="col-span-2 -mt-1 text-xs text-attention">{disposalError}</p>
               )}
             </div>
           )}

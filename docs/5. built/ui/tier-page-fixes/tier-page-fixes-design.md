@@ -2,8 +2,8 @@
 feature: tier-page-fixes
 status: approved
 creation_date: 2026-03-27
-status: backlog
-implemented_date:
+status: implemented
+implemented_date: 2026-07-05
 ---
 
 # Tier Page Fixes — Design

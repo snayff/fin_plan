@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import {
+  createAssetSchema,
   createAccountSchema,
   updateAccountSchema,
   isaAllowanceSummarySchema,
@@ -63,6 +64,41 @@ describe("Account ISA validation", () => {
   });
 });
 
+describe("Account Pension validation", () => {
+  it("accepts Pension type with a memberId", () => {
+    const r = createAccountSchema.safeParse({
+      name: "Vanguard SIPP",
+      type: "Pension",
+      memberId: "m1",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects Pension type with memberId null", () => {
+    const r = createAccountSchema.safeParse({
+      name: "Vanguard SIPP",
+      type: "Pension",
+      memberId: null,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects Pension type with memberId omitted", () => {
+    const r = createAccountSchema.safeParse({
+      name: "Vanguard SIPP",
+      type: "Pension",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts non-Pension types without a member", () => {
+    expect(createAccountSchema.safeParse({ name: "Barclays", type: "Current" }).success).toBe(true);
+    expect(
+      createAccountSchema.safeParse({ name: "Marcus", type: "Savings", memberId: null }).success
+    ).toBe(true);
+  });
+});
+
 describe("createAccountSchema — monthlyContributionLimit", () => {
   it("accepts a non-negative number", () => {
     const r = createAccountSchema.safeParse({
@@ -94,6 +130,57 @@ describe("updateAccountSchema — monthlyContributionLimit", () => {
   it("accepts setting and clearing the limit", () => {
     expect(updateAccountSchema.safeParse({ monthlyContributionLimit: 300 }).success).toBe(true);
     expect(updateAccountSchema.safeParse({ monthlyContributionLimit: null }).success).toBe(true);
+  });
+});
+
+describe("createAssetSchema / createAccountSchema — initialValueDate", () => {
+  it("asset: accepts an optional initialValueDate in YYYY-MM-DD form", () => {
+    const r = createAssetSchema.safeParse({
+      name: "Family Home",
+      type: "Property",
+      initialValue: 250000,
+      initialValueDate: "2026-01-15",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("asset: accepts omission of initialValueDate (no behaviour change)", () => {
+    const r = createAssetSchema.safeParse({
+      name: "Family Home",
+      type: "Property",
+      initialValue: 250000,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("asset: rejects a non-ISO initialValueDate", () => {
+    const r = createAssetSchema.safeParse({
+      name: "Family Home",
+      type: "Property",
+      initialValue: 250000,
+      initialValueDate: "15/01/2026",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("account: accepts an optional initialValueDate in YYYY-MM-DD form", () => {
+    const r = createAccountSchema.safeParse({
+      name: "HSBC Current",
+      type: "Current",
+      initialValue: 1500,
+      initialValueDate: "2026-01-15",
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("account: rejects a non-ISO initialValueDate", () => {
+    const r = createAccountSchema.safeParse({
+      name: "HSBC Current",
+      type: "Current",
+      initialValue: 1500,
+      initialValueDate: "not-a-date",
+    });
+    expect(r.success).toBe(false);
   });
 });
 
