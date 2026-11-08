@@ -49,7 +49,7 @@ export function TierSummaryCard({ tier, amount, sparklineData }: TierSummaryCard
       <p
         className="text-center mb-3 tabular-nums"
         style={{
-          color: "hsl(var(--foreground) / 0.92)",
+          color: "hsl(var(--foreground))",
           fontSize: "19px",
           fontFamily: "'JetBrains Mono', monospace",
           fontWeight: 500,
