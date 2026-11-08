@@ -52,11 +52,16 @@ or external SaaS is involved.
 
 The `backup` service in `docker-compose.yml`:
 
-- Uses `postgres:16-alpine` purely for the `pg_dump`/`pg_restore` client tools.
+- Is built from `apps/backend/scripts/backup/Dockerfile`, which extends
+  `postgres:16-alpine` purely for the `pg_dump`/`pg_restore` client tools.
 - **Exposes no ports** and opens no listener.
 - `depends_on: migrate` so it starts after the schema is in place.
-- Mounts the `finplan_backups` named volume at `/backups` and the repo's
-  backup scripts read-only at `/opt/backup`.
+- Bakes the backup scripts into the image at `/opt/backup` (read-only), and
+  mounts the `finplan_backups` named volume at `/backups`. The scripts are
+  deliberately **not** bind-mounted from the repo: Coolify builds from a clone
+  inside its helper container, so a repo-relative bind mount resolves to an
+  empty host directory and the container crash-loops. Script changes therefore
+  need a rebuild (any redeploy does this).
 - Reads the app's `DATABASE_URL`; `backup.sh` decomposes it into `PG*` vars.
 - Runs `entrypoint.sh`, which takes **one backup immediately on start** (so a
   fresh deploy has a recovery point right away), then loops:
