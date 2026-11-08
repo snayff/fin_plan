@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 import { assetsService } from "../services/assets.service.js";
+import { snapshotService } from "../services/snapshot.service.js";
 import { actorCtx } from "../lib/actor-ctx.js";
 import {
   createAssetSchema,
@@ -17,6 +18,19 @@ import {
 
 export async function assetsRoutes(fastify: FastifyInstance) {
   const pre = { preHandler: [authMiddleware] };
+
+  // Asset/account mutations change net worth, so refresh today's auto-snapshot
+  // (mirrors the waterfall routes). Without this the Overview net-worth
+  // sparkline only moved when a waterfall item changed.
+  fastify.addHook("onResponse", async (request, reply) => {
+    if (
+      ["POST", "PATCH", "DELETE"].includes(request.method) &&
+      reply.statusCode < 300 &&
+      request.householdId
+    ) {
+      snapshotService.ensureTodayAutoSnapshot(request.householdId).catch(() => {});
+    }
+  });
 
   // Summary
   fastify.get("/summary", pre, async (req, reply) => {

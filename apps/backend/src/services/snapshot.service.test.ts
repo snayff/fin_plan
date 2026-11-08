@@ -20,9 +20,10 @@ mock.module("./waterfall.service.js", () => ({
   },
 }));
 
+let mockGrandTotal = 0;
 mock.module("./assets.service.js", () => ({
   assetsService: {
-    getSummary: async () => ({ assetTotals: {}, accountTotals: {}, grandTotal: 0 }),
+    getSummary: async () => ({ assetTotals: {}, accountTotals: {}, grandTotal: mockGrandTotal }),
   },
 }));
 
@@ -36,6 +37,7 @@ const testCtx = {
 
 beforeEach(() => {
   resetPrismaMocks();
+  mockGrandTotal = 0;
   prismaMock.auditLog.create.mockResolvedValue({} as any);
 });
 
@@ -288,15 +290,51 @@ describe("snapshotService.getFinancialSummary", () => {
 
     const result = await snapshotService.getFinancialSummary("hh-1");
 
-    expect(result.sparklines.income).toEqual([
+    // Snapshot points come first, oldest-first; the live point is appended last.
+    expect(result.sparklines.income.slice(0, 3)).toEqual([
       { date: "2026-01-01", value: 1000 },
       { date: "2026-02-01", value: 2000 },
       { date: "2026-03-01", value: 3000 },
     ]);
+    // grandTotal 0 → netWorth null → no live point appended.
     expect(result.sparklines.netWorth).toEqual([
       { date: "2026-01-01", value: 100 },
       { date: "2026-02-01", value: 200 },
       { date: "2026-03-01", value: 300 },
+    ]);
+  });
+
+  it("ends each sparkline on the live headline value when snapshots are stale", async () => {
+    // Regression: asset edits didn't snapshot, so the net-worth sparkline
+    // showed an old value that disagreed with the headline figure.
+    mockGrandTotal = 12345.67;
+    prismaMock.snapshot.findMany.mockResolvedValue([
+      { data: { assetsTotal: 20000 }, createdAt: new Date("2026-08-01T00:00:00Z") },
+    ] as any);
+
+    const result = await snapshotService.getFinancialSummary("hh-1");
+    const today = new Date().toISOString().slice(0, 10);
+
+    expect(result.current.netWorth).toBe(12345.67);
+    expect(result.sparklines.netWorth).toEqual([
+      { date: "2026-08-01", value: 20000 },
+      { date: today, value: 12345.67 },
+    ]);
+  });
+
+  it("replaces today's snapshot point with the live value rather than duplicating it", async () => {
+    mockGrandTotal = 500;
+    const today = new Date().toISOString().slice(0, 10);
+    prismaMock.snapshot.findMany.mockResolvedValue([
+      { data: { assetsTotal: 450 }, createdAt: new Date(`${today}T00:00:00Z`) },
+      { data: { assetsTotal: 400 }, createdAt: new Date("2026-01-01T00:00:00Z") },
+    ] as any);
+
+    const result = await snapshotService.getFinancialSummary("hh-1");
+
+    expect(result.sparklines.netWorth).toEqual([
+      { date: "2026-01-01", value: 400 },
+      { date: today, value: 500 },
     ]);
   });
 });

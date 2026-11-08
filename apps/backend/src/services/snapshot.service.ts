@@ -62,6 +62,20 @@ function buildTierSeries(snapshots: Array<{ data: unknown; createdAt: Date }>) {
   return { income, committed, discretionary, surplus, netWorth };
 }
 
+// Anchor a sparkline series to the live headline value: replace today's point
+// (or append one) so the newest point always matches the figure shown above
+// it, even when no snapshot was taken after the most recent change.
+function withLivePoint(
+  series: Array<{ date: string; value: number }>,
+  value: number | null,
+  today: string
+) {
+  if (value === null) return series;
+  const last = series[series.length - 1];
+  const base = last?.date === today ? series.slice(0, -1) : series;
+  return [...base, { date: today, value }];
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const snapshotService = {
@@ -209,21 +223,24 @@ export const snapshotService = {
     const netWorth: number | null = assets.grandTotal > 0 ? assets.grandTotal : null;
     const autoSnapshots = [...autoSnapshotsDesc].reverse();
     const tierSeries = buildTierSeries(autoSnapshots);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const current = {
+      netWorth,
+      income: summary.income.total,
+      committed: toGBP(summary.committed.monthlyTotal + summary.committed.monthlyAvg12),
+      discretionary: summary.discretionary.total,
+      surplus: summary.surplus.amount,
+    };
 
     return FinancialSummarySchema.parse({
-      current: {
-        netWorth,
-        income: summary.income.total,
-        committed: toGBP(summary.committed.monthlyTotal + summary.committed.monthlyAvg12),
-        discretionary: summary.discretionary.total,
-        surplus: summary.surplus.amount,
-      },
+      current,
       sparklines: {
-        netWorth: tierSeries.netWorth,
-        income: tierSeries.income,
-        committed: tierSeries.committed,
-        discretionary: tierSeries.discretionary,
-        surplus: tierSeries.surplus,
+        netWorth: withLivePoint(tierSeries.netWorth, current.netWorth, today),
+        income: withLivePoint(tierSeries.income, current.income, today),
+        committed: withLivePoint(tierSeries.committed, current.committed, today),
+        discretionary: withLivePoint(tierSeries.discretionary, current.discretionary, today),
+        surplus: withLivePoint(tierSeries.surplus, current.surplus, today),
       },
     });
   },
