@@ -6,6 +6,36 @@ Finplan deploys to a self-hosted Coolify instance via GitHub Actions. Deployment
 
 Concrete deployment values (server address, SSH user, internal service ports, webhook URLs, `authorized_keys` contents) are **not** stored in this repository — it is public. They live in the private deployment runbook alongside the other infrastructure credentials. Placeholders such as `<DEPLOY_USER>` below refer to entries in that runbook.
 
+## The `production` Branch
+
+Coolify clones the `production` branch on every deploy. If the branch is missing, the deploy fails at `git clone` with exit code 128.
+
+- `production` is a **protected branch** and must never be deleted. The repo has "automatically delete head branches" enabled, and only branch protection exempts a branch from it.
+- **Never open a PR with `production` as its head branch** (e.g. to sync a release back into `stage`). Cut a temporary branch from it instead, so the temporary branch is what gets deleted on merge:
+
+  ```bash
+  git push origin origin/production:refs/heads/sync/production-to-stage
+  ```
+
+## Required Coolify Configuration
+
+`docker-compose.yml` relies on settings that live in Coolify, not in the repo. Check them whenever the compose file changes how a service is routed or configured.
+
+**Environment variables** (Coolify → application → Environment Variables):
+
+| Variable                                           | Notes                                                                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                     | Used by `migrate`, `backend` and `backup`                                                                                                                                       |
+| `JWT_SECRET`, `JWT_REFRESH_SECRET`                 | Backend auth                                                                                                                                                                    |
+| `COOKIE_SECRET`, `CSRF_SECRET`                     | Backend cookies / CSRF                                                                                                                                                          |
+| `CORS_ORIGIN`                                      | Full origin including scheme, e.g. `https://example.com`                                                                                                                        |
+| `FRONTEND_HOST`                                    | **Bare hostname** used in the frontend's Traefik `Host()` rule, e.g. `example.com` — no scheme, no trailing slash. If it is wrong or missing the proxy returns 503 for the site |
+| `BACKUP_RETENTION_DAYS`, `BACKUP_INTERVAL_SECONDS` | Optional; defaults in `docker-compose.yml`                                                                                                                                      |
+
+**Domains** (Coolify → application → Domains): the frontend domain's protocol and the proxy/TLS setup depend on how traffic reaches the host. The correct settings are recorded in the private deployment runbook — check it before changing domains, as the wrong protocol produces a redirect loop.
+
+**Repo-relative bind mounts don't work.** Coolify builds from a clone inside its helper container, so a mount like `./some/path:/target` resolves to an empty directory on the host. Bake files into the image with a Dockerfile instead (see the `backup` service).
+
 ## Why SSH, Not Direct Webhook
 
 Coolify's webhook API listens on an internal-only port that is firewalled from external access. GitHub Actions runners cannot reach it directly — a `curl --fail "$COOLIFY_WEBHOOK_URL"` call will time out with `curl: (28)`.

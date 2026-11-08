@@ -70,11 +70,14 @@ services:
       - "traefik.http.services.finplan-frontend.loadbalancer.server.port=3000"
 
   # Scheduled database backup — runs pg_dump on a sleep-loop schedule.
-  # Uses postgres:16-alpine purely for the client tools (pg_dump/pg_restore);
+  # Built on postgres:16-alpine purely for the client tools (pg_dump/pg_restore);
   # it never opens a listener and exposes no ports. Dumps land in the named
   # `finplan_backups` volume. See docs/3. architecture/system/backup-recovery.md.
+  # Scripts are baked into the image (not bind-mounted): Coolify builds from a
+  # clone in its helper container, so repo-relative bind mounts arrive empty.
   backup:
-    image: postgres:16-alpine
+    build:
+      context: apps/backend/scripts/backup
     depends_on:
       - migrate
     environment:
@@ -87,9 +90,6 @@ services:
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
     volumes:
       - finplan_backups:/backups
-      # Backup/restore scripts are mounted read-only from the repo.
-      - ./apps/backend/scripts/backup:/opt/backup:ro
-    entrypoint: ["bash", "/opt/backup/entrypoint.sh"]
     networks:
       - coolify
     restart: unless-stopped
