@@ -146,7 +146,7 @@ export function WaterfallSankey({
           x={COL_LEFT}
           y={16}
           textAnchor="middle"
-          fill="hsl(var(--foreground) / 0.5)"
+          fill="hsl(var(--text-secondary))"
           fontSize="11"
           fontFamily="var(--font-heading, 'Outfit', sans-serif)"
           fontWeight={600}
@@ -158,7 +158,7 @@ export function WaterfallSankey({
           x={COL_RIGHT}
           y={16}
           textAnchor="middle"
-          fill="hsl(var(--foreground) / 0.5)"
+          fill="hsl(var(--text-secondary))"
           fontSize="11"
           fontFamily="var(--font-heading, 'Outfit', sans-serif)"
           fontWeight={600}
@@ -267,7 +267,7 @@ export function WaterfallSankey({
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none px-3 py-1.5 rounded-lg"
           style={{
             background: "hsl(var(--surface-overlay) / 0.95)",
-            border: "1px solid hsl(var(--foreground) / 0.12)",
+            border: "1px solid color-mix(in srgb, hsl(var(--foreground)) 13%, transparent)",
             backdropFilter: "blur(8px)",
           }}
         >
