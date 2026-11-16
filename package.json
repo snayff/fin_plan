@@ -51,7 +51,7 @@
   "overrides": {
     "ws": "^8.21.0",
     "flatted": "^3.4.4",
-    "brace-expansion": "^1.1.21",
+    "brace-expansion": "^1.1.22",
     "picomatch": "^2.3.2",
     "@babel/runtime": "^7.29.10",
     "qs": "^6.16.1",
